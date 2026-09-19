@@ -18,15 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install uv
+      - name: Set up uv and Python
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
           python-version: "3.12"
 
       - name: Install dependencies
@@ -35,4 +30,4 @@ jobs:
       - name: Run test suite
         env:
           HF_HUB_OFFLINE: "1"
-        run: uv run --no-project python -m unittest discover -s tests -p "test_*.py"
+        run: uv run python -m unittest discover -s tests -p "test_*.py"
