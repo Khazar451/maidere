@@ -4,8 +4,9 @@ version = "0.1.0"
 description = "A fully free, self-hosted autonomous AI agent"
 readme = "README.md"
 authors = [
-    { name = "Khazar451", email = "https://github.com/Khazar451" }
+    { name = "Khazar451", email = "emperorkhazar1299@gmail.com" }
 ]
+urls = { Repository = "https://github.com/Khazar451/maidere" }
 license = { text = "MIT" }
 requires-python = ">=3.12"
 dependencies = [
