@@ -172,3 +172,4 @@ For the exhaustive technical specification, hardware budget allocation matrix, s
 ## License
 
 MIT License — free for personal, educational, and commercial use.
+
