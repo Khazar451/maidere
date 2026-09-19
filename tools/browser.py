@@ -10,7 +10,10 @@ Pattern #4 Guarantees:
 
 from typing import Any
 import structlog
-from playwright.async_api import async_playwright
+try:
+    from playwright.async_api import async_playwright
+except ImportError:
+    async_playwright = None
 
 from tools.base import BaseTool
 
@@ -30,6 +33,9 @@ async def browse_url(url: str, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> str:
     target_url = url.strip()
     if not target_url.startswith(("http://", "https://")):
         target_url = f"https://{target_url}"
+
+    if async_playwright is None:
+        return "Error: Playwright is not installed. Install with 'pip install playwright' to enable browser scraping."
 
     try:
         async with async_playwright() as p:
