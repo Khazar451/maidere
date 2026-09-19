@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     obsidian_vault_path: str = ""
     obsidian_vault_name: str = ""
 
+    # GitHub Integration
+    github_token: str = ""
+    github_default_repo: str = "Khazar451/maidere"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

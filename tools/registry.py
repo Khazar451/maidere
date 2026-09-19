@@ -12,6 +12,7 @@ from tools.browser import BrowserTool
 from tools.code_runner import CodeRunnerTool
 from tools.delegate import AgentTool, DelegateTaskTool
 from tools.filesystem import ListDirTool, ReadFileTool, WriteFileTool
+from tools.github import GitHubTool
 from tools.obsidian import ObsidianTool
 from tools.scheduler import SchedulerTool
 from tools.shell import ShellTool
@@ -29,6 +30,7 @@ _TOOLS: dict[str, BaseTool] = {
     "Agent": _agent_instance,
     "web_search": WebSearchTool(),
     "browser": BrowserTool(),
+    "github": GitHubTool(),
     "obsidian": ObsidianTool(),
     "read_file": ReadFileTool(),
     "write_file": WriteFileTool(),
@@ -50,6 +52,9 @@ _ALIASES: dict[str, str] = {
     "deep_research": "Agent",
     "search_web": "web_search",
     "browse_url": "browser",
+    "gh": "github",
+    "github_action": "github",
+    "github_repo": "github",
     "execute_command": "shell",
     "run_code": "code_runner",
     "obsidian_write_note": "obsidian",
