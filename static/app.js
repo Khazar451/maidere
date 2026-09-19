@@ -466,7 +466,7 @@
               type="text"
               id="nickname-input"
               class="nickname-input"
-              placeholder="Enter your nickname (e.g. Khazar)..."
+              placeholder="Enter your nickname (e.g. user)..."
               maxlength="32"
               autofocus
             />
@@ -544,7 +544,7 @@
             type="text"
             id="modal-nickname-input"
             value="${escapeHTML(state.username || '')}"
-            placeholder="e.g. Khazar"
+            placeholder="e.g. user"
             maxlength="32"
             style="width:100%; padding:9px 12px; background:#18181b; border:1px solid #27272a; border-radius:6px; color:#fff; font-size:13px;"
           />
