@@ -34,8 +34,26 @@ from tools.registry import execute_tool, get_orchestrator_ollama_schemas, get_to
 
 logger = structlog.get_logger()
 
-SYSTEM_PROMPT = """\
+
+class SystemPromptTemplate(str):
+    """String template for system prompt that gracefully defaults missing placeholders."""
+
+    def format(self, *args, **kwargs) -> str:
+        kwargs.setdefault("username", "User")
+        kwargs.setdefault("memory_context", "No relevant memories found.")
+        now = datetime.now()
+        kwargs.setdefault("current_date", now.strftime("%A, %B %d, %Y"))
+        kwargs.setdefault("current_year", str(now.year))
+        return super().format(*args, **kwargs)
+
+
+SYSTEM_PROMPT = SystemPromptTemplate(
+    """\
 You are Maidere, an autonomous AI assistant running locally on the user's machine.
+
+User Identity & Interaction:
+- You are interacting with {username}.
+- Always address the user by their chosen nickname ({username}) and communicate with them naturally, respectfully, and personally according to this name.
 
 Temporal Real-World Anchor:
 - Current Real-World Date: {current_date}
@@ -85,6 +103,7 @@ Core Operational Principles & Governance:
 Relevant context, memories, and active skills:
 {memory_context}\
 """
+)
 
 
 
@@ -263,7 +282,9 @@ def get_system_prompt() -> str:
 
 def set_custom_system_prompt(text: str | None) -> None:
     global _custom_system_prompt
-    _custom_system_prompt = text.strip() if text and text.strip() else None
+    _custom_system_prompt = (
+        SystemPromptTemplate(text.strip()) if text and text.strip() else None
+    )
 
 
 def register_stream_callback(thread_id: str, callback: Any) -> None:
@@ -721,15 +742,23 @@ async def think_node(state: AgentState) -> dict:
     current_date = now.strftime("%A, %B %d, %Y")
     current_year = str(now.year)
     memory_context = state.get("memory_context", "No relevant memories found.")
+    username = state.get("username", "User") or "User"
     base_prompt = get_system_prompt()
     try:
         system_content = base_prompt.format(
             memory_context=memory_context,
             current_date=current_date,
             current_year=current_year,
+            username=username,
         )
     except KeyError:
-        system_content = base_prompt.format(memory_context=memory_context)
+        try:
+            system_content = base_prompt.format(
+                memory_context=memory_context,
+                username=username,
+            )
+        except KeyError:
+            system_content = base_prompt.format(memory_context=memory_context)
 
     # Build message history conforming to Ollama chat format with turn-scoping.
     # Intermediate ToolMessages from prior completed turns are stripped from the active context

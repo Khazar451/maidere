@@ -48,6 +48,7 @@
     activeWs: null,
     attachedFiles: [],
     threadSearchFilter: '',
+    username: localStorage.getItem('maidere_username') || '',
   };
 
   // --- DOM Elements Cache ---
@@ -97,6 +98,14 @@
     el.commandPaletteOverlay = document.getElementById('command-palette-overlay');
     el.paletteSearchInput = document.getElementById('palette-search-input');
     el.paletteResults = document.getElementById('palette-results');
+    el.btnSwitchUser = document.getElementById('btn-switch-user');
+    el.sidebarUserName = document.getElementById('sidebar-user-name');
+  }
+
+  function updateSidebarUser() {
+    if (el.sidebarUserName) {
+      el.sidebarUserName.textContent = state.username || 'Set Nickname';
+    }
   }
 
   function updateModeUI() {
@@ -435,44 +444,148 @@
     return pill;
   }
 
-  // --- Welcome Screen with Welcome, Khagan ---
+  // --- Welcome Screen & Passwordless User Nickname Login ---
   function renderWelcomeScreen() {
     if (!el.chatTimeline) return;
     el.chatTimeline.innerHTML = '';
-    const greeting = "Welcome, Khagan";
 
     const welcomeDiv = document.createElement('div');
     welcomeDiv.className = 'welcome-empty-state';
     welcomeDiv.id = 'welcome-empty-state';
 
-    welcomeDiv.innerHTML = `
-      <h1 class="welcome-heading">${escapeHTML(greeting)}</h1>
-      <p class="welcome-subheading">Maidere Autonomous Agent • Ready for deep research, coding, and Obsidian notes.</p>
+    if (!state.username) {
+      // First-time or switched-out user: prompt for nickname
+      welcomeDiv.innerHTML = `
+        <div class="login-badge-tag">[IDENTITY]</div>
+        <h1 class="welcome-heading">Welcome to Maidere</h1>
+        <p class="welcome-subheading">Who are you? Enter a nickname so Maidere knows who she is talking to.</p>
 
-      
-      <div class="welcome-action-cards">
-        <div class="welcome-card" onclick="window.maidereInsertPrompt('Conduct a deep research on ')">
-          <div class="card-icon">[RESEARCH]</div>
-          <div class="card-title">Deep Research</div>
-          <div class="card-desc">Multi-query search, doc scraping & structured Obsidian note synthesis</div>
+        <form class="nickname-form" onsubmit="event.preventDefault(); window.maidereSetNickname();">
+          <div class="nickname-input-wrap">
+            <input
+              type="text"
+              id="nickname-input"
+              class="nickname-input"
+              placeholder="Enter your nickname (e.g. Khazar)..."
+              maxlength="32"
+              autofocus
+            />
+            <button type="submit" id="btn-set-nickname" class="btn-primary nickname-btn">Continue →</button>
+          </div>
+        </form>
+      `;
+    } else {
+      // Recognized user: personalize greeting with their nickname
+      const greeting = `Welcome, ${state.username}`;
+      welcomeDiv.innerHTML = `
+        <h1 class="welcome-heading">${escapeHTML(greeting)}</h1>
+        <p class="welcome-subheading">Maidere Autonomous Agent • Ready for deep research, coding, and Obsidian notes.</p>
+
+        <div class="welcome-user-bar">
+          <span class="welcome-user-tag">User: <strong>${escapeHTML(state.username)}</strong></span>
+          <button type="button" class="welcome-switch-btn" onclick="window.maidereSwitchUser()" title="Change nickname or switch user">[Switch User]</button>
         </div>
 
-        <div class="welcome-card" onclick="window.maidereInsertPrompt('Write a structured note in my Obsidian vault about ')">
-          <div class="card-icon">[NOTE]</div>
-          <div class="card-title">Obsidian Notes</div>
-          <div class="card-desc">Create, format, and organize notes with frontmatter in your local vault</div>
-        </div>
+        <div class="welcome-action-cards">
+          <div class="welcome-card" onclick="window.maidereInsertPrompt('Conduct a deep research on ')">
+            <div class="card-icon">[RESEARCH]</div>
+            <div class="card-title">Deep Research</div>
+            <div class="card-desc">Multi-query search, doc scraping & structured Obsidian note synthesis</div>
+          </div>
 
-        <div class="welcome-card" onclick="window.maidereInsertPrompt('Write and run Python code to ')">
-          <div class="card-icon">[EXEC]</div>
-          <div class="card-title">Run Code & Shell</div>
-          <div class="card-desc">Execute scripts, shell commands, and workspace tasks locally</div>
+          <div class="welcome-card" onclick="window.maidereInsertPrompt('Write a structured note in my Obsidian vault about ')">
+            <div class="card-icon">[NOTE]</div>
+            <div class="card-title">Obsidian Notes</div>
+            <div class="card-desc">Create, format, and organize notes with frontmatter in your local vault</div>
+          </div>
+
+          <div class="welcome-card" onclick="window.maidereInsertPrompt('Write and run Python code to ')">
+            <div class="card-icon">[EXEC]</div>
+            <div class="card-title">Run Code & Shell</div>
+            <div class="card-desc">Execute scripts, shell commands, and workspace tasks locally</div>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    }
 
     el.chatTimeline.appendChild(welcomeDiv);
   }
+
+  window.maidereSetNickname = async function (explicitName) {
+    const input = document.getElementById('nickname-input');
+    const val = (explicitName !== undefined ? explicitName : (input ? input.value : '')).trim();
+    if (!val) {
+      if (input) input.focus();
+      return;
+    }
+    state.username = val;
+    localStorage.setItem('maidere_username', val);
+    updateSidebarUser();
+    try {
+      await fetch('/user/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: val }),
+      });
+    } catch (_) {}
+    renderWelcomeScreen();
+  };
+
+  window.maidereSwitchUser = function () {
+    showModal(
+      'Switch User / Nickname',
+      `<div style="display:flex; flex-direction:column; gap:14px;">
+        <p style="color:var(--text-secondary); font-size:13px; margin:0;">
+          Enter a nickname. Maidere will converse with you according to this name. No passwords needed.
+        </p>
+        <div>
+          <label style="display:block; margin-bottom:6px; font-weight:600; font-size:12px;">Nickname:</label>
+          <input
+            type="text"
+            id="modal-nickname-input"
+            value="${escapeHTML(state.username || '')}"
+            placeholder="e.g. Khazar"
+            maxlength="32"
+            style="width:100%; padding:9px 12px; background:#18181b; border:1px solid #27272a; border-radius:6px; color:#fff; font-size:13px;"
+          />
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn-secondary" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button>
+          <button class="btn-primary" id="modal-save-nickname-btn">Save Nickname</button>
+        </div>
+      </div>`
+    );
+
+    const saveBtn = document.getElementById('modal-save-nickname-btn');
+    const nameInput = document.getElementById('modal-nickname-input');
+    if (nameInput) {
+      nameInput.focus();
+      nameInput.select();
+      nameInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          saveBtn.click();
+        }
+      };
+    }
+    if (saveBtn) {
+      saveBtn.onclick = async () => {
+        const newName = nameInput ? nameInput.value.trim() : '';
+        if (!newName) return;
+        state.username = newName;
+        localStorage.setItem('maidere_username', newName);
+        updateSidebarUser();
+        try {
+          await fetch('/user/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: newName }),
+          });
+        } catch (_) {}
+        closeModal();
+        renderWelcomeScreen();
+      };
+    }
+  };
 
   // --- Rendering Chat Timeline ---
   function appendUserMessage(text) {
@@ -720,6 +833,7 @@
             num_ctx: state.selectedNumCtx,
             thinking_mode: state.thinkingMode,
             deep_reasoning: state.deepReasoning,
+            username: state.username || 'User',
           })
         );
       };
@@ -861,6 +975,7 @@
           num_ctx: state.selectedNumCtx,
           thinking_mode: state.thinkingMode,
           deep_reasoning: state.deepReasoning,
+          username: state.username || 'User',
         }),
       });
 
@@ -983,6 +1098,7 @@
     { title: 'Semantic Memories Explorer', icon: '[MEMORY]', shortcut: '', action: () => openMemoriesModal() },
     { title: 'Agent Skills Explorer', icon: '[SKILLS]', shortcut: '', action: () => openSkillsModal() },
     { title: 'Obsidian Vault Explorer', icon: '[NOTE]', shortcut: '', action: () => openObsidianModal() },
+    { title: 'Switch User / Nickname', icon: '[USER]', shortcut: '', action: () => window.maidereSwitchUser() },
     { title: 'Settings & System Prompt', icon: '[CONFIG]', shortcut: '', action: () => openSettingsModal() },
   ];
 
@@ -1267,6 +1383,7 @@
     el.memoriesPill?.addEventListener('click', openMemoriesModal);
     el.skillsPill?.addEventListener('click', openSkillsModal);
     el.btnSettings?.addEventListener('click', openSettingsModal);
+    el.btnSwitchUser?.addEventListener('click', () => window.maidereSwitchUser());
 
     el.scheduledTasksPill?.addEventListener('click', async () => {
       try {
@@ -1330,6 +1447,22 @@
     applyLayout();
     setupEventListeners();
     updateModeUI();
+    updateSidebarUser();
+
+    // If no nickname stored locally, try to sync from backend profile
+    if (!state.username) {
+      try {
+        const profileRes = await fetch('/user/profile');
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData.username && profileData.username !== 'User') {
+            state.username = profileData.username;
+            localStorage.setItem('maidere_username', profileData.username);
+            updateSidebarUser();
+          }
+        }
+      } catch (_) {}
+    }
 
     appendTerminal('agent-shell', 'Maidere IDE Agent environment initialized.', 'success');
     appendTerminal('uvicorn', 'Connected to Maidere backend on http://localhost:8000', 'info');

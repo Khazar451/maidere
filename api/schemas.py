@@ -29,6 +29,28 @@ class ChatRequest(BaseModel):
         False,
         description="Optional flag to enable human-style deep System 2 reasoning and deliberation.",
     )
+    username: str | None = Field(
+        None,
+        max_length=64,
+        description="The user's nickname or chosen username.",
+    )
+
+
+class UserLoginRequest(BaseModel):
+    """User nickname login request without passwords."""
+
+    username: str = Field(
+        ..., min_length=1, max_length=64, description="User nickname"
+    )
+
+
+class UserProfileResponse(BaseModel):
+    """Active user profile and known nicknames."""
+
+    username: str = Field(..., description="Active user nickname")
+    known_users: list[str] = Field(
+        default_factory=list, description="Previously known nicknames"
+    )
 
 
 

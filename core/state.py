@@ -31,3 +31,4 @@ class AgentState(TypedDict, total=False):
     refinement_count: int
     reasoning_steps: list[str]
     complexity: Any
+    username: str

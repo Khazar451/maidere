@@ -161,6 +161,50 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
             # 3 calls for deliberation (think -> critique -> refine) + 2 for thread metadata/title
             self.assertGreaterEqual(mock_chat.call_count, 3)
 
+    def test_user_login_and_profile_endpoints(self):
+        """Test POST /user/login and GET /user/profile without passwords."""
+        # Initial profile
+        res = self.client.get("/user/profile")
+        self.assertEqual(res.status_code, 200)
+
+        # Login with nickname
+        login_res = self.client.post("/user/login", json={"username": "Khazar"})
+        self.assertEqual(login_res.status_code, 200)
+        login_data = login_res.json()
+        self.assertEqual(login_data["username"], "Khazar")
+        self.assertIn("Khazar", login_data["known_users"])
+
+        # Fetch profile
+        profile_res = self.client.get("/user/profile")
+        self.assertEqual(profile_res.status_code, 200)
+        profile_data = profile_res.json()
+        self.assertEqual(profile_data["username"], "Khazar")
+
+    def test_chat_with_custom_username(self):
+        """Test POST /chat with custom nickname and verify system prompt."""
+        mock_response = {
+            "message": {
+                "role": "assistant",
+                "content": "Greetings Khazar, I am ready to assist you.",
+                "tool_calls": [],
+            }
+        }
+        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+            res = self.client.post(
+                "/chat",
+                json={
+                    "message": "Hello Maidere!",
+                    "thread_id": "test-username-thread",
+                    "username": "Khazar",
+                },
+            )
+            self.assertEqual(res.status_code, 200)
+            self.assertIn("Khazar", res.json()["response"])
+            # Verify system prompt contained the username in agent turn
+            first_call_args = mock_chat.call_args_list[0][0][0]
+            sys_msg = next(m for m in first_call_args if m.get("role") == "system")
+            self.assertIn("Khazar", sys_msg["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

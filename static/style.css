@@ -343,6 +343,49 @@ html, body {
   background: var(--bg-app);
 }
 
+/* Sidebar User Section */
+.sidebar-user-section {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-sidebar);
+}
+
+.sidebar-user-pill {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  color: var(--text-normal);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.sidebar-user-pill:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: #fff;
+}
+
+.user-pill-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: #06b6d4;
+}
+
+.sidebar-user-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Sidebar Footer */
 .sidebar-footer {
   padding: 8px 12px;
@@ -711,7 +754,98 @@ html, body {
   color: var(--text-muted);
   max-width: 480px;
   line-height: 1.5;
-  margin-bottom: 28px;
+  margin-bottom: 20px;
+}
+
+/* User Identity & Nickname Login */
+.login-badge-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #06b6d4;
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: 4px;
+  padding: 3px 8px;
+  margin-bottom: 12px;
+  display: inline-block;
+}
+
+.nickname-form {
+  width: 100%;
+  max-width: 420px;
+  margin: 10px auto 28px auto;
+}
+
+.nickname-input-wrap {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.nickname-input {
+  flex: 1;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #f4f4f5;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.nickname-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.nickname-btn {
+  white-space: nowrap;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.welcome-user-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 20px;
+  padding: 4px 14px;
+  margin-bottom: 24px;
+  font-size: 12px;
+}
+
+.welcome-user-tag {
+  color: #a1a1aa;
+}
+
+.welcome-user-tag strong {
+  color: #f4f4f5;
+  font-weight: 600;
+}
+
+.welcome-switch-btn {
+  background: none;
+  border: none;
+  color: #60a5fa;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 0.15s ease;
+}
+
+.welcome-switch-btn:hover {
+  color: #93c5fd;
+  text-decoration: underline;
 }
 
 .welcome-action-cards {

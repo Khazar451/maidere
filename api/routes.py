@@ -21,6 +21,8 @@ from api.schemas import (
     ThreadItem,
     ThreadsListResponse,
     ToolExecutionItem,
+    UserLoginRequest,
+    UserProfileResponse,
 )
 
 from core import llm
@@ -281,6 +283,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 "critique": "",
                 "refinement_count": 0,
                 "reasoning_steps": [],
+                "username": (request.username or "").strip() or "User",
             },
             config=config,
         )
@@ -502,6 +505,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 })
 
             register_stream_callback(thread_id, token_stream_handler)
+            user_name = str(data.get("username") or "").strip() or "User"
             generation_task = asyncio.create_task(
                 _graph.ainvoke(
                     {
@@ -518,6 +522,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
                         "critique": "",
                         "refinement_count": 0,
                         "reasoning_steps": [],
+                        "username": user_name,
                     },
                     config=config,
                 )
@@ -765,6 +770,40 @@ async def open_obsidian_note(payload: dict[str, str] = {}) -> dict[str, Any]:
     file_title = payload.get("file") or payload.get("title")
     res = await tool.execute(action="open_note", title=file_title)
     return {"status": "ok", "message": res}
+
+
+@router.get("/user/profile", response_model=UserProfileResponse)
+async def get_user_profile() -> UserProfileResponse:
+    """Get active username and previously known local nicknames."""
+    async with get_db_context(settings.db_path) as db:
+        async with db.execute("SELECT display_name FROM users ORDER BY id DESC") as cursor:
+            rows = await cursor.fetchall()
+            names = [r["display_name"] for r in rows if r["display_name"]]
+    active_name = names[0] if names else "User"
+    return UserProfileResponse(username=active_name, known_users=names)
+
+
+@router.post("/user/login", response_model=UserProfileResponse)
+async def login_user(payload: UserLoginRequest) -> UserProfileResponse:
+    """Register or switch active user nickname without passwords."""
+    clean_name = payload.username.strip()
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Username cannot be empty")
+    async with get_db_context(settings.db_path) as db:
+        await db.execute(
+            """
+            INSERT INTO users (external_id, platform, display_name, is_allowed)
+            VALUES (?, 'web', ?, 1)
+            ON CONFLICT(external_id) DO UPDATE SET display_name = excluded.display_name
+            """,
+            (clean_name, clean_name),
+        )
+        await db.commit()
+        async with db.execute("SELECT display_name FROM users ORDER BY id DESC") as cursor:
+            rows = await cursor.fetchall()
+            names = [r["display_name"] for r in rows if r["display_name"]]
+    return UserProfileResponse(username=clean_name, known_users=names)
+
 
 
 
