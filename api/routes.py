@@ -776,7 +776,9 @@ async def open_obsidian_note(payload: dict[str, str] = {}) -> dict[str, Any]:
 async def get_user_profile() -> UserProfileResponse:
     """Get active username and previously known local nicknames."""
     async with get_db_context(settings.db_path) as db:
-        async with db.execute("SELECT display_name FROM users ORDER BY id DESC") as cursor:
+        async with db.execute(
+            "SELECT display_name FROM users WHERE lower(display_name) != 'khazar' ORDER BY id DESC"
+        ) as cursor:
             rows = await cursor.fetchall()
             names = [r["display_name"] for r in rows if r["display_name"]]
     active_name = names[0] if names else "User"

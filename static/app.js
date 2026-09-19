@@ -47,8 +47,14 @@
     autoScrollTerminal: true,
     activeWs: null,
     attachedFiles: [],
-    threadSearchFilter: '',
-    username: localStorage.getItem('maidere_username') || '',
+    username: (function () {
+      const stored = localStorage.getItem('maidere_username');
+      if (!stored || stored.toLowerCase() === 'khazar') {
+        localStorage.setItem('maidere_username', 'User');
+        return 'User';
+      }
+      return stored;
+    })(),
   };
 
   // --- DOM Elements Cache ---
@@ -1447,22 +1453,11 @@
     applyLayout();
     setupEventListeners();
     updateModeUI();
-    updateSidebarUser();
-
-    // If no nickname stored locally, try to sync from backend profile
-    if (!state.username) {
-      try {
-        const profileRes = await fetch('/user/profile');
-        if (profileRes.ok) {
-          const profileData = await profileRes.json();
-          if (profileData.username && profileData.username !== 'User') {
-            state.username = profileData.username;
-            localStorage.setItem('maidere_username', profileData.username);
-            updateSidebarUser();
-          }
-        }
-      } catch (_) {}
+    if (!state.username || state.username.toLowerCase() === 'khazar') {
+      state.username = 'User';
+      localStorage.setItem('maidere_username', 'User');
     }
+    updateSidebarUser();
 
     appendTerminal('agent-shell', 'Maidere IDE Agent environment initialized.', 'success');
     appendTerminal('uvicorn', 'Connected to Maidere backend on http://localhost:8000', 'info');

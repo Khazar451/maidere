@@ -167,18 +167,18 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
         res = self.client.get("/user/profile")
         self.assertEqual(res.status_code, 200)
 
-        # Login with nickname
-        login_res = self.client.post("/user/login", json={"username": "alex"})
+        # Login with unique test nickname
+        login_res = self.client.post("/user/login", json={"username": "testuser_unique"})
         self.assertEqual(login_res.status_code, 200)
         login_data = login_res.json()
-        self.assertEqual(login_data["username"], "alex")
-        self.assertIn("alex", login_data["known_users"])
+        self.assertEqual(login_data["username"], "testuser_unique")
+        self.assertIn("testuser_unique", login_data["known_users"])
 
         # Fetch profile
         profile_res = self.client.get("/user/profile")
         self.assertEqual(profile_res.status_code, 200)
         profile_data = profile_res.json()
-        self.assertEqual(profile_data["username"], "alex")
+        self.assertEqual(profile_data["username"], "testuser_unique")
 
     def test_chat_with_custom_username(self):
         """Test POST /chat with custom nickname and verify system prompt."""
