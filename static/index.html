@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maidere — Local Autonomous AI Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css?v=3.0" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div id="app-container">
+    
+    <!-- ====================================================================
+         COLUMN 1: LEFT SIDEBAR (Navigation & Workspace Explorer)
+         ==================================================================== -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <div class="nav-history-bar">
+          <div class="nav-arrows">
+            <button id="btn-nav-back" class="icon-btn" title="Back in history (Alt+Left)">←</button>
+            <button id="btn-nav-forward" class="icon-btn" title="Forward in history (Alt+Right)">→</button>
+          </div>
+          <div class="brand-badge">
+            <span class="logo-dot"></span>
+            <span>Maidere</span>
+          </div>
+          <button id="btn-toggle-sidebar" class="icon-btn" title="Toggle Sidebar (Ctrl+B)">◨</button>
+        </div>
+
+        <button id="btn-new-chat" class="new-chat-btn">
+          <span>+ New Conversation</span>
+          <span class="shortcut-badge">Ctrl+N</span>
+        </button>
+
+        <div class="sidebar-search-container">
+          <input type="text" id="thread-search-input" class="sidebar-search-input" placeholder="Filter conversations (Ctrl+K)..." />
+        </div>
+      </div>
+
+      <!-- Quick Views -->
+      <div class="sidebar-views">
+        <div class="view-item active" id="history-view-pill">
+          <span>Conversations</span>
+          <span class="badge-count" id="threads-count-badge">Active</span>
+        </div>
+        <div class="view-item" id="scheduled-tasks-pill">
+          <span>Scheduled Tasks</span>
+        </div>
+        <div class="view-item" id="obsidian-vault-pill">
+          <span>Obsidian Vault</span>
+        </div>
+        <div class="view-item" id="memories-pill">
+          <span>Semantic Memory</span>
+        </div>
+        <div class="view-item" id="skills-pill">
+          <span>Agent Skills</span>
+        </div>
+      </div>
+
+      <!-- Project & Thread Explorer Tree -->
+      <div class="sidebar-threads">
+        <div class="section-label">
+          <span>Recent Threads</span>
+        </div>
+
+        <div id="threads-list">
+          <!-- Dynamic thread items populated by app.js -->
+        </div>
+      </div>
+
+
+      <!-- Sidebar Pinned Footer -->
+      <div class="sidebar-footer">
+        <div class="footer-status">
+          <span class="status-indicator"></span>
+          <span>Maidere v0.1.0</span>
+        </div>
+        <button id="btn-settings" class="icon-btn" title="Settings & Architecture">Config</button>
+      </div>
+    </aside>
+
+    <!-- ====================================================================
+         COLUMN 2: CENTER PANEL (Agent Execution Canvas & Input Deck)
+         ==================================================================== -->
+    <main id="main-panel">
+      <!-- Edge Hover/Toggle Handle when sidebar is collapsed -->
+      <button id="btn-sidebar-edge" class="sidebar-edge-toggle" title="Open Sidebar (Ctrl+B)" aria-label="Open Sidebar">◨</button>
+
+      <!-- Breadcrumb & Model Selector Header -->
+      <header class="main-header canvas-header">
+        <div class="breadcrumb-trail breadcrumb-area">
+          <button id="btn-toggle-sidebar-main" class="icon-btn sidebar-toggle-main" title="Open Sidebar (Ctrl+B)" aria-label="Toggle Sidebar">◨</button>
+          <span class="breadcrumb-root crumb-segment">Maidere</span>
+          <span class="breadcrumb-sep">/</span>
+          <span id="active-thread-title" class="breadcrumb-active crumb-active">New Chat</span>
+        </div>
+
+        <div class="header-actions">
+          <button id="btn-export-thread" class="icon-btn" title="Export Conversation (Markdown)">Export</button>
+          <div class="mode-toggle-group" title="Cognitive Mode: Auto, Thinking, or Deep Reason">
+            <button id="btn-mode-auto" class="mode-toggle-btn active" title="Auto: Dynamically routes based on complexity">Auto</button>
+            <button id="btn-mode-thinking" class="mode-toggle-btn" title="Thinking: Step-by-step reasoning">
+              <span class="mode-btn-dot"></span> Thinking
+            </button>
+            <button id="btn-mode-deep-reason" class="mode-toggle-btn" title="Deep Reason: Full Human-Style Deliberation (Deconstruct, Socratic Critique, Refine)">
+              <span class="mode-btn-dot mode-btn-dot-purple"></span> Deep Reason
+            </button>
+          </div>
+          <div class="context-pill-selector" title="Context Window & VRAM Mode: 8k (Medium), 16k (High), 32k (Ultra)">
+            <span class="context-pill-label">CTX:</span>
+            <select id="context-select" title="Context Window Size">
+              <option value="8192">8K - Medium</option>
+              <option value="16384" selected>16K - High</option>
+              <option value="32768">32K - Ultra</option>
+            </select>
+          </div>
+          <div class="model-pill-selector">
+            <select id="model-select" title="Active Ollama Model">
+              <option value="auto">[AUTO] Auto-route (Qwen 2.5)</option>
+            </select>
+          </div>
+          <button id="btn-toggle-terminal" class="icon-btn" title="Toggle Terminal Panel (Ctrl+J)">◧</button>
+        </div>
+      </header>
+
+      <!-- Execution Canvas / Chat Timeline -->
+      <div id="chat-timeline">
+        <!-- Message stream with IDE execution pills generated by app.js -->
+      </div>
+
+      <!-- Floating Bottom Input Deck -->
+      <div class="input-deck-container">
+        <!-- Running Task Banner Tray -->
+        <div id="task-banner-tray" class="task-banner-tray">
+          <span id="task-banner-text">1 task running...</span>
+          <span class="task-link" onclick="document.querySelectorAll('.term-tab')[0].click();">View in Terminal →</span>
+        </div>
+
+        <div class="input-deck" id="input-deck-dropzone">
+          <textarea
+            id="chat-input"
+            class="chat-textarea"
+            placeholder="Ask anything, @ to mention, / for actions (Enter to send, Shift+Enter for newline)..."
+            rows="1"
+          ></textarea>
+
+          <div class="input-controls-bar">
+            <div class="input-quick-actions">
+              <button id="deck-btn-thinking" class="quick-action-pill thinking-deck-pill" title="Toggle Deep Thinking & Reasoning Mode">
+                <span class="thinking-pill-dot"></span> Thinking
+              </button>
+              <button id="deck-btn-deep-reason" class="quick-action-pill deep-reason-deck-pill" title="Toggle Human-Style Deep Deliberation">
+                <span class="deep-reason-pill-dot"></span> Deep Reason
+              </button>
+              <button class="quick-action-pill" onclick="document.getElementById('chat-input').value += ' [deep-research] '; document.getElementById('chat-input').focus();">
+                Deep Research
+              </button>
+              <button class="quick-action-pill" onclick="document.getElementById('chat-input').value += ' in my Obsidian vault '; document.getElementById('chat-input').focus();">
+                Obsidian Note
+              </button>
+              <button class="quick-action-pill" onclick="document.getElementById('chat-input').value += ' write Python code for '; document.getElementById('chat-input').focus();">
+                Run Code
+              </button>
+            </div>
+
+            <div class="input-send-group">
+              <button id="stop-btn" class="stop-btn" title="Stop Generation">■</button>
+              <button id="send-btn" class="send-btn" title="Send message (Enter)">➤</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ====================================================================
+         COLUMN 3: RIGHT SIDE PANEL (Terminal & Background Tasks)
+         ==================================================================== -->
+    <section id="terminal-panel">
+      <div class="terminal-header">
+        <div class="terminal-tabs">
+          <button class="term-tab active" data-tab="agent-shell">
+            Agent Shell
+          </button>
+          <button class="term-tab" data-tab="uvicorn">
+            Server Logs
+          </button>
+          <button class="term-tab" data-tab="obsidian">
+            Obsidian
+          </button>
+          <button class="term-tab" data-tab="metrics">
+            Metrics
+          </button>
+        </div>
+
+        <div class="terminal-actions">
+          <button id="btn-clear-terminal" class="icon-btn" title="Clear Console">Clear</button>
+          <button id="btn-copy-terminal" class="icon-btn" title="Copy Output">Copy</button>
+        </div>
+      </div>
+
+      <div id="terminal-canvas" class="terminal-canvas">
+        <!-- Live monospace console output rendered by app.js -->
+      </div>
+
+      <div class="terminal-statusbar">
+        <span>Encoding: UTF-8</span>
+        <span>Output: Real-Time Stream</span>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ======================================================================
+       MODAL DIALOG OVERLAY (Obsidian, Scheduler, Memories, Skills, Settings)
+       ====================================================================== -->
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span id="modal-title" class="modal-title">Modal Title</span>
+        <button id="modal-close" class="icon-btn">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body">
+        <!-- Modal content injected dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="document.getElementById('modal-overlay').classList.remove('active')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Command Palette Modal (Ctrl+K) -->
+  <div id="command-palette-overlay" class="command-palette-overlay">
+    <div class="command-palette-box">
+      <div class="palette-input-wrap">
+        <span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">[>]</span>
+        <input type="text" id="palette-search-input" placeholder="Type a command or search actions (Esc to close)..." autofocus />
+      </div>
+      <div id="palette-results" class="palette-results"></div>
+    </div>
+  </div>
+
+  <!-- Main Application Script -->
+  <script src="/static/app.js?v=3.0"></script>
+</body>
+</html>
+

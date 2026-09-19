@@ -1,0 +1,35 @@
+use_default_settings: true
+
+server:
+  secret_key: "maidere_searxng_secret_key_change_me"
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "auto"
+  formats:
+    - html
+    - json
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+
+engines:
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+  - name: google
+    engine: google
+    shortcut: go
+  - name: brave
+    engine: brave
+    shortcut: br
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+  - name: github
+    engine: github
+    shortcut: gh

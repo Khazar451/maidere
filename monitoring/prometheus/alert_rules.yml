@@ -1,0 +1,29 @@
+groups:
+  - name: maidere_alerts
+    rules:
+      - alert: ToolExecutionFailure
+        expr: sum by (tool_name) (rate(maidere_tool_calls_total{status="error"}[2m])) > 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tool '{{ $labels.tool_name }}' encountered execution failures"
+          description: "Tool {{ $labels.tool_name }} reported error status in the last 2 minutes."
+
+      - alert: LLMInferenceFailure
+        expr: sum by (model) (rate(maidere_llm_requests_total{status="error"}[2m])) > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "LLM inference failure on model '{{ $labels.model }}'"
+          description: "Ollama requests for {{ $labels.model }} failed in the last 2 minutes."
+
+      - alert: AgentServiceDown
+        expr: up{job="maidere-agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Maidere agent is unreachable"
+          description: "Prometheus cannot scrape Maidere at host.docker.internal:8000."
