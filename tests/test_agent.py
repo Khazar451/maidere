@@ -391,7 +391,7 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(should_deliberate(state, "What are the trade-offs of microservices?", AIMessage(content="Refined answer")))
 
     def test_should_continue_routes_to_critique_when_deep_reasoning(self):
-        """Test should_continue routes to critique when deep reasoning is active."""
+        """Test should_continue routes to verify/critique when deep reasoning is active."""
         state = {
             "messages": [
                 HumanMessage(content="Explain the Byzantine Generals Problem in distributed systems"),
@@ -400,7 +400,20 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
             "deep_reasoning": True,
             "refinement_count": 0,
         }
-        self.assertEqual(should_continue(state), "critique")
+        self.assertIn(should_continue(state), ("verify", "critique"))
+
+    def test_should_continue_thinking_mode_does_not_deliberate(self):
+        """Test that single-pass thinking_mode does NOT route to verify and terminates directly."""
+        state = {
+            "messages": [
+                HumanMessage(content="Explain the Byzantine Generals Problem in distributed systems"),
+                AIMessage(content="<think>Step-by-step thinking.</think>Byzantine fault tolerance is..."),
+            ],
+            "thinking_mode": True,
+            "deep_reasoning": False,
+            "refinement_count": 0,
+        }
+        self.assertEqual(should_continue(state), END)
 
     async def test_critique_and_refine_nodes_flow(self):
         """Test critique_node and refine_node execution with mocked LLM."""

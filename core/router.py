@@ -137,6 +137,7 @@ async def select_model(
     query: str = "",
     history: list[Any] | None = None,
     thinking_mode: bool = False,
+    deep_reasoning: bool = False,
     *args: Any,
     **kwargs: Any,
 ) -> tuple[str, str, TaskComplexity]:
@@ -145,11 +146,26 @@ async def select_model(
     Returns:
         (selected_model_name, routing_reason, complexity)
     """
-    complexity = TaskComplexity.REASONING if thinking_mode else classify_complexity(query, history)
+    complexity = (
+        TaskComplexity.REASONING
+        if (thinking_mode or deep_reasoning)
+        else classify_complexity(query, history)
+    )
 
-    # 1. Explicit thinking mode override: prioritize thinking model if installed, else fallback safely
+    # 1. Explicit thinking mode or deep reasoning mode override
     available = await get_available_models()
     thinking_model = getattr(settings, "ollama_thinking_model", "deepseek-r1:7b")
+
+    if deep_reasoning:
+        if requested_model and requested_model.lower() not in ("auto", "none", ""):
+            if requested_model.lower() != settings.ollama_model.lower():
+                return requested_model, "user_override_deep_reasoning", TaskComplexity.REASONING
+        thinking_available = any(thinking_model in m or "deepseek-r1" in m for m in available)
+        if thinking_available:
+            matched = next((m for m in available if thinking_model in m or "deepseek-r1" in m), thinking_model)
+            return matched, "deep_reasoning_model", TaskComplexity.REASONING
+        primary = settings.ollama_model if (not available or settings.ollama_model in available) else available[0]
+        return primary, "deep_reasoning_primary", TaskComplexity.REASONING
 
     if thinking_mode:
         if requested_model and requested_model.lower() not in ("auto", "none", ""):
@@ -164,7 +180,7 @@ async def select_model(
         await logger.awarn(
             "deepseek_not_available",
             message=f"thinking_mode requested but '{thinking_model}' is not installed in Ollama. "
-                    f"Falling back to '{primary}'. Run 'ollama pull {thinking_model}' to enable deep reasoning.",
+                    f"Falling back to '{primary}'. Run 'ollama pull {thinking_model}' to enable native thinking.",
             thinking_model=thinking_model,
             fallback_model=primary,
         )

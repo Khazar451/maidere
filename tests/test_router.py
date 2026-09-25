@@ -282,7 +282,7 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Here is the proof", final_msg.content)
 
     async def test_agent_forced_thinking_mode_directive_injection(self):
-        """Test agent graph injects deep reasoning directive into LLM messages when thinking_mode=True."""
+        """Test agent graph injects thinking scratchpad directive into LLM messages when thinking_mode=True."""
         mock_response = {
             "model": "deepseek-r1:7b",
             "message": {
@@ -312,8 +312,44 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             # Check that thinking directive was injected into ollama messages
             called_messages = mock_chat.call_args[0][0]
             system_directives = [m["content"] for m in called_messages if m.get("role") == "system"]
-            has_directive = any("MANDATORY STEP-BY-STEP REASONING DIRECTIVE" in d for d in system_directives)
-            self.assertTrue(has_directive, "Expected MANDATORY STEP-BY-STEP REASONING DIRECTIVE in system messages")
+            has_directive = any("THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE" in d for d in system_directives)
+            self.assertTrue(has_directive, "Expected THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE in system messages")
+
+    async def test_agent_forced_deep_reasoning_mode_directive_injection(self):
+        """Test agent graph injects System 2 divergent directive into LLM messages when deep_reasoning=True."""
+        mock_response = {
+            "model": "deepseek-r1:7b",
+            "message": {
+                "role": "assistant",
+                "content": "<think>Divergent exploration</think>Provisional synthesis.",
+                "tool_calls": [],
+            },
+        }
+
+        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+             patch("core.agent.recall", new_callable=AsyncMock, return_value=[]), \
+             patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+            mock_models.return_value = ["qwen2.5:7b-instruct", "deepseek-r1:7b"]
+
+            config = {"configurable": {"thread_id": "test-router-deep-reason-flag"}}
+            result = await self.graph.ainvoke(
+                {
+                    "messages": [HumanMessage(content="Prove the theorem")],
+                    "memory_context": "No relevant memories found.",
+                    "thread_id": "test-router-deep-reason-flag",
+                    "model": "auto",
+                    "deep_reasoning": True,
+                },
+                config=config,
+            )
+
+            # Think node was the first call in the pipeline
+            first_called_messages = mock_chat.call_args_list[0][0][0]
+            system_directives = [m["content"] for m in first_called_messages if m.get("role") == "system"]
+            has_directive = any("SYSTEM 2: DIVERGENT COGNITIVE EXPLORATION & DECONSTRUCTION" in d for d in system_directives)
+            self.assertTrue(has_directive, "Expected SYSTEM 2 directive in system messages for deep_reasoning")
+            # Verify that deep_reasoning triggered verification/convergence (multiple LLM calls)
+            self.assertGreater(mock_chat.call_count, 1)
 
 
 if __name__ == "__main__":

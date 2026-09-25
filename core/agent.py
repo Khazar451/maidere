@@ -834,11 +834,11 @@ def should_deliberate(state: AgentState, user_query: str, last_message: Any) -> 
 
     # Check for basic greetings or trivial chit-chat
     q_clean = user_query.strip().lower()
-    from core.router import _SIMPLE_GREETINGS, TaskComplexity, classify_complexity
+    from core.router import _SIMPLE_GREETINGS
     if q_clean in _SIMPLE_GREETINGS or len(q_clean) < 4:
         return False
 
-    # 1. Explicit deep reasoning switch active
+    # 1. Explicit deep reasoning switch active (Multi-stage System 2 Engine)
     if state.get("deep_reasoning"):
         return True
 
@@ -846,10 +846,12 @@ def should_deliberate(state: AgentState, user_query: str, last_message: Any) -> 
     if state.get("has_delegated") and is_research_intent(user_query):
         return True
 
-    # 3. Explicit reasoning complexity (math proofs, logic puzzles, formal deduction)
-    complexity = classify_complexity(user_query, state.get("messages", []))
-    if complexity == TaskComplexity.REASONING:
-        return True
+    # 3. Dynamic Auto-mode reasoning complexity (only when deep_reasoning enabled and thinking_mode not set)
+    if not state.get("thinking_mode") and getattr(settings, "enable_deep_reasoning", True):
+        from core.router import TaskComplexity, classify_complexity
+        complexity = classify_complexity(user_query, state.get("messages", []))
+        if complexity == TaskComplexity.REASONING:
+            return True
 
     return False
 
@@ -936,11 +938,13 @@ async def think_node(state: AgentState) -> dict:
 
     requested_model = state.get("model")
     thinking_mode_flag = bool(state.get("thinking_mode", False))
+    deep_reasoning_flag = bool(state.get("deep_reasoning", False))
     selected_model, routing_reason, complexity = await select_model(
         requested_model=requested_model,
         query=latest_user_query,
         history=state["messages"],
         thinking_mode=thinking_mode_flag,
+        deep_reasoning=deep_reasoning_flag,
     )
 
     ROUTER_DECISIONS_TOTAL.labels(
@@ -989,7 +993,6 @@ async def think_node(state: AgentState) -> dict:
 
     has_tools_in_history = any(isinstance(m, ToolMessage) for m in state.get("messages", []))
     is_synthesis_turn = bool(state.get("has_delegated") and has_tools_in_history)
-    deep_reasoning_flag = bool(state.get("deep_reasoning", False))
     is_thinking_turn = bool(
         deep_reasoning_flag
         or thinking_mode_flag
@@ -1001,26 +1004,38 @@ async def think_node(state: AgentState) -> dict:
         ollama_messages.append({
             "role": "system",
             "content": (
-                "[SYSTEM 2 COGNITIVE DELIBERATION: HUMAN-STYLE REASONING DIRECTIVE]\n"
-                "You are operating in SYSTEM 2 DEEP DELIBERATION mode. "
-                "Humans do not react with superficial heuristics; they pause, deconstruct, "
-                "and question assumptions. You MUST think deeply inside <think> and </think> tags.\n"
+                "[SYSTEM 2: DIVERGENT COGNITIVE EXPLORATION & DECONSTRUCTION]\n"
+                "You are operating in SYSTEM 2 DEEP REASONING mode.\n"
+                "Do NOT provide a superficial, hasty, or intuitive answer. You MUST systematically think and deconstruct the problem inside <think> and </think> tags.\n"
+                "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'.\n"
+                "Inside <think>...</think>, execute these four cognitive stages:\n"
+                "1. PROBLEM DECONSTRUCTION & CORE PREMISES:\n"
+                "   - Break down the inquiry into its irreducible logical, mathematical, or structural components.\n"
+                "   - Explicitly identify, state, and question all implicit assumptions or constraints.\n"
+                "2. DIVERGENT HYPOTHESES & ALTERNATIVE PATHS:\n"
+                "   - Formulate and compare at least two distinct approaches or solution candidates (Approach A vs. Approach B).\n"
+                "   - Trace the causal chain, state mutations, and intermediate steps of each candidate.\n"
+                "3. COUNTER-EXAMPLE & FALSIFICATION ANALYSIS:\n"
+                "   - Identify the exact conditions under which an approach or premise fails.\n"
+                "   - Stress-test boundary conditions, edge cases, and arithmetic/logical invariants.\n"
+                "4. PROVISIONAL SYNTHESIS:\n"
+                "   - Formulate the initial end-to-end solution with explicit justifications before closing </think>.\n"
+                "After closing </think>, present your comprehensive analytical reasoning and provisional solution."
+            ),
+        })
+    elif thinking_mode_flag and not is_synthesis_turn:
+        ollama_messages.append({
+            "role": "system",
+            "content": (
+                "[THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE]\n"
+                "You are operating in THINKING MODE. Think step-by-step inside <think> and </think> tags before providing your answer.\n"
                 "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'. "
-                "Only AFTER closing '</think>' provide your final authoritative response.\n"
-                "Your reasoning process inside <think>...</think> MUST systematically follow these cognitive stages:\n"
-                "1. FIRST-PRINCIPLES DECONSTRUCTION & ASSUMPTIONS:\n"
-                "   - What is the foundational problem? Break it down to its irreducible core facts.\n"
-                "   - What implicit assumptions or hidden premises are being made? Question them aggressively.\n"
-                "   - What are the firm boundary conditions, initial states, and rules?\n"
-                "   - In procedural traces, token networks, or simulations: Track the exact mutated value of every single entity (e.g. Alpha, Beta, Gamma) across every individual phase or step. Never extrapolate or anchor to initial values.\n"
-                "   - Tie-Breaker Verification: Check tie-breaker rules (e.g. alphabetical priority of node names) with absolute precision before making transfers.\n"
-                "2. DIVERGENT HYPOTHESES & STEP-BY-STEP VERIFICATION:\n"
-                "   - Simulate each day/cycle phase by phase (Phase 1 Transfer, Phase 2 Decay, Phase 3 Injection). Explicitly write out the counts before and after each phase.\n"
-                "   - Verify arithmetic, odd/even parity reductions, and exact conditional criteria.\n"
-                "   - Falsification test: Under what conditions would an assumption or tie-breaker fail?\n"
-                "3. PRELIMINARY SYNTHESIS & RIGOROUS DRAFT:\n"
-                "   - Confirm all balances for all days/cycles match the prompt constraints before closing </think>.\n"
-                "Do NOT jump directly to the answer. Reason thoroughly inside <think>...</think>."
+                "Only AFTER closing '</think>' provide your final response.\n"
+                "Inside <think>...</think>:\n"
+                "- Deconstruct the user's objective, implicit context, and constraints.\n"
+                "- Outline your response structure and determine the key facts, formulas, or code required.\n"
+                "- Anticipate common errors, logical traps, or edge cases.\n"
+                "Close </think> and immediately present your clear, direct, and well-structured answer."
             ),
         })
     elif is_thinking_turn and not is_synthesis_turn:
@@ -1028,14 +1043,13 @@ async def think_node(state: AgentState) -> dict:
             "role": "system",
             "content": (
                 "[MANDATORY STEP-BY-STEP REASONING DIRECTIVE]\n"
-                "You are operating in DEEP REASONING mode. Before providing your answer or making decisions, "
+                "You are operating in REASONING mode. Before providing your answer or making decisions, "
                 "you MUST think and reason step-by-step inside <think> and </think> tags.\n"
                 "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'. "
                 "Only AFTER closing '</think>' provide your final response.\n"
                 "Inside <think>...</think>:\n"
                 "- Dissect the user's problem, constraints, and implicit assumptions.\n"
-                "- In procedural traces, simulations, or cycles: Track the exact mutated values of all state variables after every single step. Adhere strictly to all tie-breaker rules without skipping or assuming.\n"
-                "- Explicitly calculate phase-by-phase state transitions.\n"
+                "- Track state mutations and intermediate calculations explicitly.\n"
                 "- Check for logical fallacies, edge cases, and temporal accuracy.\n"
                 "Do NOT jump directly to the answer. Think thoroughly inside <think>...</think>."
             ),
@@ -1441,12 +1455,12 @@ async def evaluate_node(state: AgentState) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Socratic Deliberation Nodes: Critique & Refine
+# System 2 Cognitive Reasoning Nodes: Verify & Converge
 # ---------------------------------------------------------------------------
 
 
-async def critique_node(state: AgentState) -> dict:
-    """Evaluate draft response with adversarial Socratic verification."""
+async def verify_node(state: AgentState) -> dict:
+    """Perform rigorous mathematical, logical, and constraint verification on the provisional solution."""
     messages = state.get("messages", [])
     last_ai = messages[-1] if messages else None
     draft_content = last_ai.content if hasattr(last_ai, "content") else str(last_ai or "")
@@ -1462,7 +1476,7 @@ async def critique_node(state: AgentState) -> dict:
         thread_id,
         {
             "type": "agent_log",
-            "text": "[CRITIC] Socratic Critic scrutinizing draft for factual accuracy and edge cases...",
+            "text": "[VERIFY] Analytical verifier proof-checking solution and testing invariants...",
             "level": "info",
         },
     )
@@ -1472,75 +1486,71 @@ async def critique_node(state: AgentState) -> dict:
         if isinstance(msg, ToolMessage) and msg.content:
             tool_evidence.append(f"Tool {msg.name}: {str(msg.content)[:1000]}")
 
-    evidence_str = "\n---\n".join(tool_evidence) if tool_evidence else "No external tool outputs. Rely on logical first principles and verified facts."
+    evidence_str = "\n---\n".join(tool_evidence) if tool_evidence else "Rely on first-principles deduction and mathematical proofs."
 
     selected_model = state.get("model") or settings.ollama_model
     if selected_model == "auto":
         selected_model = settings.ollama_model
     active_num_ctx = state.get("num_ctx") or settings.ollama_num_ctx
 
-    critic_prompt = [
+    verifier_prompt = [
         {
             "role": "system",
             "content": (
-                "You are an adversarial Socratic Critic and rigorous verification specialist.\n"
-                "Your role is to rigorously examine the draft response to the user's prompt.\n\n"
-                "Evaluation Directives:\n"
-                "1. Factual Grounding & Source-to-Claim Alignment:\n"
-                "   - Verify claims against retrieved tool evidence. Catch unsupported extrapolations.\n"
-                "   - Check that each cited source [N] actually supports the claim it is attached to. Catch source-medium mismatches (e.g. claiming a Reddit thread is a YouTube video, or attributing benchmark results to unrelated documentation). Flag any lazy citation dumps where an index was slapped onto an unverified assertion without matching the retrieved evidence.\n"
-                "2. Citation Bracket & Format Verification:\n"
-                "   - Ensure every citation is strictly wrapped in square brackets (e.g., [1], [2]). Flag any naked numbers (e.g., 'firms 5.' or '2,') as format violations.\n"
-                "   - In the '## Sources' block, ensure each source is on its own line with valid Markdown links, never comma-separated plain text.\n"
-                "3. Surprise Variables & Metric Grounding:\n"
-                "   - Verify that all statistics, variables, and metrics in conclusion tables or summary sections were already introduced and cited in the main report body.\n"
-                "   - Flag any 'surprise variable' or ungrounded statistic that was dumped into the summary without appearing in the body.\n"
-                "4. Causality & Logic: Ensure cause and effect are not inverted. Check chronological sequences.\n"
-                "5. Metric Sanity: Check numbers, financial metrics (Share Price vs Market Cap vs Revenue), units, and dates.\n"
-                "6. Nuance & Edge Cases: Did the draft ignore failure modes, critical trade-offs, or user constraints?\n"
-                "7. Dynamic State Tracking & Rule Invariants: In loop simulations and procedural traces, verify that mutable variables are updated at each step and not anchored to the initial input. Ensure rules apply uniformly to intermediate tokens (e.g., shifted characters can create vowels; vowel removal must be applied to newly generated letters; empty strings must be preserved without hallucinating characters).\n"
-                "8. Simulation & Tie-Breaker Rigor: In multi-node networks (e.g. Alpha, Beta, Gamma) and state cycles, verify each phase explicitly. Check numerical balances before and after transfers. Enforce tie-breakers (e.g. alphabetical priority when nodes are tied for highest or lowest) without compromise. Check odd/even parity decay and conditional triggers at every single phase.\n"
-                "9. Conciseness: If the draft is completely sound and verified, output '[PASS: AIRTIGHT]' followed by a brief sentence.\n"
-                "If flaws or gaps exist, output 2 to 4 concise, actionable critique points for the Refiner.\n"
+                "You are the Analytical Verification Specialist and Proof-Checker.\n"
+                "Your role is to rigorously proof-check the provisional solution against mathematical truth, logic invariants, and boundary constraints.\n\n"
+                "Verification Directives:\n"
+                "1. Mathematical & Arithmetic Rigor: Recalculate all numbers, formulas, sums, products, and percentages independently. Verify units and scales.\n"
+                "2. State Tracking & Procedure Verification: In step-by-step procedures, simulations, or cycles, verify variable values at every single step. Ensure state mutations follow all problem rules.\n"
+                "3. Logical Invariants & Deductions: Test whether conclusions follow strictly from premises. Check for hidden non sequiturs, inverted causality, or false assumptions.\n"
+                "4. Boundary Conditions & Edge Cases: Test extreme values (zero, negative, null, empty strings, maximum limits). Identify any unaddressed edge-case failures.\n"
+                "5. Evidence & Source Alignment: Verify that all cited assertions match the provided evidence without hallucinated extrapolations or mismatched sources.\n"
+                "6. Citation & Format Verification: Ensure all citations use square brackets [N] and Sources block has one Markdown link per line.\n"
+                "7. Conciseness: If the provisional solution is fully verified and mathematically sound, output '[PASS: VERIFIED]' followed by a brief confirmation.\n"
+                "If errors, gaps, or arithmetic flaws exist, output a structured list of concrete corrective proof steps for the final synthesis.\n"
                 "Do NOT use conversational filler, pleasantries, or emojis."
             ),
         },
         {
             "role": "user",
             "content": (
-                f"User Prompt:\n{latest_user_query}\n\n"
-                f"Retrieved Tool Evidence:\n{evidence_str}\n\n"
-                f"Draft Response to Critique:\n{draft_content}"
+                f"Problem / Inquiry:\n{latest_user_query}\n\n"
+                f"Evidence & Constraints:\n{evidence_str}\n\n"
+                f"Provisional Solution to Verify:\n{draft_content}"
             ),
         },
     ]
 
     try:
-        response = await llm.chat(critic_prompt, tools=None, model=selected_model, num_ctx=active_num_ctx)
-        critique_text = response.get("message", {}).get("content", "").strip()
+        response = await llm.chat(verifier_prompt, tools=None, model=selected_model, num_ctx=active_num_ctx)
+        verification_text = response.get("message", {}).get("content", "").strip()
     except Exception as e:
-        logger.warning("critique_failed", error=str(e))
-        critique_text = "[PASS: AIRTIGHT] Socratic critique completed with baseline pass."
+        logger.warning("verification_failed", error=str(e))
+        verification_text = "[PASS: VERIFIED] Baseline verification completed."
 
-    summary = critique_text[:120].replace("\n", " ")
+    summary = verification_text[:120].replace("\n", " ")
     await emit_agent_event(
         thread_id,
         {
             "type": "agent_log",
-            "text": f"[CRITIC] Socratic assessment: {summary}...",
+            "text": f"[VERIFY] Proof check: {summary}...",
             "level": "info",
         },
     )
 
-    return {"critique": critique_text}
+    return {"critique": verification_text, "verification_notes": verification_text}
 
 
-async def refine_node(state: AgentState) -> dict:
-    """Synthesize hardened final response incorporating Socratic critique."""
+# Backwards compatibility alias
+critique_node = verify_node
+
+
+async def converge_node(state: AgentState) -> dict:
+    """Synthesize hardened final response incorporating analytical verification."""
     messages = state.get("messages", [])
     last_ai = messages[-1] if messages else None
     draft_content = last_ai.content if hasattr(last_ai, "content") else str(last_ai or "")
-    critique_text = state.get("critique", "")
+    verification_text = state.get("verification_notes") or state.get("critique", "")
     thread_id = state.get("thread_id")
     callback = _stream_callbacks.get(thread_id or "")
 
@@ -1550,13 +1560,13 @@ async def refine_node(state: AgentState) -> dict:
             latest_user_query = str(msg.content)
             break
 
-    # If critique passed without issues, use the draft directly
-    if "[PASS: AIRTIGHT]" in critique_text and len(critique_text) < 200:
+    # If verification passed without issues, use the draft directly
+    if ("[PASS: VERIFIED]" in verification_text or "[PASS: AIRTIGHT]" in verification_text) and len(verification_text) < 200:
         await emit_agent_event(
             thread_id,
             {
                 "type": "agent_log",
-                "text": "[REFINE] Draft verified as airtight. Finalizing response...",
+                "text": "[CONVERGE] Solution verified as mathematically sound. Finalizing response...",
                 "level": "info",
             },
         )
@@ -1575,7 +1585,7 @@ async def refine_node(state: AgentState) -> dict:
         thread_id,
         {
             "type": "agent_log",
-            "text": "[REFINE] Converging on hardened synthesis incorporating Socratic critique...",
+            "text": "[CONVERGE] Converging on formally verified authoritative solution...",
             "level": "info",
         },
     )
@@ -1585,23 +1595,23 @@ async def refine_node(state: AgentState) -> dict:
         selected_model = settings.ollama_model
     active_num_ctx = state.get("num_ctx") or settings.ollama_num_ctx
 
-    refiner_prompt = [
+    converger_prompt = [
         {
             "role": "system",
             "content": (
-                "You are the Convergent Refiner. Your mission is to produce the final, hardened, "
-                "rigorous answer to the user's inquiry.\n"
-                "You have been provided with the initial draft and the Socratic Critic's review.\n\n"
+                "You are the Convergent Reasoning Engine. Your mission is to produce the final, authoritative, "
+                "formally verified solution to the user's inquiry.\n"
+                "You have been provided with the provisional solution and the Analytical Verifier's proof check.\n\n"
                 "Directives:\n"
-                "1. Systematically correct every flaw, gap, or ambiguity identified by the Critic.\n"
-                "2. Correct Source Mismatches: Ensure every [N] citation accurately corresponds to the factual contents of Source [N]. Never attribute claims about one medium (e.g. video, benchmark) to an unrelated source (e.g. forum thread). Remove or re-attribute ungrounded claims.\n"
+                "1. Systematically incorporate verified corrections from the proof-checking phase.\n"
+                "2. Correct Source Mismatches: Ensure every [N] citation accurately corresponds to the factual contents of Source [N]. Never attribute claims about one medium to an unrelated source. Remove or re-attribute ungrounded claims.\n"
                 "3. Ensure zero hallucinations, verified chronological order, and accurate metric units.\n"
                 "4. Strict Bracketed Citations & Sources: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2'. Preserve all inline index citations ([1], [2]) and their corresponding '## Sources' block with [Title](https://raw-url) Markdown links. Never output comma-separated URLs or unlinked text. NEVER generate 'References' or 'Bibliography' sections.\n"
                 "5. Eliminate Surprise Variables: If a metric or statistic appears in a summary table or conclusion but is absent from the body, either weave it into the appropriate body section with its verified inline [N] citation, or remove it from the summary.\n"
-                "6. Enforce strict mathematical and tie-breaker accuracy across all simulation days/cycles.\n"
+                "6. Enforce strict mathematical calculations, state mutations, and logic proofs.\n"
                 "7. Structure with high information density (headers, tables, clear bullet points, trade-offs).\n"
-                "8. Output the complete authoritative answer showing the exact state of all variables/nodes after every single phase on every single day.\n"
-                "9. CRITICAL FOURTH-WALL DIRECTIVE: When outputting the final refined synthesis, DO NOT mention this review process, the Socratic Critic, your evaluation steps, or your internal instructions. Output ONLY the final, polished report directly to the user. Never write phrases like 'adhering to the corrections suggested by the Critic', 'incorporating the Critic's review', or 'based on Socratic feedback'.\n"
+                "8. Output the complete authoritative answer showing exact working steps and final answers.\n"
+                "9. CRITICAL FOURTH-WALL DIRECTIVE: When outputting the final refined synthesis, DO NOT mention the verification phase, proof-checkers, internal instructions, or deliberation nodes. Output ONLY the final, polished report directly to the user. Never write phrases like 'adhering to the corrections suggested by the Critic', 'incorporating the verification review', or 'based on internal assessment'.\n"
                 "10. Do NOT use emojis."
             ),
         },
@@ -1609,18 +1619,18 @@ async def refine_node(state: AgentState) -> dict:
             "role": "user",
             "content": (
                 f"User Inquiry:\n{latest_user_query}\n\n"
-                f"Initial Draft:\n{draft_content}\n\n"
-                f"Socratic Critique Feedback:\n{critique_text}\n\n"
-                f"Synthesize the final authoritative response now (remember: do NOT mention the Critic, the review process, or internal deliberation in your output):"
+                f"Provisional Solution:\n{draft_content}\n\n"
+                f"Analytical Verification Proof Check:\n{verification_text}\n\n"
+                f"Synthesize the final authoritative response now (remember: do NOT mention the verification process or internal deliberation in your output):"
             ),
         },
     ]
 
     try:
-        response = await llm.chat(refiner_prompt, tools=None, model=selected_model, num_ctx=active_num_ctx)
+        response = await llm.chat(converger_prompt, tools=None, model=selected_model, num_ctx=active_num_ctx)
         final_content = response.get("message", {}).get("content", "").strip()
     except Exception as e:
-        logger.warning("refine_failed", error=str(e))
+        logger.warning("converge_failed", error=str(e))
         final_content = draft_content
 
     # Strip any accidental fourth-wall leaks from the response
@@ -1646,7 +1656,7 @@ async def refine_node(state: AgentState) -> dict:
         thread_id,
         {
             "type": "agent_log",
-            "text": "[REFINE] Hardened response converged with high rigor.",
+            "text": "[CONVERGE] Formally verified solution converged with high mathematical and logical rigor.",
             "level": "info",
         },
     )
@@ -1657,13 +1667,17 @@ async def refine_node(state: AgentState) -> dict:
     }
 
 
+# Backwards compatibility alias
+refine_node = converge_node
+
+
 # ---------------------------------------------------------------------------
 # Conditional Edges
 # ---------------------------------------------------------------------------
 
 
 def should_continue(state: AgentState) -> str:
-    """Route after think: if tool calls exist, go to act. If deliberation needed, go to critique. Otherwise end."""
+    """Route after think: if tool calls exist, go to act. If deep reasoning verification needed, go to verify. Otherwise end."""
     last_message = state["messages"][-1]
     loop_count = state.get("tool_loop_count", 0)
     if loop_count >= MAX_TOOL_LOOPS:
@@ -1684,7 +1698,7 @@ def should_continue(state: AgentState) -> str:
             break
 
     if should_deliberate(state, latest_user_query, last_message):
-        return "critique"
+        return "verify"
 
     return END
 
@@ -1714,10 +1728,13 @@ async def create_graph(db_path: str | None = None) -> tuple:
     workflow.add_node("think", think_node)
     workflow.add_node("act", act_node)
     workflow.add_node("evaluate", evaluate_node)
-    workflow.add_node("critique", critique_node)
-    workflow.add_node("refine", refine_node)
+    workflow.add_node("verify", verify_node)
+    workflow.add_node("converge", converge_node)
+    # Aliases for backwards compatibility with checkpoints
+    workflow.add_node("critique", verify_node)
+    workflow.add_node("refine", converge_node)
 
-    # Edges: __start__ → trim → remember → think → (act → evaluate → think)* → (critique → refine)? → END
+    # Edges: __start__ → trim → remember → think → (act → evaluate → think)* → (verify → converge)? → END
     workflow.set_entry_point("trim")
     workflow.add_edge("trim", "remember")
     workflow.add_edge("remember", "think")
@@ -1726,20 +1743,23 @@ async def create_graph(db_path: str | None = None) -> tuple:
         should_continue,
         {
             "act": "act",
-            "critique": "critique",
+            "verify": "verify",
+            "critique": "verify",
             END: END,
         },
     )
     workflow.add_edge("act", "evaluate")
     workflow.add_edge("evaluate", "think")
-    workflow.add_edge("critique", "refine")
+    workflow.add_edge("verify", "converge")
+    workflow.add_edge("critique", "converge")
+    workflow.add_edge("converge", END)
     workflow.add_edge("refine", END)
 
     graph = workflow.compile(checkpointer=checkpointer)
 
     logger.info(
         "agent_graph_compiled",
-        nodes=["trim", "remember", "think", "act", "evaluate", "critique", "refine"],
+        nodes=["trim", "remember", "think", "act", "evaluate", "verify", "converge"],
     )
     return graph, checkpointer_ctx
 

@@ -139,16 +139,16 @@
   function setCognitiveMode(mode) {
     if (mode === 'deep-reason') {
       state.deepReasoning = true;
-      state.thinkingMode = true;
-      appendTerminal('agent-shell', '[CONFIG] Deep Reason Mode enabled (enforcing Socratic deliberation and System 2 cognitive synthesis)', 'info');
+      state.thinkingMode = false;
+      appendTerminal('agent-shell', '[CONFIG] Deep Reason Mode enabled (multi-stage System 2: divergent exploration, proof verification & convergent synthesis)', 'info');
     } else if (mode === 'thinking') {
       state.deepReasoning = false;
       state.thinkingMode = true;
-      appendTerminal('agent-shell', '[CONFIG] Thinking Mode enabled (forcing step-by-step reasoning scratchpad)', 'info');
+      appendTerminal('agent-shell', '[CONFIG] Thinking Mode enabled (single-pass Chain-of-Thought scratchpad with real-time thought streaming)', 'info');
     } else {
       state.deepReasoning = false;
       state.thinkingMode = false;
-      appendTerminal('agent-shell', '[CONFIG] Switched to Auto Mode (dynamic task routing)', 'info');
+      appendTerminal('agent-shell', '[CONFIG] Switched to Auto Mode (dynamic task complexity routing)', 'info');
     }
 
     localStorage.setItem('maidere_deep_reasoning', state.deepReasoning ? 'true' : 'false');
