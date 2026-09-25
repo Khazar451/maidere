@@ -91,7 +91,8 @@ Core Operational Principles & Governance:
       Verify financial metrics: ensure Share Price, Quarterly Revenue, and Market Capitalization are clearly distinguished with their correct units (Millions, Billions, Trillions) and dates ({current_year}).
     - You get one delegation round per query. After receiving sub-agent summaries, synthesize the final answer directly without re-delegating.
 12. Strict Inline Index Citation Formatting:
-    - CRITICAL: When synthesizing research, you MUST cite sources using bracketed integers inline with the text (e.g., 'The model achieved 95% accuracy [1].'). At the VERY END of your response, include exactly one '## Sources' block formatted as: [1] [Title](https://actual-url.com). You are FORBIDDEN from generating 'References', 'Bibliography', 'Works Cited' sections or numbered plain-text source lists in the response body.
+    - CRITICAL: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2' for citations.
+    - When synthesizing research, you MUST cite sources using bracketed integers inline with the text (e.g., 'The model achieved 95% accuracy [1].'). At the VERY END of your response, include exactly one '## Sources' block formatted with one source per line: [1] [Title](https://actual-url.com). You are FORBIDDEN from generating 'References', 'Bibliography', 'Works Cited' sections, plain-text comma-separated URL lists, or numbered plain-text source lists in the response body.
     - NEVER emit naked titles next to "URL:" and NEVER use placeholder links like "[Apply Here]", "[Link]", or "[Website]". Always use the exact, verified https:// URL discovered by tools or sub-agents.
 13. Epistemic Grounding (Canonical Facts vs. Speculation):
     - When researching or discussing fictional characters or historical events, you MUST prioritize canonical facts and primary source data. You are FORBIDDEN from treating fan theories, speculative blog posts, or forum discussions as factual canon unless the user explicitly requests theories.
@@ -99,6 +100,12 @@ Core Operational Principles & Governance:
 14. Chronological Timeline & Causality Verification:
     - When synthesizing historical events, biographies, or narrative developments, you must establish a strict chronological timeline.
     - Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships in your report (e.g. verify that Event A preceded Event B before asserting that B occurred 'following' or 'as a result of' A).
+15. Strict Source-to-Claim Mapping (Anti-Hallucination):
+    - Every inline citation [N] MUST directly support the specific claim it is attached to based on Source [N] in the evidence.
+    - You are strictly FORBIDDEN from guessing citations, attributing claims to the wrong media or platform (e.g., citing a forum discussion thread for a YouTube video), or slapping the last citation index onto a paragraph as an afterthought. If a source does not support the claim, do not cite it.
+16. No Surprise Variables or Metrics in Summaries:
+    - Every metric, statistic, number, or variable included in a summary table, 'Summary of Metrics', or conclusion MUST be explicitly introduced, explained, and cited inline with [N] in the main analytical body text first.
+    - You are strictly FORBIDDEN from introducing novel statistics or surprise variables in concluding summary sections that were absent from the analytical body.
 
 Relevant context, memories, and active skills:
 {memory_context}\
@@ -644,6 +651,100 @@ def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]
     return calls
 
 
+EXCLUDED_CITATION_WORDS: set[str] = {
+    "section", "figure", "table", "phase", "step", "rule", "version", "v",
+    "chapter", "page", "in", "for", "year", "top", "of", "to", "at",
+    "model", "day", "cycle", "part", "tier", "level", "item", "option",
+    "node", "round", "turn", "iteration", "factor", "grade", "class",
+}
+
+
+def normalize_citations_and_sources(content: str) -> str:
+    """Normalize citations into [N] brackets and enforce one-source-per-line in Sources block.
+
+    Catches 7B model formatting evasions such as naked citation numbers ('firms 5.' -> 'firms [5].')
+    and unbracketed/comma-separated entries in '## Sources'.
+    """
+    if not content:
+        return content
+
+    # 1. Parse max source index if sources block exists
+    source_indices = [int(m) for m in re.findall(r"\[?(\d+)\]?(?=\s*(?:\[|https?://|\w+.*https?://))", content)]
+    max_source = max(source_indices) if source_indices else 10
+
+    # 2. Repair naked citations in body text (prior to Sources block)
+    sources_split = re.split(r"(?i)(?=##\s*sources|\*\*sources:?\*\*)", content, maxsplit=1)
+    body = sources_split[0]
+    sources_section = sources_split[1] if len(sources_split) > 1 else ""
+
+    def repair_naked(m: re.Match) -> str:
+        word = m.group(1)
+        num = int(m.group(2))
+        if word.lower() in EXCLUDED_CITATION_WORDS:
+            return m.group(0)
+        if num <= max_source:
+            return f"{word} [{num}]"
+        return m.group(0)
+
+    repaired_body = re.sub(
+        r"(\b[a-zA-Z\)]+)\s+([1-9]|1[0-9]|20)(?=[\.,;]|\s*$)",
+        repair_naked,
+        body,
+    )
+
+    # 3. Normalize Sources block
+    if sources_section:
+        lines = sources_section.splitlines()
+        repaired_lines = []
+        for line in lines:
+            line_str = line.strip()
+            if not line_str or line_str.startswith("#") or line_str.lower().startswith("**sources"):
+                repaired_lines.append(line)
+                continue
+            # Handle comma-separated sources e.g. [1] url, [2] url
+            sub_items = re.split(r",\s*(?=\[?\d+\]?[\s\.:\-])", line_str)
+            for item in sub_items:
+                item = item.strip()
+                if not item:
+                    continue
+                # Case A: 2 [Title](url) -> [2] [Title](url)
+                m_a = re.match(r"^(\d+)\s+(\[[^\]]+\]\(https?://\S+\))$", item)
+                if m_a:
+                    repaired_lines.append(f"[{m_a.group(1)}] {m_a.group(2)}")
+                    continue
+                # Case B: 5 Title - Site, https://url or [5] Title - Site, https://url
+                m_b = re.match(r"^\[?(\d+)\]?[\s\.:\-]+([^,]+?),\s*(https?://\S+)$", item)
+                if m_b:
+                    repaired_lines.append(f"[{m_b.group(1)}] [{m_b.group(2).strip()}]({m_b.group(3).strip()})")
+                    continue
+                # Case C: [1] https://url -> [1] [https://url](https://url)
+                m_c = re.match(r"^\[?(\d+)\]?[\s\.:\-]+(https?://\S+)$", item)
+                if m_c:
+                    repaired_lines.append(f"[{m_c.group(1)}] [{m_c.group(2)}]({m_c.group(2)})")
+                    continue
+                repaired_lines.append(item)
+        sources_section = "\n".join(repaired_lines)
+
+    return repaired_body + sources_section
+
+
+def strip_critic_fourth_wall_leaks(content: str) -> str:
+    """Remove accidental Socratic Critic or deliberation meta-commentary leaking into the final response."""
+    if not content:
+        return content
+    leak_patterns = [
+        r"(?i)(?:(?<=[\.\?!]\s)|(?<=\n)|^)[^\.\n]*(?:adhering\s+to|incorporated|incorporating|following|based\s+on)\s+(?:the\s+)?(?:corrections|verifications|suggestions|feedback|instructions|review)\s+(?:suggested\s+by|from|of)\s+(?:the\s+)?(?:socratic\s+)?critic[^\.\n]*[\.\?!]?",
+        r"(?i)(?:(?<=[\.\?!]\s)|(?<=\n)|^)[^\.\n]*(?:socratic\s+critic|critic[\'’]?s?\s+(?:review|feedback|suggestions|corrections|instructions))[^\.\n]*[\.\?!]?",
+        r"(?i)(?:^|\n)[\*\-_]*\s*(?:note|status):\s*(?:revised|updated|refined)\s+based\s+on\s+critic[^\n]*\n?",
+    ]
+    cleaned = content
+    for pat in leak_patterns:
+        cleaned = re.sub(pat, "", cleaned)
+    cleaned = re.sub(r"  +", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned
+
+
 def restore_markdown_urls(content: str, messages: list[Any]) -> str:
     """Ensure raw web links from tool outputs are preserved and revive stripped URLs.
 
@@ -708,6 +809,9 @@ def restore_markdown_urls(content: str, messages: list[Any]) -> str:
 
     # Catches [Title] not followed by '('
     fixed = re.sub(r"\[([^\]]+)\](?!\s*[\(\[])", replace_unlinked_bracket, fixed)
+
+    # Normalize citations and source block lines
+    fixed = normalize_citations_and_sources(fixed)
     return fixed
 
 
@@ -946,19 +1050,27 @@ async def think_node(state: AgentState) -> dict:
                 f"[SYNTHESIS & CITATION MANDATE]\n"
                 f"All requested research and tool actions have completed. Synthesize your final comprehensive, high-quality analytical report based on the findings above.\n"
                 f"1. CRITICAL INLINE INDEX CITATION DIRECTIVE:\n"
+                f"   - CRITICAL: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2' for citations.\n"
                 f"   - You MUST cite sources using bracketed integers inline with the text (e.g., 'The model achieved 95% accuracy [1] on the benchmark [2].').\n"
                 f"   - FORBIDDEN: Do NOT generate a 'References', 'Bibliography', 'Works Cited', or numbered plain-text list of sources anywhere in your response body.\n"
+                f"   - FORBIDDEN: Do NOT write comma-separated URLs or plain unlinked URLs.\n"
                 f"   - FORBIDDEN: Do NOT write 'URL: [Title]' or bare titles without links.\n"
-                f"   - At the VERY END of your response, include exactly one '## Sources' block formatted as:\n"
+                f"   - At the VERY END of your response, include exactly one '## Sources' block with each source on its own line formatted as:\n"
                 f"     [1] [Title](https://actual-url.com)\n"
                 f"     [2] [Title](https://actual-url.com)\n"
-                f"   - If you omit inline [1], [2] integers or generate a bibliography section, you have failed.\n"
-                f"2. STRUCTURE & DENSITY:\n"
+                f"   - If you omit inline [1], [2] integers, use naked numbers like 1 or 2, or generate a bibliography section, you have failed.\n"
+                f"2. STRICT SOURCE-TO-CLAIM CORRESPONDENCE:\n"
+                f"   - Every inline citation [N] must directly support the specific claim it is attached to based on Source [N] in the evidence.\n"
+                f"   - FORBIDDEN: Do NOT guess citations, attribute claims to the wrong medium or platform (e.g. citing a Reddit thread for a YouTube video), or lazily slap the last citation index onto an unverified sentence.\n"
+                f"3. NO SURPRISE METRICS OR VARIABLES IN SUMMARIES:\n"
+                f"   - Every metric, statistic, number, or variable in a concluding summary table or list MUST be introduced, explained, and cited inline [N] in the main body text first.\n"
+                f"   - FORBIDDEN: Do NOT introduce novel statistics or surprise variables in the conclusion or summary that were never discussed in the body.\n"
+                f"4. STRUCTURE & DENSITY:\n"
                 f"   - Write flowing prose with markdown headers (##), analytical paragraphs, and comparison tables. Zero unformatted bullet dumps.\n"
-                f"3. EPISTEMIC GROUNDING (CANONICAL FACTS VS. SPECULATION):\n"
+                f"5. EPISTEMIC GROUNDING (CANONICAL FACTS VS. SPECULATION):\n"
                 f"   - When discussing fictional characters, literary works, or historical events, you MUST prioritize canonical facts and primary source data.\n"
                 f"   - You are FORBIDDEN from treating fan theories, speculative blog posts, or forum discussions as factual canon unless the user explicitly requested theories.\n"
-                f"4. CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION:\n"
+                f"6. CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION:\n"
                 f"   - When summarizing historical events, biographies, or narrative developments, you must establish a strict chronological timeline.\n"
                 f"   - Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships (e.g., verify that Event A preceded Event B before asserting that B occurred 'following' or 'as a result of' A)."
             ),
@@ -1083,20 +1195,28 @@ async def think_node(state: AgentState) -> dict:
                     f"Synthesize and present your final comprehensive, high-quality analytical report based on the findings.\n"
                     + thinking_addon +
                     f"1. CRITICAL INLINE INDEX CITATION DIRECTIVE:\n"
+                    f"CRITICAL: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2' for citations.\n"
                     f"You MUST cite sources using bracketed integers inline with the text (e.g., 'The study found X [1] and Y [2].'). "
                     f"FORBIDDEN: Do NOT generate a 'References', 'Bibliography', 'Works Cited', or numbered plain-text list of sources in your response body. "
+                    f"FORBIDDEN: Do NOT write comma-separated URLs or plain unlinked URLs. "
                     f"FORBIDDEN: Do NOT write 'URL: [Title]' or bare titles without links. "
-                    f"At the VERY END of your response, include exactly one '## Sources' block formatted as: "
+                    f"At the VERY END of your response, include exactly one '## Sources' block with each source on its own line formatted as: "
                     f"[1] [Title](https://actual-url.com). "
-                    f"If you omit inline [1], [2] integers or generate a bibliography section, you have failed.\n"
-                    f"2. Write a flowing, professional report with markdown headers (##), analytical prose paragraphs, and tables.\n"
-                    f"3. EPISTEMIC GROUNDING (CANONICAL FACTS VS. SPECULATION):\n"
+                    f"If you omit inline [1], [2] integers, use naked numbers like 1 or 2, or generate a bibliography section, you have failed.\n"
+                    f"2. STRICT SOURCE-TO-CLAIM CORRESPONDENCE:\n"
+                    f"Every inline citation [N] must directly support the specific claim it is attached to based on Source [N] in the evidence. "
+                    f"FORBIDDEN: Do NOT guess citations, attribute claims to the wrong medium or platform (e.g. citing a Reddit thread for a YouTube video), or lazily slap the last citation index onto an unverified sentence.\n"
+                    f"3. NO SURPRISE METRICS OR VARIABLES IN SUMMARIES:\n"
+                    f"Every metric, statistic, number, or variable in a concluding summary table or list MUST be introduced, explained, and cited inline [N] in the main body text first. "
+                    f"FORBIDDEN: Do NOT introduce novel statistics or surprise variables in the conclusion or summary that were never discussed in the body.\n"
+                    f"4. Write a flowing, professional report with markdown headers (##), analytical prose paragraphs, and tables.\n"
+                    f"5. EPISTEMIC GROUNDING (CANONICAL FACTS VS. SPECULATION):\n"
                     f"When discussing fictional characters, literary works, or historical events, prioritize canonical facts and primary source data. "
                     f"You are FORBIDDEN from treating fan theories, speculative blog posts, or forum discussions as factual canon unless the user explicitly requested theories.\n"
-                    f"4. CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION:\n"
+                    f"6. CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION:\n"
                     f"When summarizing historical events, biographies, or timelines, you must establish a strict chronological timeline. "
                     f"Verify the exact month and year of consecutive events before establishing cause-and-effect relationships (e.g., verify that Event A preceded Event B before asserting that B occurred 'following' A).\n"
-                    f"5. Verify financial metrics: distinguish Share Price, Quarterly Revenue, and Market Capitalization with correct units "
+                    f"7. Verify financial metrics: distinguish Share Price, Quarterly Revenue, and Market Capitalization with correct units "
                     f"(Millions, Billions, Trillions) and anchor to {current_year}."
                 ),
             }
@@ -1366,13 +1486,21 @@ async def critique_node(state: AgentState) -> dict:
                 "You are an adversarial Socratic Critic and rigorous verification specialist.\n"
                 "Your role is to rigorously examine the draft response to the user's prompt.\n\n"
                 "Evaluation Directives:\n"
-                "1. Factual Grounding: Verify claims against retrieved tool evidence. Catch unsupported extrapolations.\n"
-                "2. Causality & Logic: Ensure cause and effect are not inverted. Check chronological sequences.\n"
-                "3. Metric Sanity: Check numbers, financial metrics (Share Price vs Market Cap vs Revenue), units, and dates.\n"
-                "4. Nuance & Edge Cases: Did the draft ignore failure modes, critical trade-offs, or user constraints?\n"
-                "5. Dynamic State Tracking & Rule Invariants: In loop simulations and procedural traces, verify that mutable variables are updated at each step and not anchored to the initial input. Ensure rules apply uniformly to intermediate tokens (e.g., shifted characters can create vowels; vowel removal must be applied to newly generated letters; empty strings must be preserved without hallucinating characters).\n"
-                "6. Simulation & Tie-Breaker Rigor: In multi-node networks (e.g. Alpha, Beta, Gamma) and state cycles, verify each phase explicitly. Check numerical balances before and after transfers. Enforce tie-breakers (e.g. alphabetical priority when nodes are tied for highest or lowest) without compromise. Check odd/even parity decay and conditional triggers at every single phase.\n"
-                "7. Conciseness: If the draft is completely sound and verified, output '[PASS: AIRTIGHT]' followed by a brief sentence.\n"
+                "1. Factual Grounding & Source-to-Claim Alignment:\n"
+                "   - Verify claims against retrieved tool evidence. Catch unsupported extrapolations.\n"
+                "   - Check that each cited source [N] actually supports the claim it is attached to. Catch source-medium mismatches (e.g. claiming a Reddit thread is a YouTube video, or attributing benchmark results to unrelated documentation). Flag any lazy citation dumps where an index was slapped onto an unverified assertion without matching the retrieved evidence.\n"
+                "2. Citation Bracket & Format Verification:\n"
+                "   - Ensure every citation is strictly wrapped in square brackets (e.g., [1], [2]). Flag any naked numbers (e.g., 'firms 5.' or '2,') as format violations.\n"
+                "   - In the '## Sources' block, ensure each source is on its own line with valid Markdown links, never comma-separated plain text.\n"
+                "3. Surprise Variables & Metric Grounding:\n"
+                "   - Verify that all statistics, variables, and metrics in conclusion tables or summary sections were already introduced and cited in the main report body.\n"
+                "   - Flag any 'surprise variable' or ungrounded statistic that was dumped into the summary without appearing in the body.\n"
+                "4. Causality & Logic: Ensure cause and effect are not inverted. Check chronological sequences.\n"
+                "5. Metric Sanity: Check numbers, financial metrics (Share Price vs Market Cap vs Revenue), units, and dates.\n"
+                "6. Nuance & Edge Cases: Did the draft ignore failure modes, critical trade-offs, or user constraints?\n"
+                "7. Dynamic State Tracking & Rule Invariants: In loop simulations and procedural traces, verify that mutable variables are updated at each step and not anchored to the initial input. Ensure rules apply uniformly to intermediate tokens (e.g., shifted characters can create vowels; vowel removal must be applied to newly generated letters; empty strings must be preserved without hallucinating characters).\n"
+                "8. Simulation & Tie-Breaker Rigor: In multi-node networks (e.g. Alpha, Beta, Gamma) and state cycles, verify each phase explicitly. Check numerical balances before and after transfers. Enforce tie-breakers (e.g. alphabetical priority when nodes are tied for highest or lowest) without compromise. Check odd/even parity decay and conditional triggers at every single phase.\n"
+                "9. Conciseness: If the draft is completely sound and verified, output '[PASS: AIRTIGHT]' followed by a brief sentence.\n"
                 "If flaws or gaps exist, output 2 to 4 concise, actionable critique points for the Refiner.\n"
                 "Do NOT use conversational filler, pleasantries, or emojis."
             ),
@@ -1466,12 +1594,15 @@ async def refine_node(state: AgentState) -> dict:
                 "You have been provided with the initial draft and the Socratic Critic's review.\n\n"
                 "Directives:\n"
                 "1. Systematically correct every flaw, gap, or ambiguity identified by the Critic.\n"
-                "2. Ensure zero hallucinations, verified chronological order, and accurate metric units.\n"
-                "3. Enforce strict mathematical and tie-breaker accuracy across all simulation days/cycles.\n"
-                "4. Preserve all inline index citations ([1], [2]) and their corresponding '## Sources' block with [Title](https://raw-url) Markdown links. NEVER generate 'References' or 'Bibliography' sections.\n"
-                "5. Structure with high information density (headers, tables, clear bullet points, trade-offs).\n"
-                "6. Output the complete authoritative answer showing the exact state of all variables/nodes after every single phase on every single day.\n"
-                "7. Do NOT use emojis."
+                "2. Correct Source Mismatches: Ensure every [N] citation accurately corresponds to the factual contents of Source [N]. Never attribute claims about one medium (e.g. video, benchmark) to an unrelated source (e.g. forum thread). Remove or re-attribute ungrounded claims.\n"
+                "3. Ensure zero hallucinations, verified chronological order, and accurate metric units.\n"
+                "4. Strict Bracketed Citations & Sources: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2'. Preserve all inline index citations ([1], [2]) and their corresponding '## Sources' block with [Title](https://raw-url) Markdown links. Never output comma-separated URLs or unlinked text. NEVER generate 'References' or 'Bibliography' sections.\n"
+                "5. Eliminate Surprise Variables: If a metric or statistic appears in a summary table or conclusion but is absent from the body, either weave it into the appropriate body section with its verified inline [N] citation, or remove it from the summary.\n"
+                "6. Enforce strict mathematical and tie-breaker accuracy across all simulation days/cycles.\n"
+                "7. Structure with high information density (headers, tables, clear bullet points, trade-offs).\n"
+                "8. Output the complete authoritative answer showing the exact state of all variables/nodes after every single phase on every single day.\n"
+                "9. CRITICAL FOURTH-WALL DIRECTIVE: When outputting the final refined synthesis, DO NOT mention this review process, the Socratic Critic, your evaluation steps, or your internal instructions. Output ONLY the final, polished report directly to the user. Never write phrases like 'adhering to the corrections suggested by the Critic', 'incorporating the Critic's review', or 'based on Socratic feedback'.\n"
+                "10. Do NOT use emojis."
             ),
         },
         {
@@ -1480,7 +1611,7 @@ async def refine_node(state: AgentState) -> dict:
                 f"User Inquiry:\n{latest_user_query}\n\n"
                 f"Initial Draft:\n{draft_content}\n\n"
                 f"Socratic Critique Feedback:\n{critique_text}\n\n"
-                f"Synthesize the final authoritative response now:"
+                f"Synthesize the final authoritative response now (remember: do NOT mention the Critic, the review process, or internal deliberation in your output):"
             ),
         },
     ]
@@ -1492,7 +1623,10 @@ async def refine_node(state: AgentState) -> dict:
         logger.warning("refine_failed", error=str(e))
         final_content = draft_content
 
-    # Apply URL restoration
+    # Strip any accidental fourth-wall leaks from the response
+    final_content = strip_critic_fourth_wall_leaks(final_content)
+
+    # Apply URL restoration and citation normalization
     final_content = restore_markdown_urls(final_content, messages)
 
     # Preserve the CoT thinking block from the initial deliberation turn
