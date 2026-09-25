@@ -321,6 +321,13 @@ async def chat(request: ChatRequest) -> ChatResponse:
     )
 
 
+    # Tier 3: Trigger async session memory extraction
+    try:
+        from core.memory_tiers import run_session_extraction
+        asyncio.create_task(run_session_extraction(thread_id, [HumanMessage(content=request.message), ai_message]))
+    except Exception as e:
+        await logger.awarn("session_extraction_failed", error=str(e))
+
     await logger.ainfo(
         "chat_response",
         thread_id=thread_id,

@@ -31,8 +31,8 @@ class DelegateTaskTool(BaseTool):
         "'researcher' (fast read-only research: web search, documentation, facts, benchmarks), "
         "'tech-hardware' (enterprise hardware, GPU clusters, supercomputing, cloud compute grants), "
         "'plan' (software architecture, system design, technical implementation plans), "
-        "'code-reviewer' (scans code files and suggests improvements for quality, security, performance), "
-        "'general-purpose' (multi-step tasks). "
+        "'reviewer' or 'code-reviewer' (adversarial review of code, plans, and diffs), "
+        "'staffer' or 'general-purpose' (scoped multi-step task execution). "
         "CRITICAL RULES: "
         "(1) When you call this tool, you MUST stop generating text and WAIT for results. "
         "Do NOT attempt to answer the user's query until ALL sub-agent calls have returned. "
@@ -47,7 +47,7 @@ class DelegateTaskTool(BaseTool):
                 "description": (
                     "The type/name of subagent to spawn: 'researcher' (default), "
                     "'tech-hardware' (hardware, compute clusters, grants), "
-                    "'plan' (architecture & planning), 'code-reviewer', or 'general-purpose'."
+                    "'plan' (architecture & planning), 'reviewer', 'code-reviewer', 'staffer', or 'general-purpose'."
                 ),
             },
             "prompt": {
@@ -137,15 +137,18 @@ class DelegateTaskTool(BaseTool):
             for t in result.tools_used
         ) or "none"
 
+        artifact_line = f"Artifact: {result.artifact_path}\n" if result.artifact_path else ""
+        content_body = result.brief if result.brief else result.summary
+
         return (
             f"[SUB-AGENT RESEARCH RESULT]\n"
             f"Agent Type: {result.subagent_type}\n"
             f"Task: {result.task}\n"
             f"Status: {'completed successfully' if result.success else 'FAILED'}\n"
-            f"Research Depth: {result.turns_used} turns | Duration: {result.duration_ms}ms\n"
-            f"Tools Used: {tools_summary}\n"
+            f"{artifact_line}"
+            f"Execution: {result.turns_used} turns | Duration: {result.duration_ms}ms | Tools: {tools_summary}\n"
             f"{'─' * 60}\n"
-            f"{result.summary}\n"
+            f"{content_body}\n"
             f"{'─' * 60}\n"
             f"[END SUB-AGENT RESULT]"
         )

@@ -62,6 +62,11 @@ async def lifespan(app: FastAPI):
     await init_tables(db)
     await db.close()
 
+    # Reconcile Tier 2 Auto-Memory index and initialize Tier 1 rules
+    from core.memory_tiers import load_instruction_memory, reconcile_memory_index
+    load_instruction_memory()
+    reconcile_memory_index()
+
     # Build and compile the agent graph
     graph, checkpointer_ctx = await create_graph(settings.db_path)
     set_graph(graph)

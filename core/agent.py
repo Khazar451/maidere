@@ -217,7 +217,21 @@ async def remember_node(state: AgentState) -> dict:
 
     context_blocks = []
 
-    # 1. Automatic Skill Matching
+    # 1. Tier 1: Instruction Memory (RULES.md)
+    try:
+        from core.memory_tiers import format_auto_memory_context, load_instruction_memory
+        rules_text = load_instruction_memory()
+        if rules_text:
+            context_blocks.append(f"[TIER 1 INSTRUCTION RULES]\n{rules_text}\n[END RULES]")
+
+        # 2. Tier 2: Persistent Auto-Memory Index
+        auto_mem = format_auto_memory_context()
+        if auto_mem:
+            context_blocks.append(f"[TIER 2 AUTO-MEMORY]\n{auto_mem}\n[END AUTO-MEMORY]")
+    except Exception as e:
+        await logger.awarn("tier_memory_loading_failed", error=str(e))
+
+    # 3. Automatic Skill Matching
     if latest_user_query:
         from core.skills import match_skills
 

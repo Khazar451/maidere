@@ -17,6 +17,8 @@ from tools.obsidian import ObsidianTool
 from tools.scheduler import SchedulerTool
 from tools.shell import ShellTool
 from tools.skills import ListSkillsTool, LoadSkillTool
+from tools.agy_bridge import AgyStafferTool
+from tools.memory_tool import ManageMemoryTool
 from tools.web_search import WebSearchTool
 
 logger = structlog.get_logger()
@@ -28,6 +30,8 @@ _agent_instance = AgentTool()
 _TOOLS: dict[str, BaseTool] = {
     "delegate_task": _delegate_instance,
     "Agent": _agent_instance,
+    "agy_staffer": AgyStafferTool(),
+    "manage_memory": ManageMemoryTool(),
     "web_search": WebSearchTool(),
     "browser": BrowserTool(),
     "github": GitHubTool(),
@@ -43,6 +47,11 @@ _TOOLS: dict[str, BaseTool] = {
 }
 
 _ALIASES: dict[str, str] = {
+    "manage_memory": "manage_memory",
+    "memory": "manage_memory",
+    "auto_memory": "manage_memory",
+    "agy": "agy_staffer",
+    "agy_agent": "agy_staffer",
     "agent": "Agent",
     "delegate": "Agent",
     "subagent": "Agent",
@@ -76,6 +85,8 @@ def get_tool(name: str) -> BaseTool | None:
 ORCHESTRATOR_TOOL_NAMES: tuple[str, ...] = (
     "delegate_task",
     "Agent",
+    "agy_staffer",
+    "manage_memory",
     "obsidian",
     "read_file",
     "write_file",
