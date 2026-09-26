@@ -12,7 +12,7 @@ Maidere is an autonomous local AI agent engineered for privacy, speed, and susta
 - **OS**: Linux Mint 21+ / Ubuntu 22.04+
 - **GPU**: NVIDIA GPU with >= 8GB VRAM (e.g. RTX 5060 / 4060 / 3060)
 - **RAM**: 16GB System RAM
-- **Software**: Python 3.12, Docker & Docker Compose, Ollama
+- **Software**: Python 3.12 (`>=3.12, <3.14`), Docker & Docker Compose, Ollama, [uv](https://docs.astral.sh/uv/) (recommended)
 
 ### 2. Setup & Installation
 ```bash
@@ -20,10 +20,13 @@ Maidere is an autonomous local AI agent engineered for privacy, speed, and susta
 git clone https://github.com/Khazar451/maidere.git
 cd maidere
 
-# Create virtual environment and install dependencies
+# Option A: Install with uv (fastest & recommended)
+uv sync
+
+# Option B: Standard Python venv
 python3 -m venv .venv
 source .venv/bin/activate
-.venv/bin/python -m pip install -e .
+pip install -e .
 
 # Start Ollama & pull models
 ollama pull qwen2.5:7b-instruct
@@ -36,7 +39,8 @@ ollama pull deepseek-r1:7b     # DeepSeek-R1-Distill-Qwen-7B (~4.7 GB)
 docker compose up -d
 
 # Start Maidere Agent Server
-.venv/bin/uvicorn api.app:app --host 0.0.0.0 --port 8000
+uv run uvicorn api.app:app --host 0.0.0.0 --port 8000
+# or with active venv: .venv/bin/uvicorn api.app:app --host 0.0.0.0 --port 8000
 ```
 
 Open **`http://localhost:8000`** in your browser to access the Web UI.
@@ -57,17 +61,18 @@ Context window size persists across browser sessions via `localStorage` and scal
 
 ---
 
-## Auto vs. Thinking Mode (Deep Reasoning)
+## Cognitive Modes: Auto, Thinking, and Deep Reasoning
 
-Maidere includes dedicated **Auto** and **Thinking** controls (top header toggle group and input deck `[THINK] Deep Think` pill):
+Maidere provides three distinct operational paradigms selectable via the top navigation toggle group (`Auto`, `Thinking`, `Deep Reason`):
 
-| Mode | Trigger / Button | Behavior & Model Routing |
+| Mode | Selector | Architecture & Operational Flow |
 | :--- | :--- | :--- |
-| **Auto** *(Default)* | `Auto` button | **Dynamic Smart Routing**: Automatically classifies incoming query complexity (`SIMPLE` -> `qwen2.5:3b`, `COMPLEX` -> `qwen2.5:7b-instruct`, `REASONING` -> `deepseek-r1:7b` / `8b`). |
-| **Thinking** | `Thinking` / `[THINK]` pill | **Enforced Chain-of-Thought**: Enforces step-by-step reasoning inside `<think>...</think>` tags before answering or executing tools, routes directly to DeepSeek-R1 distill models, streams live thinking pulses, and renders collapsible thought blocks in the UI. |
+| **Auto** *(Default)* | `Auto` | **Dynamic Smart Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b` / `8b`) without deliberation overhead. |
+| **Thinking** | `Thinking` | **Fast Single-Pass Chain-of-Thought**: Generates step-by-step reasoning inside `<think>...</think>` scratchpad tags with real-time UI token streaming and collapsible accordion rendering. Bypasses multi-stage review loops to minimize latency. |
+| **Deep Reason** | `Deep Reason` | **Multi-Stage System 2 Deliberation Pipeline**: Executes an exhaustive 3-stage cognitive framework:<br>1. *Divergent Cognitive Exploration*: Premise deconstruction, divergent hypothesis generation, and falsification analysis.<br>2. *Analytical Verification Specialist*: Independent recalculation of math, logical invariants, boundary conditions, and citation integrity.<br>3. *Convergent Synthesis*: Rigorous, verified authoritative solution generation. |
 
-- **Agent Shell Visibility**: Thoughts prior to tool calls are extracted and logged live as `[THINK]` entries in the Agent Shell console.
-- **Interactive Accordion**: `<think>...</think>` blocks are rendered as interactive `<details class="thought-box">` accordions with real-time pulsing animations during token streaming.
+- **Agent Shell Visibility**: Chain-of-thought scratchpads and intermediate verification verdicts are logged live as `[THINK]` and `[VERIFY]` entries in the Agent Shell console.
+- **Interactive Accordion**: `<think>...</think>` blocks render as interactive `<details class="thought-box">` accordions with pulsing token streaming animations.
 
 ---
 
@@ -81,17 +86,22 @@ Maidere includes dedicated **Auto** and **Thinking** controls (top header toggle
 | +-------------------------------------+ | +------------------------------------------+ |
 | | Ollama Daemon                       | | | FastAPI Server (Uvicorn Async Worker)    | |
 | |  - Primary: qwen2.5:7b-instruct     | | |  - REST Endpoints & WebSocket Handler    | |
-| |    (Q4_K_M pinned: ~4.7 GB)         | | |  - Tri-Model Router (Fast, Think, Primary)| |
+| |    (Q4_K_M pinned: ~4.7 GB)         | | |  - Tri-Model Router (Fast, Think, Reason)| |
 | |  - Thinking: deepseek-r1:7b / 8b    | | |  - Dynamic Context Switcher (8K/16K/32K) | |
 | |    (Reasoning & Proofs: ~4.7-4.9 GB)| | |  - Prometheus Instrumentator (/metrics)  | |
 | |  - Fast: qwen2.5:3b (on-demand)     | | +------------------------------------------+ |
 | |  - Dynamic KV Cache (num_ctx:       | | | LangGraph Agent Core                     | |
-| |    8192 / 16384 / 32768) (~0.5-1.8G)| | |  - trim -> remember -> think -> act loop | |
-| |  - CUDA & Headroom Buffers (~1.5 GB)| | |  - Claude Code Subagents (research, plan)| |
-| +-------------------------------------+ | |  - Symmetrical Filesystem Sandbox        | |
-|                                         | |  - Safe Subprocess & Shell Allowlist     | |
+| |    8192 / 16384 / 32768) (~0.5-1.8G)| | |  - trim -> remember -> think -> act ->   | |
+| |  - CUDA & Headroom Buffers (~1.5 GB)| | |    evaluate -> verify -> converge loop   | |
+| +-------------------------------------+ | |  - Dual V&V Subagents (verify/validate)  | |
+|                                         | |  - File Artifact Bus (.maidere/artifacts)| |
+|                                         | |  - External AGY Staffer (Gemini 3.8 Flash)| |
 |                                         | +------------------------------------------+ |
-|                                         | | In-Process CPU & Storage Subsystems      | |
+|                                         | | In-Process Storage & Memory Subsystems   | |
+|                                         | |  - 3-Tier Memory Engine:                 | |
+|                                         | |    * Tier 1: RULES.md Instructions (.bak)| |
+|                                         | |    * Tier 2: Auto-Memory (*.md + index)  | |
+|                                         | |    * Tier 3: Turn Extraction (Jaccard)   | |
 |                                         | |  - FastEmbed (bge-small-en-v1.5 on CPU)  | |
 |                                         | |  - SQLite Database (WAL Mode Enabled)    | |
 |                                         | |    * sqlite-vec (vec0 Virtual Table)     | |
@@ -118,16 +128,25 @@ Maidere includes dedicated **Auto** and **Thinking** controls (top header toggle
 3. **Interactive Reasoning Accordion**: Native real-time parsing of DeepSeek-R1's `<think>...</think>` tokens into an expandable, collapsible thought block with live streaming pulse indicator.
 4. **In-Process Vector Storage**: Single SQLite database file (`db/maidere.db`) with native `sqlite-vec` extension (`vec0` virtual table), eliminating external vector DB overhead.
 5. **SQLite WAL Concurrency**: Forces `PRAGMA journal_mode = WAL` and `busy_timeout = 5000` for crash resilience and non-blocking asynchronous multi-client access.
-6. **Claude Code Subagents**: Subagents (`researcher`, `plan`, `verification`, `validation`, `code-reviewer`) execute in isolated ephemeral contexts with strict read-only tool boundaries and structured JSON reporting.
-7. **Turn-Scoping & State Isolation**: Intermediate tool payloads from prior turns are discarded before calling the LLM to prevent cross-turn context pollution.
-8. **Domain Grounding & Reality Check**: Distinguishes physical hardware ownership from institutional grant allocations (NAIRR Pilot, DGX Cloud credits) for high-end enterprise computing queries.
-9. **Deterministic URL Citation Guard**: Automatically validates and revives markdown links `[Title](https://...)` from tool outputs, preventing URL stripping or placeholder dead links.
-10. **Symmetrical Sandbox**: Resolves absolute file paths and strictly verifies that operations stay inside `workspace/`.
-11. **Safe Subprocess Shell**: Enforces `shell=False` inside `subprocess.run()`, parses arguments with `shlex.split()`, and checks binaries against an allowlist.
-12. **Ephemeral Browser Lifespan**: Playwright launches headless Chromium per scraping request with strict 15s timeouts and auto-termination to prevent zombie processes.
-13. **Built-in Telemetry**: Exposes Prometheus metrics on `/metrics` with pre-configured Grafana dashboards for latency, tokens/s, and tool error rates.
-14. **Epistemic Grounding (Canonical Lore vs. Speculation)**: Strictly separates canonical ground truth from speculative forum debates, blog essays, and fan theories. Prevents SEO/Theory Scrape Collapse by prioritizing primary source data and official wikis while omitting unverified internet theories unless the user explicitly requests them.
-15. **Conditional Temporal Grounding & Chronological Causality**: Distinguishes active modern metrics from historical events. Appends the current year ({current_year}) strictly for financial metrics, earnings, and tech benchmarks, while strictly forbidding temporal distortion on historical figures, eras, or lore. Enforces strict chronological timeline verification before asserting cause-and-effect relationships (e.g., verifying Event A preceded Event B before stating B occurred 'following' A). Prevents search redundancy and Wikipedia loops via session-scoped URL deduplication and lexical query similarity checks.
+6. **Dual-Stage V&V Subagent Framework**: Subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) execute in isolated ephemeral contexts with strict read-only tool boundaries:
+   - **`verification` (alias `verifier`)**: Mathematical proof recalculation, invariant tracking, static contract checking, and citation bracket checks (`[PASS: VERIFIED]`).
+   - **`validation` (alias `validator`)**: Real-world 2026 dependency and API feasibility checks, environment constraints, and user acceptance criteria (`[PASS: VALIDATED]`).
+7. **File-Based Artifact Bus & Adaptive Handoff Briefs**: Subagents write dense findings directly to disk (`workspace/.maidere/artifacts/`) with microsecond and UUID collision-resistance and automated 14-day TTL / 100-file cap pruning. Dispatches return structured 300–1,400 character handoff briefs, achieving $\ge 70\%$ orchestrator context savings.
+8. **External AGY Staffer Bridge (`agy_staffer`)**: Seamlessly connects to Google Antigravity CLI (Gemini 3.8 Flash) for high-context tasks across 5 personas (`researcher`, `reviewer`, `implementer`, `ask`, `staffer`) with pre-dispatch git dirty-state checks and automatic local subagent fallback on rate limits (`429` / `RESOURCE_EXHAUSTED`).
+9. **3-Tier Memory Engine**:
+   - **Tier 1 (Instruction Memory)**: Manages `RULES.md` in `.maidere/` with automatic `.bak` backups before write operations for single-step rollback.
+   - **Tier 2 (Auto-Memory)**: Manages topic markdown files (`.maidere/memory/*.md`) and `index.json`, enforcing the Two-Step Save Invariant, LRU eviction capped at 40 indexed entries, and startup index reconciliation.
+   - **Tier 3 (Session Fact Extraction)**: Extracts user preferences and project decisions at turn completion, evaluates semantic novelty using Jaccard word-overlap scoring, and auto-promotes facts to Tier 2 topics.
+10. **Local 7B Synthesis Hardening & Anti-Hallucination**: Enforces strict `[N]` bracket wrapping for citations, deterministically normalizes unbracketed citation integers while protecting legitimate numbers (`step 2`, `table 1`), normalizes plain URL lists into markdown links, and strips fourth-wall reviewer leakage.
+11. **Turn-Scoping & State Isolation**: Intermediate tool payloads from prior turns are discarded before calling the LLM to prevent cross-turn context pollution.
+12. **Domain Grounding & Reality Check**: Distinguishes physical hardware ownership from institutional grant allocations (NAIRR Pilot, DGX Cloud credits) for high-end enterprise computing queries.
+13. **Deterministic URL Citation Guard**: Automatically validates and revives markdown links `[Title](https://...)` from tool outputs, preventing URL stripping or placeholder dead links.
+14. **Symmetrical Sandbox**: Resolves absolute file paths and strictly verifies that operations stay inside `workspace/`.
+15. **Safe Subprocess Shell**: Enforces `shell=False` inside `subprocess.run()`, parses arguments with `shlex.split()`, and checks binaries against an allowlist.
+16. **Ephemeral Browser Lifespan**: Playwright launches headless Chromium per scraping request with strict 15s timeouts and auto-termination to prevent zombie processes.
+17. **Built-in Telemetry**: Exposes Prometheus metrics on `/metrics` with pre-configured Grafana dashboards for latency, tokens/s, and tool error rates.
+18. **Epistemic Grounding (Canonical Lore vs. Speculation)**: Strictly separates canonical ground truth from speculative forum debates, blog essays, and fan theories. Prevents SEO/Theory Scrape Collapse by prioritizing primary source data and official wikis while omitting unverified internet theories unless the user explicitly requests them.
+19. **Conditional Temporal Grounding & Chronological Causality**: Distinguishes active modern metrics from historical events. Appends the current year strictly for financial metrics, earnings, and tech benchmarks, while strictly forbidding temporal distortion on historical figures, eras, or lore. Enforces strict chronological timeline verification before asserting cause-and-effect relationships. Prevents search redundancy and Wikipedia loops via session-scoped URL deduplication and lexical query similarity checks.
 
 ---
 
@@ -141,7 +160,9 @@ Maidere includes dedicated **Auto** and **Thinking** controls (top header toggle
 | `shell` | Run allowlisted shell command | `command: str` |
 | `code_runner` | Execute Python script inside workspace | `code: str` |
 | `browser` | Scrape webpage DOM text via Playwright | `url: str` |
-| `delegate_task` | Spawn autonomous subagent (`researcher`, `plan`, `verification`, `validation`, `code-reviewer`) | `prompt: str, subagent_type: str, max_turns: int` |
+| `delegate_task` | Spawn autonomous subagent (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) | `prompt: str, subagent_type: str, max_turns: int` |
+| `manage_memory` | 3-Tier memory manager (read/save topic facts, view rules) | `action: str, topic: str, content: str` |
+| `agy_staffer` | External Gemini 3.8 Flash delegate via Antigravity CLI (`researcher`, `reviewer`, `implementer`, `ask`, `staffer`) | `prompt: str, persona: str` |
 | `obsidian` | Search, read, write, and create notes in Obsidian vault | `action: str, note_name: str, content: str` |
 | `scheduler` | Schedule recurring or one-shot cron jobs via APScheduler | `action: str, job_id: str, ...` |
 | `web_search` | Private local metasearch via SearXNG | `query: str` |
@@ -153,12 +174,14 @@ Maidere includes dedicated **Auto** and **Thinking** controls (top header toggle
 ## Automated Test Suite
 
 ```bash
-# Run full automated test suite (148 tests across 16 test suites)
+# Run full automated test suite (209 tests across 21 test suites)
+uv run --no-sync python -m unittest discover -s tests -p "test_*.py" -v
+# or with active venv:
 .venv/bin/python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 ```text
-Ran 148 tests in 3.550s — OK (100% Passed, 0 Failures, 0 Errors)
+Ran 209 tests in 3.945s — OK (100% Passed, 0 Failures, 0 Errors)
 ```
 
 ---
