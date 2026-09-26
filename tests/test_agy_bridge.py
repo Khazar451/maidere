@@ -155,6 +155,42 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Local researcher finished", res)
         mock_run_subagent.assert_called_once()
 
+    @patch("tools.agy_bridge.find_agy_executable", return_value=None)
+    @patch("tools.agy_bridge.run_subagent")
+    async def test_verification_and_validation_fallback_to_local(self, mock_run_subagent, mock_find):
+        """Verify that verification and validation personas fallback to correct local subagents."""
+        mock_run_subagent.return_value = SubAgentResult(
+            task="Verify logic",
+            summary="[PASS: VERIFIED]",
+            subagent_type="verification",
+            tools_used=[],
+            duration_ms=100,
+            success=True,
+            turns_used=2,
+            artifact_path="/tmp/v_artifact.md",
+            brief="• Verification passed.",
+        )
+
+        res_v = await self.tool.execute(task="Verify logic", persona="verification")
+        self.assertIn("[AGY STAFFER FALLBACK -> LOCAL VERIFICATION]", res_v)
+        self.assertIn("Verification passed", res_v)
+
+        mock_run_subagent.return_value = SubAgentResult(
+            task="Validate API",
+            summary="[PASS: VALIDATED]",
+            subagent_type="validation",
+            tools_used=[],
+            duration_ms=100,
+            success=True,
+            turns_used=2,
+            artifact_path="/tmp/val_artifact.md",
+            brief="• Validation passed.",
+        )
+
+        res_val = await self.tool.execute(task="Validate API", persona="validation")
+        self.assertIn("[AGY STAFFER FALLBACK -> LOCAL VALIDATION]", res_val)
+        self.assertIn("Validation passed", res_val)
+
 
 if __name__ == "__main__":
     unittest.main()

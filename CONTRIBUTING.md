@@ -80,7 +80,7 @@ Contributors should familiarize themselves with the modular layout before making
   - [`delegate.py`](file:///home/khazar/maidere/tools/delegate.py): Multi-agent delegation tool for spawning specialized sub-agents.
   - [`registry.py`](file:///home/khazar/maidere/tools/registry.py): Central tool registry and Ollama JSON function schema generation.
 
-- **[`agents/`](file:///home/khazar/maidere/agents/)**: Markdown system prompt templates for sub-agent roles (`researcher.md`, `critic.md`, `plan.md`, `code-reviewer.md`, `tech-hardware.md`).
+- **[`agents/`](file:///home/khazar/maidere/agents/)**: Markdown system prompt templates for sub-agent roles (`researcher.md`, `critic.md`, `plan.md`, `code-reviewer.md`, `tech-hardware.md`, `verification.md`, `validation.md`).
 
 - **[`skills/`](file:///home/khazar/maidere/skills/)**: Procedural step-by-step skill markdown guidelines loaded dynamically into memory.
 

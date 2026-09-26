@@ -74,6 +74,18 @@ PERSONA_DIRECTIVES = {
         "You are acting as an AGY Autonomous Staffer running Gemini 3.8 Flash.\n"
         "Execute the scoped task with precision and provide an actionable, structured report."
     ),
+    "verification": (
+        "You are acting as an AGY Verification Staffer running Gemini 3.8 Flash.\n"
+        "Your task is formal proof-checking, mathematical recalculation, logic invariant verification, and specification compliance.\n"
+        "Independently recalculate formulas, check boundary constraints, and verify citation fidelity.\n"
+        "Format findings with clear verdict [PASS: VERIFIED] or structured defect reports."
+    ),
+    "validation": (
+        "You are acting as an AGY Validation Staffer running Gemini 3.8 Flash.\n"
+        "Your task is empirical validation, real-world fact-checking, API and package compatibility checking, and acceptance criteria validation.\n"
+        "Actively verify external dependencies, 2026 version compatibility, and fitness-for-purpose.\n"
+        "Format findings with clear verdict [PASS: VALIDATED] or structured defect reports."
+    ),
 }
 
 RATE_LIMIT_PATTERNS = [
@@ -144,9 +156,11 @@ class AgyStafferTool(BaseTool):
     name: str = "agy_staffer"
     description: str = (
         "Hire Google's Antigravity CLI ('agy') as a fast cloud-accelerated staffer running Gemini 3.8 Flash. "
-        "Supports 5 personas: "
+        "Supports 7 personas: "
         "'researcher' (rapid codebase survey and web discovery), "
         "'reviewer' (adversarial cross-model review of code, plans, and diffs), "
+        "'verification' (formal proof-checking, mathematical recalculation, logic invariants), "
+        "'validation' (empirical validation, real-world APIs/versions, acceptance criteria), "
         "'implementer' (code changes with git dirty-state awareness), "
         "'ask' (tool-free instant Q&A), and "
         "'staffer' (general autonomous worker). "
@@ -163,8 +177,8 @@ class AgyStafferTool(BaseTool):
             "persona": {
                 "type": "string",
                 "description": (
-                    "The AGY persona to invoke: 'researcher', 'reviewer', 'implementer', 'ask', or 'staffer'. "
-                    "Default: 'researcher'."
+                    "The AGY persona to invoke: 'researcher', 'reviewer', 'verification', 'validation', "
+                    "'implementer', 'ask', or 'staffer'. Default: 'researcher'."
                 ),
             },
             "extra_args": {
@@ -334,6 +348,10 @@ class AgyStafferTool(BaseTool):
         local_mapping = {
             "researcher": "researcher",
             "reviewer": "reviewer",
+            "verification": "verification",
+            "verifier": "verification",
+            "validation": "validation",
+            "validator": "validation",
             "implementer": "code-reviewer",
             "ask": "general-purpose",
             "staffer": "staffer",

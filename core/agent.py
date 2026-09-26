@@ -79,6 +79,8 @@ Core Operational Principles & Governance:
       * "researcher": Fast read-only web search, documentation browsing, and fact gathering.
       * "tech-hardware": Enterprise hardware, GPU clusters, supercomputing, cloud compute grants, and infrastructure research.
       * "plan": Software architecture, system design, technical implementation plans, and migration blueprints.
+      * "verification": Formal verification, mathematical proof-checking, calculation recalculation, logical invariant testing, citation verification, and code correctness.
+      * "validation": Real-world empirical validation, dependency/API compatibility, runtime feasibility, external benchmarks, and user acceptance criteria.
       * "code-reviewer": Code inspection, bug analysis, security audit, and refactoring proposals.
       * "general-purpose": Multi-step complex read-only sub-tasks.
     - DECOMPOSITION STRATEGY: Decompose the user's topic into 2 to 4 distinct, non-overlapping sub-tasks and emit `Agent(subagent_type="...", prompt="...")` calls in your first turn.

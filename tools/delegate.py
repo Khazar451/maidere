@@ -31,6 +31,8 @@ class DelegateTaskTool(BaseTool):
         "'researcher' (fast read-only research: web search, documentation, facts, benchmarks), "
         "'tech-hardware' (enterprise hardware, GPU clusters, supercomputing, cloud compute grants), "
         "'plan' (software architecture, system design, technical implementation plans), "
+        "'verification' or 'verifier' (formal proof-checking, mathematical recalculation, logic invariants, citation verification, code correctness), "
+        "'validation' or 'validator' (empirical validation, real-world fact-checking, API/dependency compatibility, runtime feasibility, user acceptance criteria), "
         "'reviewer' or 'code-reviewer' (adversarial review of code, plans, and diffs), "
         "'staffer' or 'general-purpose' (scoped multi-step task execution). "
         "CRITICAL RULES: "
@@ -47,7 +49,10 @@ class DelegateTaskTool(BaseTool):
                 "description": (
                     "The type/name of subagent to spawn: 'researcher' (default), "
                     "'tech-hardware' (hardware, compute clusters, grants), "
-                    "'plan' (architecture & planning), 'reviewer', 'code-reviewer', 'staffer', or 'general-purpose'."
+                    "'plan' (architecture & planning), "
+                    "'verification' / 'verifier' (proof-checking, math, logic invariants, citations), "
+                    "'validation' / 'validator' (empirical validation, real-world APIs, acceptance criteria), "
+                    "'reviewer', 'code-reviewer', 'staffer', or 'general-purpose'."
                 ),
             },
             "prompt": {

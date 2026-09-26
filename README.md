@@ -118,7 +118,7 @@ Maidere includes dedicated **Auto** and **Thinking** controls (top header toggle
 3. **Interactive Reasoning Accordion**: Native real-time parsing of DeepSeek-R1's `<think>...</think>` tokens into an expandable, collapsible thought block with live streaming pulse indicator.
 4. **In-Process Vector Storage**: Single SQLite database file (`db/maidere.db`) with native `sqlite-vec` extension (`vec0` virtual table), eliminating external vector DB overhead.
 5. **SQLite WAL Concurrency**: Forces `PRAGMA journal_mode = WAL` and `busy_timeout = 5000` for crash resilience and non-blocking asynchronous multi-client access.
-6. **Claude Code Subagents**: Subagents (`researcher`, `plan`, `code-reviewer`) execute in isolated ephemeral contexts with strict read-only tool boundaries and structured JSON reporting.
+6. **Claude Code Subagents**: Subagents (`researcher`, `plan`, `verification`, `validation`, `code-reviewer`) execute in isolated ephemeral contexts with strict read-only tool boundaries and structured JSON reporting.
 7. **Turn-Scoping & State Isolation**: Intermediate tool payloads from prior turns are discarded before calling the LLM to prevent cross-turn context pollution.
 8. **Domain Grounding & Reality Check**: Distinguishes physical hardware ownership from institutional grant allocations (NAIRR Pilot, DGX Cloud credits) for high-end enterprise computing queries.
 9. **Deterministic URL Citation Guard**: Automatically validates and revives markdown links `[Title](https://...)` from tool outputs, preventing URL stripping or placeholder dead links.
@@ -141,7 +141,7 @@ Maidere includes dedicated **Auto** and **Thinking** controls (top header toggle
 | `shell` | Run allowlisted shell command | `command: str` |
 | `code_runner` | Execute Python script inside workspace | `code: str` |
 | `browser` | Scrape webpage DOM text via Playwright | `url: str` |
-| `delegate_task` | Spawn autonomous subagent (`researcher`, `plan`, `code-reviewer`) | `prompt: str, subagent_type: str, max_turns: int` |
+| `delegate_task` | Spawn autonomous subagent (`researcher`, `plan`, `verification`, `validation`, `code-reviewer`) | `prompt: str, subagent_type: str, max_turns: int` |
 | `obsidian` | Search, read, write, and create notes in Obsidian vault | `action: str, note_name: str, content: str` |
 | `scheduler` | Schedule recurring or one-shot cron jobs via APScheduler | `action: str, job_id: str, ...` |
 | `web_search` | Private local metasearch via SearXNG | `query: str` |

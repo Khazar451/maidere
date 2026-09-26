@@ -398,6 +398,10 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         self.assertIn("plan", defs)
         self.assertIn("code-reviewer", defs)
         self.assertIn("general-purpose", defs)
+        self.assertIn("verification", defs)
+        self.assertIn("verifier", defs)
+        self.assertIn("validation", defs)
+        self.assertIn("validator", defs)
 
         plan_agent = defs["plan"]
         self.assertEqual(plan_agent.name, "plan")
@@ -412,6 +416,72 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         reviewer = defs["code-reviewer"]
         self.assertEqual(reviewer.name, "code-reviewer")
         self.assertIn("read_file", reviewer.tools)
+
+        verification_agent = defs["verification"]
+        self.assertEqual(verification_agent.name, "verification")
+        self.assertIn("read_file", verification_agent.tools)
+        self.assertIn("web_search", verification_agent.tools)
+        self.assertIn("INDEPENDENT MATHEMATICAL & ALGORITHMIC RECALCULATION", verification_agent.system_prompt)
+
+        validation_agent = defs["validation"]
+        self.assertEqual(validation_agent.name, "validation")
+        self.assertIn("web_search", validation_agent.tools)
+        self.assertIn("browser", validation_agent.tools)
+        self.assertIn("EMPIRICAL REAL-WORLD & VERSION VALIDATION", validation_agent.system_prompt)
+
+    def test_verification_and_validation_agent_tool_execution(self):
+        """Verify Agent/delegate_task tool execution with verification and validation types."""
+        from tools.delegate import AgentTool
+
+        tool = AgentTool()
+        v_result = SubAgentResult(
+            task="Verify mathematical invariant in proof",
+            summary="[PASS: VERIFIED] Recalculated steps 1-5. Invariants hold.",
+            subagent_type="verification",
+            tools_used=[],
+            duration_ms=45,
+            success=True,
+            turns_used=2,
+        )
+
+        with patch("tools.delegate.run_subagent", new_callable=AsyncMock, return_value=v_result) as mock_run:
+            output = asyncio.run(tool.execute(prompt="Verify mathematical invariant in proof", subagent_type="verification"))
+            self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
+            self.assertIn("Agent Type: verification", output)
+            self.assertIn("[PASS: VERIFIED]", output)
+            mock_run.assert_awaited_once_with(
+                task="Verify mathematical invariant in proof",
+                subagent_type="verification",
+                max_turns=6,
+                model=None,
+                subagent_index=1,
+                total_subagents=1,
+            )
+
+        tool.reset_spawn_count()
+        val_result = SubAgentResult(
+            task="Validate PyTorch 2.6 CUDA 12.8 compatibility in 2026",
+            summary="[PASS: VALIDATED] Confirmed compatibility and driver versions.",
+            subagent_type="validation",
+            tools_used=[],
+            duration_ms=60,
+            success=True,
+            turns_used=3,
+        )
+
+        with patch("tools.delegate.run_subagent", new_callable=AsyncMock, return_value=val_result) as mock_run:
+            output = asyncio.run(tool.execute(prompt="Validate PyTorch 2.6 CUDA 12.8 compatibility in 2026", subagent_type="validation"))
+            self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
+            self.assertIn("Agent Type: validation", output)
+            self.assertIn("[PASS: VALIDATED]", output)
+            mock_run.assert_awaited_once_with(
+                task="Validate PyTorch 2.6 CUDA 12.8 compatibility in 2026",
+                subagent_type="validation",
+                max_turns=6,
+                model=None,
+                subagent_index=1,
+                total_subagents=1,
+            )
 
     def test_agent_tool_execution_with_prompt_and_type(self):
         """Verify Agent tool execution with prompt and subagent_type parameters."""
