@@ -70,6 +70,36 @@ class TestLLMClient(unittest.IsolatedAsyncioTestCase):
         _, kwargs32 = mock_post.call_args
         self.assertEqual(kwargs32["json"]["options"]["num_ctx"], 32768)
 
+    @patch("httpx.AsyncClient.stream")
+    async def test_chat_streaming_on_token(self, mock_stream):
+        """Test chat with on_token streams chunks in real-time."""
+        class MockStreamResponse:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+            def raise_for_status(self):
+                pass
+
+            async def aiter_lines(self):
+                yield '{"message": {"role": "assistant", "content": "Hello "}}'
+                yield '{"message": {"role": "assistant", "content": "world!"}}'
+                yield '{"done": true, "eval_count": 2}'
+
+        mock_stream.return_value = MockStreamResponse()
+
+        tokens = []
+        async def token_cb(tok):
+            tokens.append(tok)
+
+        res = await llm.chat(messages=[{"role": "user", "content": "Hi"}], on_token=token_cb)
+        self.assertEqual(tokens, ["Hello ", "world!"])
+        self.assertEqual(res["message"]["content"], "Hello world!")
+        self.assertTrue(res["done"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

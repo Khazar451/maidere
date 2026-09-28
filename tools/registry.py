@@ -11,7 +11,7 @@ from tools.base import BaseTool
 from tools.browser import BrowserTool
 from tools.code_runner import CodeRunnerTool
 from tools.delegate import AgentTool, DelegateTaskTool
-from tools.filesystem import ListDirTool, ReadFileTool, WriteFileTool
+from tools.filesystem import ListDirTool, ReadFileTool, ReplaceFileContentTool, RollbackFileTool, WriteFileTool
 from tools.github import GitHubTool
 from tools.obsidian import ObsidianTool
 from tools.scheduler import SchedulerTool
@@ -38,6 +38,8 @@ _TOOLS: dict[str, BaseTool] = {
     "obsidian": ObsidianTool(),
     "read_file": ReadFileTool(),
     "write_file": WriteFileTool(),
+    "replace_file_content": ReplaceFileContentTool(),
+    "rollback_file": RollbackFileTool(),
     "list_dir": ListDirTool(),
     "shell": ShellTool(),
     "code_runner": CodeRunnerTool(),
@@ -47,6 +49,10 @@ _TOOLS: dict[str, BaseTool] = {
 }
 
 _ALIASES: dict[str, str] = {
+    "edit_file": "replace_file_content",
+    "modify_file": "replace_file_content",
+    "restore_file_backup": "rollback_file",
+    "revert_file": "rollback_file",
     "manage_memory": "manage_memory",
     "memory": "manage_memory",
     "auto_memory": "manage_memory",
@@ -90,6 +96,8 @@ ORCHESTRATOR_TOOL_NAMES: tuple[str, ...] = (
     "obsidian",
     "read_file",
     "write_file",
+    "replace_file_content",
+    "rollback_file",
     "list_dir",
     "shell",
     "code_runner",
@@ -184,4 +192,38 @@ async def execute_tool(
     )
 
     return result
+
+
+def is_tool_call_concurrent_safe(name: str, args: dict[str, Any] | None = None) -> bool:
+    """Determine whether a specific tool call is safe to execute concurrently with other reads.
+
+    Enforces fail-closed defaults and evaluates per-call permissions for tools with mixed actions.
+    """
+    actual_name = _ALIASES.get(name, name)
+    tool = _TOOLS.get(actual_name)
+    if not tool:
+        return False
+
+    args = args or {}
+    # Per-call classification for tools with mixed actions:
+    if actual_name == "manage_memory":
+        action = str(args.get("action", "")).strip().lower()
+        return action in ("read_topic", "list_topics", "view_rules")
+    if actual_name == "obsidian":
+        action = str(args.get("action", "")).strip().lower()
+        return action in ("read_note", "search_notes", "list_notes", "open_note")
+    if actual_name == "agy_staffer":
+        persona = str(args.get("persona", "researcher")).strip().lower()
+        return persona in ("researcher", "reviewer", "ask", "verification", "validation")
+    if actual_name == "shell":
+        cmd = str(args.get("command", "")).strip().lower()
+        if cmd.startswith("git"):
+            parts = cmd.split()
+            subcmds = [p for p in parts[1:] if not p.startswith("-")]
+            return bool(subcmds and subcmds[0] in ("status", "diff", "log", "branch", "show"))
+        first_token = cmd.split()[0] if cmd.split() else ""
+        return first_token in ("ls", "cat", "grep", "pwd", "wc", "head", "tail")
+
+    return getattr(tool, "is_concurrent_safe", False)
+
 

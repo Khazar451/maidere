@@ -11,6 +11,7 @@ class BaseTool(ABC, BaseModel):
     name: str
     description: str
     parameters: dict[str, Any]  # JSON Schema for tool parameters
+    is_concurrent_safe: bool = False  # Fail-closed default: tools are serial unless opted in
 
     @abstractmethod
     async def execute(self, **kwargs: Any) -> str:

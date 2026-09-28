@@ -648,8 +648,132 @@ class TestRouterWarningLogging(unittest.TestCase):
                 call_args = mock_logger.awarn.call_args
                 self.assertEqual(call_args[0][0], "deepseek_not_available")
 
-        asyncio.run(run())
+class TestActNodeConcurrencyPartitioning(unittest.IsolatedAsyncioTestCase):
+    """Test per-call concurrency classification and act_node execution partitioning."""
+
+    def test_is_tool_call_concurrent_safe(self):
+        """Test classification of concurrent-safe vs serial tools."""
+        from tools.registry import is_tool_call_concurrent_safe
+
+        # Pure read-only tools
+        self.assertTrue(is_tool_call_concurrent_safe("read_file"))
+        self.assertTrue(is_tool_call_concurrent_safe("list_dir"))
+        self.assertTrue(is_tool_call_concurrent_safe("web_search"))
+        self.assertTrue(is_tool_call_concurrent_safe("browser"))
+        self.assertTrue(is_tool_call_concurrent_safe("delegate_task"))
+        self.assertTrue(is_tool_call_concurrent_safe("Agent"))
+
+        # Mutating tools
+        self.assertFalse(is_tool_call_concurrent_safe("write_file"))
+        self.assertFalse(is_tool_call_concurrent_safe("replace_file_content"))
+        self.assertFalse(is_tool_call_concurrent_safe("edit_file"))
+        self.assertFalse(is_tool_call_concurrent_safe("rollback_file"))
+        self.assertFalse(is_tool_call_concurrent_safe("shell"))
+        self.assertFalse(is_tool_call_concurrent_safe("code_runner"))
+
+        # Mixed action tools evaluated per-call
+        self.assertTrue(is_tool_call_concurrent_safe("manage_memory", {"action": "read_topic"}))
+        self.assertTrue(is_tool_call_concurrent_safe("manage_memory", {"action": "list_topics"}))
+        self.assertTrue(is_tool_call_concurrent_safe("manage_memory", {"action": "view_rules"}))
+        self.assertFalse(is_tool_call_concurrent_safe("manage_memory", {"action": "save_fact"}))
+
+        self.assertTrue(is_tool_call_concurrent_safe("obsidian", {"action": "read_note"}))
+        self.assertTrue(is_tool_call_concurrent_safe("obsidian", {"action": "search_notes"}))
+        self.assertFalse(is_tool_call_concurrent_safe("obsidian", {"action": "write_note"}))
+
+        self.assertTrue(is_tool_call_concurrent_safe("agy_staffer", {"persona": "researcher"}))
+        self.assertTrue(is_tool_call_concurrent_safe("agy_staffer", {"persona": "reviewer"}))
+        self.assertFalse(is_tool_call_concurrent_safe("agy_staffer", {"persona": "implementer"}))
+        self.assertFalse(is_tool_call_concurrent_safe("agy_staffer", {"persona": "staffer"}))
+
+    async def test_act_node_partitions_and_preserves_order(self):
+        """Test act_node partitions mixed concurrent and serial tools while preserving result order."""
+        from core.agent import act_node
+
+        execution_log = []
+
+        async def mock_execute_tool(name: str, args: dict, thread_id: str | None = None, **kwargs):
+            execution_log.append(f"start:{name}:{args.get('id')}")
+            # simulate slight delay to test concurrency
+            await asyncio.sleep(0.01)
+            execution_log.append(f"end:{name}:{args.get('id')}")
+            return f"result_{name}_{args.get('id')}"
+
+        state = {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "read_file", "args": {"path": "a.txt", "id": 1}, "id": "c1"},
+                        {"name": "read_file", "args": {"path": "b.txt", "id": 2}, "id": "c2"},
+                        {"name": "write_file", "args": {"path": "c.txt", "id": 3, "content": "x"}, "id": "c3"},
+                        {"name": "read_file", "args": {"path": "d.txt", "id": 4}, "id": "c4"},
+                    ],
+                )
+            ],
+            "thread_id": "test-partition",
+        }
+
+        with patch("core.agent.execute_tool", side_effect=mock_execute_tool):
+            result = await act_node(state)
+
+        tool_msgs = result.get("messages", [])
+        self.assertEqual(len(tool_msgs), 4)
+
+        # Verify results preserve original sequence
+        self.assertEqual(tool_msgs[0].content, "result_read_file_1")
+        self.assertEqual(tool_msgs[1].content, "result_read_file_2")
+        self.assertEqual(tool_msgs[2].content, "result_write_file_3")
+        self.assertEqual(tool_msgs[3].content, "result_read_file_4")
+
+        # Verify write_file only started AFTER read_file 1 & 2 both ended
+        c1_end = execution_log.index("end:read_file:1")
+        c2_end = execution_log.index("end:read_file:2")
+        c3_start = execution_log.index("start:write_file:3")
+        c3_end = execution_log.index("end:write_file:3")
+        c4_start = execution_log.index("start:read_file:4")
+
+        self.assertGreater(c3_start, c1_end)
+        self.assertGreater(c3_start, c2_end)
+        self.assertGreater(c4_start, c3_end)
+
+
+class TestThinkNodeStreaming(unittest.IsolatedAsyncioTestCase):
+    """Test real-time token streaming from think_node."""
+
+    async def test_think_node_streams_tokens_to_callback(self):
+        """Verify think_node passes on_token callback to llm.chat when direct answer is produced."""
+        from langchain_core.messages import HumanMessage
+        from core.agent import think_node
+
+        streamed_tokens = []
+
+        async def dummy_callback(token: str):
+            streamed_tokens.append(token)
+
+        async def fake_streaming_chat(messages, tools=None, model=None, num_ctx=None, on_token=None):
+            if on_token:
+                await on_token("Hello ")
+                await on_token("from ")
+                await on_token("stream!")
+            return {"message": {"role": "assistant", "content": "Hello from stream!"}}
+
+        state = {
+            "messages": [HumanMessage(content="Hello")],
+            "thread_id": "test-stream-thread",
+            "callback": dummy_callback,
+            "skip_tools": True,  # Ensures tools_schemas is empty
+        }
+
+        with patch("core.llm.chat", side_effect=fake_streaming_chat), \
+             patch("core.agent.emit_agent_event", new_callable=AsyncMock):
+            result = await think_node(state)
+
+        self.assertEqual(streamed_tokens, ["Hello ", "from ", "stream!"])
+        self.assertEqual(result["messages"][0].content, "Hello from stream!")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+

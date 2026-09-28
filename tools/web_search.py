@@ -59,6 +59,7 @@ class WebSearchTool(BaseTool):
         "Search the web for up-to-date facts, documentation, or news. "
         "Do NOT call this tool for basic conversation, greetings, or answering questions about your own errors."
     )
+    is_concurrent_safe: bool = True
     parameters: dict[str, Any] = {
         "type": "object",
         "properties": {

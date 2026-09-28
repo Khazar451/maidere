@@ -214,6 +214,72 @@ class TestEvaluationNodeAndSelfCorrection(unittest.IsolatedAsyncioTestCase):
         self.assertIn("[ABORT RETRIES", updated_msg.content)
         self.assertIn("Do NOT retry calling this tool", updated_msg.content)
 
+    async def test_evaluate_node_subagent_calculation_error_verdict(self):
+        """When subagent outputs [FAIL: CALCULATION_ERROR], evaluate_node injects SYSTEM CORRECTION DIRECTIVE."""
+        state = {
+            "messages": [
+                ToolMessage(
+                    content="[FAIL: CALCULATION_ERROR] Annual revenue growth was 12.5%, not 25.0%.",
+                    tool_call_id="call-vv-1",
+                    name="Agent",
+                )
+            ]
+        }
+        res = await evaluate_node(state)
+        self.assertIn("messages", res)
+        updated_msg = res["messages"][0]
+        self.assertIn("[SYSTEM CORRECTION DIRECTIVE:", updated_msg.content)
+        self.assertIn("[FAIL: CALCULATION_ERROR]", updated_msg.content)
+        self.assertIn("Recalculate, verify citations", updated_msg.content)
+
+    async def test_evaluate_node_subagent_citation_mismatch_verdict(self):
+        """When subagent outputs [FAIL: CITATION_MISMATCH], evaluate_node injects correction guidance."""
+        state = {
+            "messages": [
+                ToolMessage(
+                    content="[FAIL: CITATION_MISMATCH] Source [2] does not substantiate claim on battery life.",
+                    tool_call_id="call-vv-2",
+                    name="delegate_task",
+                )
+            ]
+        }
+        res = await evaluate_node(state)
+        self.assertIn("messages", res)
+        updated_msg = res["messages"][0]
+        self.assertIn("[SYSTEM CORRECTION DIRECTIVE:", updated_msg.content)
+        self.assertIn("[FAIL: CITATION_MISMATCH]", updated_msg.content)
+
+    async def test_evaluate_node_subagent_blocked_verdict(self):
+        """When subagent outputs [BLOCKED: INFEASIBLE], evaluate_node injects correction directive."""
+        state = {
+            "messages": [
+                ToolMessage(
+                    content="[BLOCKED: INFEASIBLE] Cannot retrieve authenticated API without tokens.",
+                    tool_call_id="call-vv-3",
+                    name="Agent",
+                )
+            ]
+        }
+        res = await evaluate_node(state)
+        self.assertIn("messages", res)
+        updated_msg = res["messages"][0]
+        self.assertIn("[SYSTEM CORRECTION DIRECTIVE:", updated_msg.content)
+        self.assertIn("[BLOCKED: INFEASIBLE]", updated_msg.content)
+
+    async def test_evaluate_node_clean_subagent_success_no_guidance(self):
+        """When subagent outputs normal successful text, evaluate_node returns empty dict."""
+        state = {
+            "messages": [
+                ToolMessage(
+                    content="Research report: RTX 5060 has 8GB VRAM and runs at 145W TGP.",
+                    tool_call_id="call-clean-1",
+                    name="Agent",
+                )
+            ]
+        }
+        res = await evaluate_node(state)
+        self.assertEqual(res, {})
+
 
 class TestAgentLoopWithEvaluation(unittest.IsolatedAsyncioTestCase):
     """Test full LangGraph agentic loop with evaluate_node."""

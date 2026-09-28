@@ -39,7 +39,18 @@ ALLOWED_COMMANDS: set[str] = {
     "mv",
     "rm",
     "wc",
+    "git",
 }
+
+ALLOWED_GIT_SUBCOMMANDS: set[str] = {
+    "status",
+    "diff",
+    "log",
+    "branch",
+    "show",
+}
+
+DISALLOWED_GIT_FLAGS: set[str] = {"-c", "--work-tree", "--git-dir", "--exec-path"}
 
 DEFAULT_TIMEOUT_SECONDS: float = 30.0
 
@@ -50,7 +61,8 @@ class ShellTool(BaseTool):
     name: str = "shell"
     description: str = (
         "Execute a permitted shell command inside the workspace sandbox. "
-        "Allowed binaries: python3, python, node, ls, cat, grep, mkdir, echo, touch, find, head, tail, pwd, cp, mv, rm, wc."
+        "Allowed binaries: python3, python, node, ls, cat, grep, mkdir, echo, touch, find, head, tail, pwd, cp, mv, rm, wc, "
+        "git (read-only inspection: status, diff, log, branch, show)."
     )
     parameters: dict[str, Any] = {
         "type": "object",
@@ -102,6 +114,31 @@ class ShellTool(BaseTool):
                 f"Error: Command binary '{binary_name}' is not permitted by security policy. "
                 f"Allowed binaries: {', '.join(sorted(ALLOWED_COMMANDS))}."
             )
+
+        # 4. Git subcommand and boundary verification
+        if binary_name == "git":
+            for arg in args[1:]:
+                arg_lower = arg.lower()
+                if arg_lower in DISALLOWED_GIT_FLAGS or any(arg_lower.startswith(f"{f}=") for f in DISALLOWED_GIT_FLAGS):
+                    return f"Error: Git flag '{arg}' is blocked by security policy to prevent workspace escaping."
+
+            subcmd = None
+            for arg in args[1:]:
+                if not arg.startswith("-"):
+                    subcmd = arg.lower()
+                    break
+
+            if not subcmd:
+                return (
+                    f"Error: Git command requires a permitted inspection subcommand. "
+                    f"Allowed subcommands: {', '.join(sorted(ALLOWED_GIT_SUBCOMMANDS))}."
+                )
+
+            if subcmd not in ALLOWED_GIT_SUBCOMMANDS:
+                return (
+                    f"Error: Git subcommand '{subcmd}' is blocked by security policy. "
+                    f"Only read-only inspection commands are permitted: {', '.join(sorted(ALLOWED_GIT_SUBCOMMANDS))}."
+                )
 
         WORKSPACE.mkdir(parents=True, exist_ok=True)
 

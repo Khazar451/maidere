@@ -21,6 +21,7 @@ class DelegateTaskTool(BaseTool):
     """Tool for the orchestrator to spawn focused sub-agents (Claude Code Agent tool)."""
 
     name: str = "delegate_task"
+    is_concurrent_safe: bool = True
     description: str = (
         "Spawn an independent specialized subagent running in its own fresh 8K context window. "
         "MANDATORY for deep research, comprehensive analysis, detailed comparisons, technical overviews, "

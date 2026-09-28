@@ -43,6 +43,7 @@ class ListSkillsTool(BaseTool):
 
     name: str = "list_available_skills"
     description: str = "List all available specialized skills and domain packages."
+    is_concurrent_safe: bool = True
     parameters: dict[str, Any] = {
         "type": "object",
         "properties": {},
@@ -56,6 +57,7 @@ class LoadSkillTool(BaseTool):
     """Tool to load a specific skill into working context."""
 
     name: str = "load_skill"
+    is_concurrent_safe: bool = True
     description: str = (
         "Load step-by-step instructions and constraints for a specialized skill package."
     )

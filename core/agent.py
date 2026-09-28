@@ -30,7 +30,12 @@ from core.config import settings
 from core.db import get_db
 from core.memory import format_memories, recall
 from core.state import AgentState
-from tools.registry import execute_tool, get_orchestrator_ollama_schemas, get_tools_ollama_schemas
+from tools.registry import (
+    execute_tool,
+    get_orchestrator_ollama_schemas,
+    get_tools_ollama_schemas,
+    is_tool_call_concurrent_safe,
+)
 
 logger = structlog.get_logger()
 
@@ -69,7 +74,7 @@ Core Operational Principles & Governance:
 6. AI Ethics & Bias Mitigation: Provide balanced, multi-perspective analysis, cite verified sources explicitly, and avoid exclusionary assumptions in all research and synthesis.
 7. Task Delegation & Safety Bounds: Never execute destructive shell commands (e.g. recursive deletions, forced resets, table drops) or modify critical system files without explicit user confirmation.
 8. Proactive Tool Utilization: NEVER call tools for basic greetings (e.g. "hello", "hi"), casual conversation, or general chit-chat. When tools are genuinely needed, invoke them proactively and inspect their output before formulating your final response.
-9. File Resolution Bounds: NEVER interpret casual user remarks, rhetorical questions, or conversational phrases as file names to read or execute. NEVER invent fictitious file extensions. Only use `read_file` for real files explicitly named by the user or discovered via `list_dir`.
+9. File Resolution Bounds & Targeted Editing: NEVER interpret casual user remarks, rhetorical questions, or conversational phrases as file names to read or execute. NEVER invent fictitious file extensions. Only use `read_file` for real files explicitly named by the user or discovered via `list_dir`. For modifying existing files, ALWAYS use `replace_file_content` (or `edit_file`) to substitute targeted text blocks rather than rewriting entire files; reserve `write_file` for creating new files. If an edit fails or causes errors, use `rollback_file` to restore the `.bak` backup.
 10. Obsidian Vault Integration: You have direct read, write, search, and open access to the user's local Obsidian Vault via the `obsidian` tool. When asked to write, organize, look up, or open markdown notes, use the `obsidian` tool with appropriate action (`write_note`, `read_note`, `list_notes`, `search_notes`, `open_note`).
 11. Sub-Agent Delegation (MANDATORY for Deep Research & Planning):
     Whenever the user requests research, deep research, comprehensive analysis, architectural design, software planning, detailed comparisons, technical breakdowns, or code improvements:
@@ -973,7 +978,7 @@ async def think_node(state: AgentState) -> dict:
     )
 
     # Retrieve orchestrator tool schemas for Ollama (excludes direct web_search/browser)
-    tools_schemas = get_orchestrator_ollama_schemas()
+    tools_schemas = get_orchestrator_ollama_schemas() if not state.get("skip_tools") else None
 
     # Anti-Cheat / Pure Reasoning Guardrail:
     # DeepSeek-R1 does not support Ollama tool-calling and must never receive tool schemas.
@@ -991,7 +996,7 @@ async def think_node(state: AgentState) -> dict:
         ]
 
 
-    callback = _stream_callbacks.get(state.get("thread_id", ""))
+    callback = state.get("callback") or _stream_callbacks.get(state.get("thread_id", ""))
 
     has_tools_in_history = any(isinstance(m, ToolMessage) for m in state.get("messages", []))
     is_synthesis_turn = bool(state.get("has_delegated") and has_tools_in_history)
@@ -1092,9 +1097,29 @@ async def think_node(state: AgentState) -> dict:
             ),
         })
 
-    # Call LLM for decision / response
+    # Call LLM for decision / response with real-time streaming support
     active_num_ctx = state.get("num_ctx") or settings.ollama_num_ctx
-    response = await llm.chat(ollama_messages, tools=tools_schemas, model=selected_model, num_ctx=active_num_ctx)
+    streamed_to_callback = False
+
+    async def _realtime_stream_token(token_text: str):
+        nonlocal streamed_to_callback
+        streamed_to_callback = True
+        if callback:
+            await callback(token_text)
+
+    # Stream real-time tokens when no deliberation cycle is active
+    initial_on_token = _realtime_stream_token if (callback and not deep_reasoning_flag and not should_deliberate(state, latest_user_query, AIMessage(content=""))) else None
+    chat_kwargs = {
+        "tools": tools_schemas,
+        "model": selected_model,
+        "num_ctx": active_num_ctx,
+    }
+    if initial_on_token is not None:
+        chat_kwargs["on_token"] = initial_on_token
+    response = await llm.chat(
+        ollama_messages,
+        **chat_kwargs,
+    )
     message = response.get("message", {})
     ai_content = message.get("content", "")
     raw_tool_calls = message.get("tool_calls", [])
@@ -1237,7 +1262,14 @@ async def think_node(state: AgentState) -> dict:
                 ),
             }
             ollama_messages.append(synthesis_prompt)
-            synth_resp = await llm.chat(ollama_messages, tools=None, model=selected_model, num_ctx=active_num_ctx)
+            synth_kwargs = {
+                "tools": None,
+                "model": selected_model,
+                "num_ctx": active_num_ctx,
+            }
+            if callback and not should_deliberate(state, latest_user_query, AIMessage(content="")):
+                synth_kwargs["on_token"] = _realtime_stream_token
+            synth_resp = await llm.chat(ollama_messages, **synth_kwargs)
             synth_msg = synth_resp.get("message", {})
             ai_content = synth_msg.get("content", "")
 
@@ -1259,9 +1291,9 @@ async def think_node(state: AgentState) -> dict:
                     "level": "info",
                 },
             )
-        elif callback and ai_content:
+        elif callback and ai_content and not streamed_to_callback:
             try:
-                # Stream content in smooth chunks
+                # Stream content in smooth chunks (fallback if not streamed directly)
                 chunk_size = 20
                 for i in range(0, len(ai_content), chunk_size):
                     await callback(ai_content[i:i + chunk_size])
@@ -1342,7 +1374,27 @@ async def act_node(state: AgentState) -> dict:
             id=f"tool_msg_{call_id}",
         )
 
-    tool_messages = await asyncio.gather(*[_run_single_tool(tc) for tc in tool_calls])
+    # Concurrency partitioning: group consecutive concurrent-safe calls for parallel execution,
+    # and execute mutating/unsafe calls serially in order to eliminate state race conditions.
+    tool_messages: list[ToolMessage] = []
+    current_concurrent_batch: list[dict] = []
+
+    for tc in tool_calls:
+        t_name = tc.get("name", "")
+        t_args = tc.get("args", {})
+        if is_tool_call_concurrent_safe(t_name, t_args):
+            current_concurrent_batch.append(tc)
+        else:
+            if current_concurrent_batch:
+                batch_results = await asyncio.gather(*[_run_single_tool(c) for c in current_concurrent_batch])
+                tool_messages.extend(batch_results)
+                current_concurrent_batch = []
+            serial_res = await _run_single_tool(tc)
+            tool_messages.append(serial_res)
+
+    if current_concurrent_batch:
+        batch_results = await asyncio.gather(*[_run_single_tool(c) for c in current_concurrent_batch])
+        tool_messages.extend(batch_results)
 
     # Patch #3: Track if Agent / delegate_task was used — blocks re-delegation for this query
     delegated = any(tc.get("name") in ("Agent", "agent", "delegate_task", "subagent", "Task") for tc in tool_calls)
@@ -1395,41 +1447,63 @@ async def evaluate_node(state: AgentState) -> dict:
             has_error = True
             break
 
-    if not has_error:
+    # Check for structured V&V verdicts from subagents (verification / validation)
+    verdict_directive = None
+    for tm in recent_tool_msgs:
+        content_str = str(tm.content)
+        verdict_match = re.search(r"\[(FAIL|BLOCKED):\s*([A-Z_]+)\]", content_str)
+        if verdict_match:
+            status, reason = verdict_match.group(1), verdict_match.group(2)
+            verdict_directive = (
+                f"\n\n[SYSTEM CORRECTION DIRECTIVE: A verification/validation subagent reported [{status}: {reason}]. "
+                "You must immediately remediate this issue. Recalculate, verify citations against primary evidence, "
+                "or correct your reasoning before continuing. Do NOT proceed with unverified or falsified claims.]"
+            )
+            break
+
+    if not has_error and not verdict_directive:
         return {}
 
     # Count consecutive tool errors in the message history
     consecutive_errors = 0
-    for msg in reversed(messages):
-        if isinstance(msg, ToolMessage):
-            content_str = str(msg.content)
-            if (
-                content_str.startswith("Error:")
-                or content_str.startswith("[Search Error:")
-                or content_str.startswith("[Search Unavailable:")
-                or "Error executing tool" in content_str
-            ):
-                consecutive_errors += 1
+    if has_error:
+        for msg in reversed(messages):
+            if isinstance(msg, ToolMessage):
+                content_str = str(msg.content)
+                if (
+                    content_str.startswith("Error:")
+                    or content_str.startswith("[Search Error:")
+                    or content_str.startswith("[Search Unavailable:")
+                    or "Error executing tool" in content_str
+                ):
+                    consecutive_errors += 1
+                else:
+                    break
+            elif isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+                continue
             else:
                 break
-        elif isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
-            continue
-        else:
-            break
 
     # Build evaluation annotation
-    if consecutive_errors >= 2:
-        guidance = (
-            "\n\n[ABORT RETRIES: Service or tool is unavailable after multiple attempts. "
-            "Do NOT retry calling this tool. Report the failure transparently to the user "
-            "and answer based on existing knowledge or state limitations without fabricating data.]"
-        )
-    else:
-        guidance = (
-            "\n\n[SYSTEM EVALUATION GUIDANCE: Diagnose this failure. Either adjust arguments, "
-            "attempt an alternative tool, or state the limitation clearly to the user. "
-            "Do NOT simulate or invent fake outputs.]"
-        )
+    guidance_parts = []
+    if verdict_directive:
+        guidance_parts.append(verdict_directive)
+
+    if has_error:
+        if consecutive_errors >= 2:
+            guidance_parts.append(
+                "\n\n[ABORT RETRIES: Service or tool is unavailable after multiple attempts. "
+                "Do NOT retry calling this tool. Report the failure transparently to the user "
+                "and answer based on existing knowledge or state limitations without fabricating data.]"
+            )
+        else:
+            guidance_parts.append(
+                "\n\n[SYSTEM EVALUATION GUIDANCE: Diagnose this failure. Either adjust arguments, "
+                "attempt an alternative tool, or state the limitation clearly to the user. "
+                "Do NOT simulate or invent fake outputs.]"
+            )
+
+    guidance = "".join(guidance_parts)
 
     # Append guidance to the most recent tool message content
     last_tool_msg = recent_tool_msgs[0]
@@ -1445,11 +1519,11 @@ async def evaluate_node(state: AgentState) -> dict:
         id=last_tool_msg.id or f"tool_msg_{last_tool_msg.tool_call_id}",
     )
 
-
     await logger.awarn(
         "tool_evaluated_with_guidance",
         consecutive_errors=consecutive_errors,
         tool_name=last_tool_msg.name,
+        has_verdict=verdict_directive is not None,
     )
 
     return {"messages": [updated_tool_msg]}
@@ -1554,7 +1628,7 @@ async def converge_node(state: AgentState) -> dict:
     draft_content = last_ai.content if hasattr(last_ai, "content") else str(last_ai or "")
     verification_text = state.get("verification_notes") or state.get("critique", "")
     thread_id = state.get("thread_id")
-    callback = _stream_callbacks.get(thread_id or "")
+    callback = state.get("callback") or _stream_callbacks.get(thread_id or "")
 
     latest_user_query = ""
     for msg in reversed(messages):

@@ -83,6 +83,7 @@ class BrowserTool(BaseTool):
         "Browse a web URL using a headless browser and extract readable page text. "
         "Useful for reading articles, documentation, or websites."
     )
+    is_concurrent_safe: bool = True
     parameters: dict[str, Any] = {
         "type": "object",
         "properties": {
