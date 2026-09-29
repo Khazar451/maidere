@@ -134,13 +134,24 @@ CHAR_LIMIT = TOKEN_LIMIT * CHARS_PER_TOKEN
 # ---------------------------------------------------------------------------
 
 
+def _resolve_num_ctx(state: AgentState) -> int:
+    """Resolve active context window from state, defaulting based on model type."""
+    ctx = state.get("num_ctx")
+    if ctx:
+        return int(ctx)
+    model = state.get("model") or settings.ollama_model
+    if model == "auto":
+        model = settings.ollama_model
+    return getattr(settings, "cloud_num_ctx", 65536) if llm.is_cloud_model(model) else settings.ollama_num_ctx
+
+
 def trim_messages_node(state: AgentState) -> dict:
     """Trim oldest messages when approaching the active context window limit.
 
     Also detects topic changes and aggressively prunes prior context when the
     user switches to a completely unrelated topic within the same thread.
     """
-    active_num_ctx = state.get("num_ctx") or settings.ollama_num_ctx
+    active_num_ctx = _resolve_num_ctx(state)
     token_limit = int(active_num_ctx * 0.75)
     char_limit = token_limit * CHARS_PER_TOKEN
 
@@ -914,18 +925,24 @@ async def think_node(state: AgentState) -> dict:
         if isinstance(msg, HumanMessage):
             ollama_messages.append({"role": "user", "content": str(msg.content or "")})
         elif isinstance(msg, ToolMessage):
-            ollama_messages.append({"role": "tool", "content": str(msg.content or "")})
+            tool_dict: dict = {"role": "tool", "content": str(msg.content or "")}
+            call_id = getattr(msg, "tool_call_id", None)
+            if call_id:
+                tool_dict["tool_call_id"] = str(call_id)
+            ollama_messages.append(tool_dict)
         elif isinstance(msg, AIMessage):
             msg_dict: dict = {"role": "assistant", "content": msg.content or ""}
             if getattr(msg, "tool_calls", None):
                 msg_dict["tool_calls"] = [
                     {
+                        "id": tc.get("id") or f"call_{tc_idx}_{uuid.uuid4().hex[:8]}",
+                        "type": "function",
                         "function": {
                             "name": tc["name"],
                             "arguments": tc["args"],
-                        }
+                        },
                     }
-                    for tc in msg.tool_calls
+                    for tc_idx, tc in enumerate(msg.tool_calls)
                 ]
             ollama_messages.append(msg_dict)
         else:
@@ -1098,7 +1115,7 @@ async def think_node(state: AgentState) -> dict:
         })
 
     # Call LLM for decision / response with real-time streaming support
-    active_num_ctx = state.get("num_ctx") or settings.ollama_num_ctx
+    active_num_ctx = _resolve_num_ctx(state)
     streamed_to_callback = False
 
     async def _realtime_stream_token(token_text: str):
@@ -1567,7 +1584,7 @@ async def verify_node(state: AgentState) -> dict:
     selected_model = state.get("model") or settings.ollama_model
     if selected_model == "auto":
         selected_model = settings.ollama_model
-    active_num_ctx = state.get("num_ctx") or settings.ollama_num_ctx
+    active_num_ctx = _resolve_num_ctx(state)
 
     verifier_prompt = [
         {
@@ -1669,7 +1686,7 @@ async def converge_node(state: AgentState) -> dict:
     selected_model = state.get("model") or settings.ollama_model
     if selected_model == "auto":
         selected_model = settings.ollama_model
-    active_num_ctx = state.get("num_ctx") or settings.ollama_num_ctx
+    active_num_ctx = _resolve_num_ctx(state)
 
     converger_prompt = [
         {

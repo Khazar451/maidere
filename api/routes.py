@@ -268,13 +268,18 @@ async def chat(request: ChatRequest) -> ChatResponse:
         pass
 
     try:
+        resolved_num_ctx = request.num_ctx or (
+            getattr(settings, "cloud_num_ctx", 65536)
+            if llm.is_cloud_model(model_name)
+            else settings.ollama_num_ctx
+        )
         result = await _graph.ainvoke(
             {
                 "messages": [HumanMessage(content=request.message)],
                 "memory_context": "No relevant memories found.",
                 "thread_id": thread_id,
                 "model": model_name,
-                "num_ctx": request.num_ctx or settings.ollama_num_ctx,
+                "num_ctx": resolved_num_ctx,
                 "has_delegated": False,
                 "tool_loop_count": 0,
                 "subagent_results": [],
@@ -475,7 +480,11 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             # Notify UI that thinking started
             model_name = data.get("model") or settings.ollama_model
-            num_ctx = data.get("num_ctx") or settings.ollama_num_ctx
+            num_ctx = data.get("num_ctx") or (
+                getattr(settings, "cloud_num_ctx", 65536)
+                if llm.is_cloud_model(model_name)
+                else settings.ollama_num_ctx
+            )
             thinking_mode = bool(data.get("thinking_mode", False))
             deep_reasoning = bool(data.get("deep_reasoning", False))
             await safe_ws_send({"type": "stage", "stage": "thinking", "thread_id": thread_id})

@@ -51,7 +51,30 @@ class Settings(BaseSettings):
     github_token: str = ""
     github_default_repo: str = "Khazar451/maidere"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # Cloud AI Provider (NVIDIA NIM / OpenAI-compatible endpoints)
+    cloud_api_key: str = ""
+    cloud_api_base: str = "https://integrate.api.nvidia.com/v1"
+    cloud_model: str = "nvidia/nemotron-3-ultra-550b-a55b"
+    cloud_num_ctx: int = 65536
+    cloud_timeout: float = 120.0
+    nvidia_api_key: str = ""
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    openai_api_key: str = ""
+    openai_base_url: str = ""
+
+    def get_effective_cloud_config(self) -> tuple[str, str, str]:
+        """Resolve effective cloud API key, base URL, and default model."""
+        api_key = self.cloud_api_key or self.nvidia_api_key or self.openai_api_key
+        base_url = (
+            self.cloud_api_base
+            or self.nvidia_base_url
+            or self.openai_base_url
+            or "https://integrate.api.nvidia.com/v1"
+        )
+        model = self.cloud_model or "nvidia/nemotron-3-ultra-550b-a55b"
+        return api_key.strip(), base_url.strip().rstrip("/"), model.strip()
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()

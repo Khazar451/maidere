@@ -157,13 +157,17 @@
 
     if (state.thinkingMode || state.deepReasoning) {
       if (el.modelSelect) {
-        const options = Array.from(el.modelSelect.options);
-        const r1Opt = options.find((o) => o.value.includes('deepseek-r1') || o.value.includes('r1'));
-        if (r1Opt) {
-          state.selectedModel = r1Opt.value;
-          el.modelSelect.value = r1Opt.value;
-          localStorage.setItem('maidere_selected_model', state.selectedModel);
-          appendTerminal('agent-shell', `[ROUTER] Switched model to ${r1Opt.value} for reasoning`, 'info');
+        const current = (state.selectedModel || '').toLowerCase();
+        const isAlreadyReasoningModel = current.includes('nemotron') || current.includes('deepseek-r1') || current.includes('r1');
+        if (!isAlreadyReasoningModel && (current === 'auto' || current === '')) {
+          const options = Array.from(el.modelSelect.options);
+          const r1Opt = options.find((o) => o.value.includes('deepseek-r1') || o.value.includes('r1') || o.value.includes('nemotron'));
+          if (r1Opt) {
+            state.selectedModel = r1Opt.value;
+            el.modelSelect.value = r1Opt.value;
+            localStorage.setItem('maidere_selected_model', state.selectedModel);
+            appendTerminal('agent-shell', `[ROUTER] Switched model to ${r1Opt.value} for reasoning`, 'info');
+          }
         }
       }
     } else {
@@ -1344,6 +1348,23 @@
       state.selectedModel = e.target.value;
       localStorage.setItem('maidere_selected_model', state.selectedModel);
       appendTerminal('agent-shell', `Model switched to ${state.selectedModel}`, 'info');
+
+      // Auto-elevate context window for cloud models if current context is below 64K
+      if (state.selectedModel.toLowerCase().includes('nemotron') && (!state.selectedNumCtx || state.selectedNumCtx < 65536)) {
+        state.selectedNumCtx = 65536;
+        localStorage.setItem('maidere_selected_num_ctx', '65536');
+        if (el.contextSelect) {
+          el.contextSelect.value = '65536';
+        }
+        appendTerminal('agent-shell', '[CONFIG] Nemotron detected: Context window automatically elevated to 64K (Cloud Massive)', 'info');
+      } else if (!state.selectedModel.toLowerCase().includes('nemotron') && state.selectedModel !== 'auto' && state.selectedNumCtx > 32768) {
+        state.selectedNumCtx = 16384;
+        localStorage.setItem('maidere_selected_num_ctx', '16384');
+        if (el.contextSelect) {
+          el.contextSelect.value = '16384';
+        }
+        appendTerminal('agent-shell', '[CONFIG] Local model detected: Context window reset to 16K to prevent VRAM overflow', 'warn');
+      }
     });
 
     if (el.contextSelect) {
@@ -1352,7 +1373,13 @@
         const val = parseInt(e.target.value, 10);
         state.selectedNumCtx = val;
         localStorage.setItem('maidere_selected_num_ctx', String(val));
-        const labels = { 8192: '8K - Medium', 16384: '16K - High', 32768: '32K - Ultra' };
+        const labels = {
+          8192: '8K - Medium',
+          16384: '16K - High',
+          32768: '32K - Ultra',
+          65536: '64K - Cloud Massive (Nemotron)',
+          131072: '128K - Cloud Extreme (Nemotron)',
+        };
         appendTerminal('agent-shell', `[CONFIG] Context window switched to ${labels[val] || val}`, 'info');
       });
     }

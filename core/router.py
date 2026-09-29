@@ -98,13 +98,21 @@ def classify_complexity(query: str, history: list[Any] | None = None) -> TaskCom
 
 
 async def get_available_models(force_refresh: bool = False) -> list[str]:
-    """Retrieve installed Ollama models with in-memory caching."""
+    """Retrieve installed Ollama models and configured cloud AI models with caching."""
     global _MODELS_CACHE, _LAST_CACHE_TIME
+
+    cloud_models: list[str] = []
+    api_key, _, default_cloud_model = settings.get_effective_cloud_config()
+    if api_key:
+        for cm in (default_cloud_model, "nvidia/nemotron-3-ultra-550b-a55b", "meta/llama-3.3-70b-instruct"):
+            if cm and cm not in cloud_models:
+                cloud_models.append(cm)
 
     now = time.time()
     if not force_refresh and _MODELS_CACHE and (now - _LAST_CACHE_TIME < _CACHE_TTL):
-        return _MODELS_CACHE
+        return cloud_models + [m for m in _MODELS_CACHE if m not in cloud_models]
 
+    local_models = []
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             res = await client.get(f"{settings.ollama_url}/api/tags")
@@ -114,22 +122,23 @@ async def get_available_models(force_refresh: bool = False) -> list[str]:
                 if models:
                     _MODELS_CACHE = models
                     _LAST_CACHE_TIME = now
-                    return _MODELS_CACHE
+                    local_models = models
     except Exception:
         pass
 
-    thinking_model = getattr(settings, "ollama_thinking_model", "deepseek-r1:7b")
-    defaults = [
-        settings.ollama_model,
-        settings.ollama_fast_model,
-        thinking_model,
-        "deepseek-r1:8b",
-    ]
-    seen = []
-    for d in defaults:
-        if d not in seen:
-            seen.append(d)
-    return _MODELS_CACHE or seen
+    if not local_models:
+        thinking_model = getattr(settings, "ollama_thinking_model", "deepseek-r1:7b")
+        defaults = [
+            settings.ollama_model,
+            settings.ollama_fast_model,
+            thinking_model,
+            "deepseek-r1:8b",
+        ]
+        for d in defaults:
+            if d not in local_models:
+                local_models.append(d)
+
+    return cloud_models + [m for m in local_models if m not in cloud_models]
 
 
 async def select_model(
@@ -160,9 +169,12 @@ async def select_model(
         if requested_model and requested_model.lower() not in ("auto", "none", ""):
             if requested_model.lower() != settings.ollama_model.lower():
                 return requested_model, "user_override_deep_reasoning", TaskComplexity.REASONING
-        thinking_available = any(thinking_model in m or "deepseek-r1" in m for m in available)
-        if thinking_available:
-            matched = next((m for m in available if thinking_model in m or "deepseek-r1" in m), thinking_model)
+        matched = None
+        if any(thinking_model in m or "deepseek-r1" in m for m in available):
+            matched = next((m for m in available if thinking_model in m or "deepseek-r1" in m), None)
+        elif any("nemotron" in m.lower() for m in available):
+            matched = next((m for m in available if "nemotron" in m.lower()), None)
+        if matched:
             return matched, "deep_reasoning_model", TaskComplexity.REASONING
         primary = settings.ollama_model if (not available or settings.ollama_model in available) else available[0]
         return primary, "deep_reasoning_primary", TaskComplexity.REASONING
@@ -171,11 +183,14 @@ async def select_model(
         if requested_model and requested_model.lower() not in ("auto", "none", ""):
             if requested_model.lower() != settings.ollama_model.lower():
                 return requested_model, "user_override_thinking", TaskComplexity.REASONING
-        thinking_available = any(thinking_model in m or "deepseek-r1" in m for m in available)
-        if thinking_available:
-            matched = next((m for m in available if thinking_model in m or "deepseek-r1" in m), thinking_model)
+        matched = None
+        if any(thinking_model in m or "deepseek-r1" in m for m in available):
+            matched = next((m for m in available if thinking_model in m or "deepseek-r1" in m), None)
+        elif any("nemotron" in m.lower() for m in available):
+            matched = next((m for m in available if "nemotron" in m.lower()), None)
+        if matched:
             return matched, "forced_thinking", TaskComplexity.REASONING
-        # If DeepSeek is not installed in Ollama, safely use the primary 7B model
+        # If DeepSeek or Nemotron is not available, safely use the primary 7B model
         primary = settings.ollama_model if (not available or settings.ollama_model in available) else available[0]
         await logger.awarn(
             "deepseek_not_available",

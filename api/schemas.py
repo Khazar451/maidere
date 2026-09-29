@@ -19,7 +19,7 @@ class ChatRequest(BaseModel):
     )
     num_ctx: int | None = Field(
         None,
-        description="Optional context window size in tokens (e.g. 8192, 16384, 32768).",
+        description="Optional context window size in tokens (e.g. 8192, 16384, 32768, 65536, 131072).",
     )
     thinking_mode: bool | None = Field(
         False,
