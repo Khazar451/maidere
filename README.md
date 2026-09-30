@@ -38,12 +38,19 @@ ollama pull deepseek-r1:7b     # DeepSeek-R1-Distill-Qwen-7B (~4.7 GB)
 # Start background services (SearXNG search, Prometheus, Grafana)
 docker compose up -d
 
-# Start Maidere Agent Server
+# Option A: Launch Native Desktop Application (Default)
+python3 maidere.py
+# or in continuous development mode with live hot-reload:
+python3 maidere.py --dev
+
+# Option B: Install into Linux Start Menu / Dock
+python3 maidere.py install-desktop
+
+# Option C: Start backend server only (headless)
 uv run uvicorn api.app:app --host 0.0.0.0 --port 8000
-# or with active venv: .venv/bin/uvicorn api.app:app --host 0.0.0.0 --port 8000
 ```
 
-Open **`http://localhost:8000`** in your browser to access the Web UI.
+Open **`http://localhost:8000`** in your browser if running in server-only mode.
 
 ---
 

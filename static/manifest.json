@@ -1,0 +1,19 @@
+{
+  "name": "Maidere Autonomous AI Agent",
+  "short_name": "Maidere",
+  "description": "A fully free, self-hosted autonomous AI agent running locally.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0b18",
+  "theme_color": "#5e17eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities", "developer"]
+}

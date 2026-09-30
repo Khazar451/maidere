@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e0a1a"/>
+      <stop offset="50%" stop-color="#18112e"/>
+      <stop offset="100%" stop-color="#241442"/>
+    </linearGradient>
+
+    <!-- Monogram Gradient -->
+    <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b388ff"/>
+      <stop offset="50%" stop-color="#8c52ff"/>
+      <stop offset="100%" stop-color="#5e17eb"/>
+    </linearGradient>
+
+    <!-- Cyber Cyan Accent -->
+    <linearGradient id="cyan-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f5d4"/>
+      <stop offset="100%" stop-color="#7b2cbf"/>
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="subtle-glow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#bg-grad)" stroke="#8c52ff" stroke-width="4" stroke-opacity="0.4"/>
+
+  <!-- Subtle Inner Grid / Hex lines -->
+  <path d="M 64 256 L 448 256 M 256 64 L 256 448" stroke="#8c52ff" stroke-width="1.5" stroke-opacity="0.12" stroke-dasharray="8 8"/>
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#8c52ff" stroke-width="1.5" stroke-opacity="0.15" stroke-dasharray="6 6"/>
+
+  <!-- Stylized Geometric "M" Monogram -->
+  <g filter="url(#glow)">
+    <!-- Left Stalk -->
+    <path d="M 128 368 L 128 176 L 192 144 L 192 368 Z" fill="url(#primary-grad)"/>
+
+    <!-- Center Apex & Chevrons -->
+    <path d="M 192 144 L 256 248 L 320 144 L 320 208 L 256 312 L 192 208 Z" fill="url(#cyan-grad)"/>
+
+    <!-- Right Stalk -->
+    <path d="M 320 144 L 384 176 L 384 368 L 320 368 Z" fill="url(#primary-grad)"/>
+  </g>
+
+  <!-- Core Neural Core Node -->
+  <circle cx="256" cy="340" r="14" fill="#00f5d4" filter="url(#subtle-glow)"/>
+  <circle cx="256" cy="340" r="6" fill="#ffffff"/>
+
+  <!-- Floating Spark Nodes -->
+  <circle cx="160" cy="160" r="5" fill="#b388ff" filter="url(#subtle-glow)"/>
+  <circle cx="352" cy="160" r="5" fill="#b388ff" filter="url(#subtle-glow)"/>
+  <circle cx="256" cy="112" r="7" fill="#00f5d4" filter="url(#subtle-glow)"/>
+  <circle cx="256" cy="112" r="3" fill="#ffffff"/>
+</svg>
