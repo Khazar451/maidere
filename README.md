@@ -1,18 +1,46 @@
-# [Maidere] Local Autonomous AI Agent
+<div align="center">
 
-> **100% Free, Self-Hosted Autonomous AI Agent for Consumer Hardware (NVIDIA RTX 5060 8GB VRAM / 16GB System RAM on Linux).**
+# Maidere
 
-Maidere is an autonomous local AI agent engineered for privacy, speed, and sustained local execution. It runs fully offline with zero subscription costs, zero cloud dependencies, and zero GPU model-swapping delays.
+**Autonomous, Privacy-First AI Agent & Cognitive Engine for Local Workstations & Cloud Clusters**
+
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-FF6F00?style=flat-square)](https://langchain-ai.github.io/langgraph/)
+[![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com/)
+[![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM_%2F_Nemotron-76B900?style=flat-square&logo=nvidia&logoColor=white)](https://build.nvidia.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Tests Passing](https://img.shields.io/badge/Tests-245%2F245_Passing-10b981?style=flat-square)](tests/)
+
+*Engineered for zero subscription costs, zero GPU model-thrashing, and enterprise-grade reasoning on consumer hardware (NVIDIA RTX 5060 8GB / 16GB RAM) with instant hybrid scaling to massive cloud models (Nemotron-3-Ultra 550B up to 128K context).*
+
+[Quickstart](#quickstart-in-60-seconds) • [Architecture](#subsystem-architecture) • [Cognitive Modes](#cognitive-engine--operational-modes) • [Hybrid LLM & Cloud](#hybrid-inference--cloud-scaling) • [Memory Engine](#3-tier-memory-engine) • [Tools](#registered-agent-tools) • [Documentation](ARCHITECTURE.md)
+
+</div>
+
+---
+
+## Highlights & Key Capabilities
+
+- **Zero-VRAM CPU Embeddings**: High-performance semantic vector embeddings executed entirely on CPU via `fastembed` (`BAAI/bge-small-en-v1.5`), preserving 100% of GPU VRAM for LLM generation.
+- **Native Desktop & Continuous Development App**: Runs as a lightweight native desktop application (`python3 maidere.py`) with OS dock integration, intelligent server lifecycle management, and a live hot-reloading development mode (`--dev`).
+- **Dynamic 5-Tier Context Selector**: Real-time context window switcher scalable from **8K (Local Fast)** up to **128K (Cloud Extreme)** with automatic token trimming and context-aware KV cache management.
+- **System 2 Deliberation Pipeline**: Multi-stage cognitive deconstruction, divergent exploration, formal proof verification, and convergent synthesis with real-time `<think>...</think>` streaming.
+- **Hybrid Local + Cloud Execution**: Auto-routes between local Ollama instances (`qwen2.5:7b-instruct`, `qwen2.5:3b`, `deepseek-r1:7b`) and cloud-accelerated endpoints (NVIDIA Nemotron 3 Ultra 550B, OpenAI-compatible APIs).
+- **In-Process SQLite Vector Database**: ACID-compliant SQLite WAL mode with `sqlite-vec` extension (`vec0` virtual table), eliminating external vector database overhead.
+- **3-Tier Self-Healing Memory**: Persistent hierarchical memory combining rule enforcement (`RULES.md`), structured topic auto-memory with LRU eviction (`memory/*.md`), and turn-level fact extraction with Jaccard novelty filtering.
+- **Specialized Subagent Fleet**: Ephemeral subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) communicating via a microsecond-stamped file artifact bus.
+- **Local Metasearch & Sandboxed Tools**: Private metasearch via local SearXNG, ephemeral Playwright web scraper, safe subprocess execution, and bidirectional Obsidian vault synchronization.
 
 ---
 
 ## Quickstart in 60 Seconds
 
-### 1. Prerequisites
-- **OS**: Linux Mint 21+ / Ubuntu 22.04+
-- **GPU**: NVIDIA GPU with >= 8GB VRAM (e.g. RTX 5060 / 4060 / 3060)
-- **RAM**: 16GB System RAM
-- **Software**: Python 3.12 (`>=3.12, <3.14`), Docker & Docker Compose, Ollama, [uv](https://docs.astral.sh/uv/) (recommended)
+### 1. System Requirements
+- **Workstation OS**: Linux Mint 21+, Ubuntu 22.04+, or modern Linux distribution.
+- **Local GPU**: NVIDIA GPU with $\ge$ 8GB VRAM (e.g. RTX 5060, 4060, 3060).
+- **System Memory**: 16 GB RAM.
+- **Prerequisites**: Python 3.12 (`>=3.12, <3.14`), Docker & Docker Compose, Ollama, [uv](https://docs.astral.sh/uv/) (recommended).
 
 ### 2. Setup & Installation
 ```bash
@@ -20,186 +48,212 @@ Maidere is an autonomous local AI agent engineered for privacy, speed, and susta
 git clone https://github.com/Khazar451/maidere.git
 cd maidere
 
-# Option A: Install with uv (fastest & recommended)
+# Option A: Install using uv (recommended for sub-second installs)
 uv sync
 
-# Option B: Standard Python venv
+# Option B: Standard Python virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# Start Ollama & pull models
+# Start local Ollama & pull recommended models
 ollama pull qwen2.5:7b-instruct
 ollama pull qwen2.5:3b
-ollama pull deepseek-r1:7b     # DeepSeek-R1-Distill-Qwen-7B (~4.7 GB)
-# Optional Llama-distill alternative:
-# ollama pull deepseek-r1:8b   # DeepSeek-R1-Distill-Llama-8B (~4.9 GB)
+ollama pull deepseek-r1:7b
 
-# Start background services (SearXNG search, Prometheus, Grafana)
+# Launch background infrastructure (SearXNG metasearch, Prometheus, Grafana)
 docker compose up -d
-
-# Option A: Launch Native Desktop Application (Default)
-python3 maidere.py
-# or in continuous development mode with live hot-reload:
-python3 maidere.py --dev
-
-# Option B: Install into Linux Start Menu / Dock
-python3 maidere.py install-desktop
-
-# Option C: Start backend server only (headless)
-uv run uvicorn api.app:app --host 0.0.0.0 --port 8000
 ```
 
-Open **`http://localhost:8000`** in your browser if running in server-only mode.
+### 3. Launching Maidere
 
----
+Maidere can be launched in three modes:
 
-## Dynamic Context Window Switcher
+```bash
+# 1. Native Desktop Application (Default)
+python3 maidere.py
 
-Maidere features an interactive real-time context window selector in the UI top navigation bar (`CTX:` pill):
+# 2. Continuous Development Mode (Live hot-reloading on file change)
+python3 maidere.py --dev
 
-| Context Tier | Tokens (`num_ctx`) | KV Cache VRAM | Total VRAM (7B Q4_K_M) | Use Case |
-| :--- | :--- | :--- | :--- | :--- |
-| **8K - Medium** | `8192` | ~0.46 GB | ~5.16 GB | Maximum speed; lightweight queries |
-| **16K - High** *(Default)* | `16384` | ~0.92 GB | ~5.62 GB | **Recommended sweet spot**; 2x context with 2.4 GB headroom |
-| **32K - Ultra** | `32768` | ~1.84 GB | ~6.54 GB | Deep multi-agent research and large codebases |
+# 3. Register Desktop App in OS Start Menu & App Launcher
+python3 maidere.py install-desktop
 
-Context window size persists across browser sessions via `localStorage` and scales LangGraph's dynamic turn pruning threshold (75% context utilization) automatically.
-
----
-
-## Cognitive Modes: Auto, Thinking, and Deep Reasoning
-
-Maidere provides three distinct operational paradigms selectable via the top navigation toggle group (`Auto`, `Thinking`, `Deep Reason`):
-
-| Mode | Selector | Architecture & Operational Flow |
-| :--- | :--- | :--- |
-| **Auto** *(Default)* | `Auto` | **Dynamic Smart Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b` / `8b`) without deliberation overhead. |
-| **Thinking** | `Thinking` | **Fast Single-Pass Chain-of-Thought**: Generates step-by-step reasoning inside `<think>...</think>` scratchpad tags with real-time UI token streaming and collapsible accordion rendering. Bypasses multi-stage review loops to minimize latency. |
-| **Deep Reason** | `Deep Reason` | **Multi-Stage System 2 Deliberation Pipeline**: Executes an exhaustive 3-stage cognitive framework:<br>1. *Divergent Cognitive Exploration*: Premise deconstruction, divergent hypothesis generation, and falsification analysis.<br>2. *Analytical Verification Specialist*: Independent recalculation of math, logical invariants, boundary conditions, and citation integrity.<br>3. *Convergent Synthesis*: Rigorous, verified authoritative solution generation. |
-
-- **Agent Shell Visibility**: Chain-of-thought scratchpads and intermediate verification verdicts are logged live as `[THINK]` and `[VERIFY]` entries in the Agent Shell console.
-- **Interactive Accordion**: `<think>...</think>` blocks render as interactive `<details class="thought-box">` accordions with pulsing token streaming animations.
+# 4. Headless Server Mode (Browser UI at http://localhost:8000)
+.venv/bin/uvicorn api.app:app --host 0.0.0.0 --port 8000
+```
 
 ---
 
 ## Subsystem Architecture
 
 ```
-+----------------------------------------------------------------------------------------+
-|                                 HOST OS (Linux Mint / Ubuntu)                          |
-+-----------------------------------------+----------------------------------------------+
-|               GPU VRAM (8.0 GB)         |             SYSTEM RAM (16.0 GB)             |
-| +-------------------------------------+ | +------------------------------------------+ |
-| | Ollama Daemon                       | | | FastAPI Server (Uvicorn Async Worker)    | |
-| |  - Primary: qwen2.5:7b-instruct     | | |  - REST Endpoints & WebSocket Handler    | |
-| |    (Q4_K_M pinned: ~4.7 GB)         | | |  - Tri-Model Router (Fast, Think, Reason)| |
-| |  - Thinking: deepseek-r1:7b / 8b    | | |  - Dynamic Context Switcher (8K/16K/32K) | |
-| |    (Reasoning & Proofs: ~4.7-4.9 GB)| | |  - Prometheus Instrumentator (/metrics)  | |
-| |  - Fast: qwen2.5:3b (on-demand)     | | +------------------------------------------+ |
-| |  - Dynamic KV Cache (num_ctx:       | | | LangGraph Agent Core                     | |
-| |    8192 / 16384 / 32768) (~0.5-1.8G)| | |  - trim -> remember -> think -> act ->   | |
-| |  - CUDA & Headroom Buffers (~1.5 GB)| | |    evaluate -> verify -> converge loop   | |
-| +-------------------------------------+ | |  - Dual V&V Subagents (verify/validate)  | |
-|                                         | |  - File Artifact Bus (.maidere/artifacts)| |
-|                                         | |  - External AGY Staffer (Gemini 3.8 Flash)| |
-|                                         | +------------------------------------------+ |
-|                                         | | In-Process Storage & Memory Subsystems   | |
-|                                         | |  - 3-Tier Memory Engine:                 | |
-|                                         | |    * Tier 1: RULES.md Instructions (.bak)| |
-|                                         | |    * Tier 2: Auto-Memory (*.md + index)  | |
-|                                         | |    * Tier 3: Turn Extraction (Jaccard)   | |
-|                                         | |  - FastEmbed (bge-small-en-v1.5 on CPU)  | |
-|                                         | |  - SQLite Database (WAL Mode Enabled)    | |
-|                                         | |    * sqlite-vec (vec0 Virtual Table)     | |
-|                                         | |    * LangGraph Checkpoints & Audit Log   | |
-|                                         | |    * Persistent APScheduler DB Store     | |
-|                                         | +------------------------------------------+ |
-|                                         | | Docker Bridge Services                   | |
-|                                         | |  - SearXNG Metasearch (Port 8080, 256MB) | |
-|                                         | |  - Prometheus TSDB (Port 9090, 256MB)    | |
-|                                         | |  - Grafana Dashboards (Port 3000, 256MB) | |
-|                                         | +------------------------------------------+ |
-+-----------------------------------------+----------------------------------------------+
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                             HOST OS (Linux Mint / Ubuntu)                              │
+├─────────────────────────────────────────┬──────────────────────────────────────────────┤
+│           LOCAL GPU VRAM (8.0 GB)       │             SYSTEM RAM (16.0 GB)             │
+│ ┌─────────────────────────────────────┐ │ ┌──────────────────────────────────────────┐ │
+│ │ Ollama Daemon                       │ │ │ Native Desktop & FastAPI Server          │ │
+│ │  - Primary: qwen2.5:7b-instruct     │ │ │  - Window Manager & Process Lifecycle    │ │
+│ │    (Pinned Q4_K_M: ~4.7 GB)         │ │ │  - WebSocket Token & Event Stream        │ │
+│ │  - Reasoning: deepseek-r1:7b        │ │ │  - Tri-Model Dynamic Intent Router       │ │
+│ │    (Proof verification: ~4.7 GB)    │ │ │  - Prometheus Instrumentator (/metrics)  │ │
+│ │  - Fast: qwen2.5:3b (on-demand)     │ │ ├──────────────────────────────────────────┤ │
+│ │  - Dynamic KV Cache (8K/16K/32K)    │ │ │ LangGraph Agent Core                     │ │
+│ │  - CUDA Driver Buffers (~1.5 GB)    │ │ │  - Cyclic: trim -> remember -> think ->  │ │
+│ └─────────────────────────────────────┘ │ │    act -> evaluate -> verify -> converge │ │
+├─────────────────────────────────────────┤ │  - Isolated Subagent Contexts            │ │
+│         CLOUD INFERENCE BRIDGE          │ │  - File-Based Artifact Bus (.maidere/)   │ │
+│ ┌─────────────────────────────────────┐ │ ├──────────────────────────────────────────┤ │
+│ │ NVIDIA NIM / OpenAI Cloud Endpoints │ │ │ In-Process CPU & Storage Subsystems      │ │
+│ │  - nvidia/nemotron-3-ultra-550b     │ │ │  - FastEmbed (bge-small-en-v1.5 on CPU)  │ │
+│ │  - Context: 64K Massive / 128K Extr │ │ │  - SQLite Database (WAL Mode Enabled)    │ │
+│ │  - Thinking Mode & Reasoning Delta  │ │ │    * sqlite-vec (vec0 Virtual Table)     │ │
+│ └─────────────────────────────────────┘ │ │    * LangGraph Checkpoints & Audit Log   │ │
+│                                         │ │    * Persistent APScheduler Job Store    │ │
+│                                         │ ├──────────────────────────────────────────┤ │
+│                                         │ │ Docker Bridge Services                   │ │
+│                                         │ │  - SearXNG Metasearch (Port 8080)        │ │
+│                                         │ │  - Prometheus TSDB (Port 9090)           │ │
+│                                         │ │  - Grafana Telemetry (Port 3000)         │ │
+│                                         │ └──────────────────────────────────────────┘ │
+└─────────────────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Core Architectural Decisions
+## Cognitive Engine & Operational Modes
 
-1. **Zero GPU Model Thrashing**: Semantic embeddings run 100% on CPU via `fastembed` (`BAAI/bge-small-en-v1.5`), keeping LLMs pinned in VRAM without thrashing.
-2. **Tri-Model Dynamic Routing**: Analyzes task complexity and intent:
-   - `SIMPLE` tasks (greetings, simple queries) route to `qwen2.5:3b` (~65+ tok/s).
-   - `REASONING` tasks (mathematical proofs, logic puzzles, algorithm derivations, step-by-step thinking) route to `deepseek-r1:7b` / `deepseek-r1:8b`.
-   - `COMPLEX` multi-step tool and research tasks route to `qwen2.5:7b-instruct`.
-3. **Interactive Reasoning Accordion**: Native real-time parsing of DeepSeek-R1's `<think>...</think>` tokens into an expandable, collapsible thought block with live streaming pulse indicator.
-4. **In-Process Vector Storage**: Single SQLite database file (`db/maidere.db`) with native `sqlite-vec` extension (`vec0` virtual table), eliminating external vector DB overhead.
-5. **SQLite WAL Concurrency**: Forces `PRAGMA journal_mode = WAL` and `busy_timeout = 5000` for crash resilience and non-blocking asynchronous multi-client access.
-6. **Dual-Stage V&V Subagent Framework**: Subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) execute in isolated ephemeral contexts with strict read-only tool boundaries:
-   - **`verification` (alias `verifier`)**: Mathematical proof recalculation, invariant tracking, static contract checking, and citation bracket checks (`[PASS: VERIFIED]`).
-   - **`validation` (alias `validator`)**: Real-world 2026 dependency and API feasibility checks, environment constraints, and user acceptance criteria (`[PASS: VALIDATED]`).
-7. **File-Based Artifact Bus & Adaptive Handoff Briefs**: Subagents write dense findings directly to disk (`workspace/.maidere/artifacts/`) with microsecond and UUID collision-resistance and automated 14-day TTL / 100-file cap pruning. Dispatches return structured 300–1,400 character handoff briefs, achieving $\ge 70\%$ orchestrator context savings.
-8. **External AGY Staffer Bridge (`agy_staffer`)**: Seamlessly connects to Google Antigravity CLI (Gemini 3.8 Flash) for high-context tasks across 5 personas (`researcher`, `reviewer`, `implementer`, `ask`, `staffer`) with pre-dispatch git dirty-state checks and automatic local subagent fallback on rate limits (`429` / `RESOURCE_EXHAUSTED`).
-9. **3-Tier Memory Engine**:
-   - **Tier 1 (Instruction Memory)**: Manages `RULES.md` in `.maidere/` with automatic `.bak` backups before write operations for single-step rollback.
-   - **Tier 2 (Auto-Memory)**: Manages topic markdown files (`.maidere/memory/*.md`) and `index.json`, enforcing the Two-Step Save Invariant, LRU eviction capped at 40 indexed entries, and startup index reconciliation.
-   - **Tier 3 (Session Fact Extraction)**: Extracts user preferences and project decisions at turn completion, evaluates semantic novelty using Jaccard word-overlap scoring, and auto-promotes facts to Tier 2 topics.
-10. **Local 7B Synthesis Hardening & Anti-Hallucination**: Enforces strict `[N]` bracket wrapping for citations, deterministically normalizes unbracketed citation integers while protecting legitimate numbers (`step 2`, `table 1`), normalizes plain URL lists into markdown links, and strips fourth-wall reviewer leakage.
-11. **Turn-Scoping & State Isolation**: Intermediate tool payloads from prior turns are discarded before calling the LLM to prevent cross-turn context pollution.
-12. **Domain Grounding & Reality Check**: Distinguishes physical hardware ownership from institutional grant allocations (NAIRR Pilot, DGX Cloud credits) for high-end enterprise computing queries.
-13. **Deterministic URL Citation Guard**: Automatically validates and revives markdown links `[Title](https://...)` from tool outputs, preventing URL stripping or placeholder dead links.
-14. **Symmetrical Sandbox**: Resolves absolute file paths and strictly verifies that operations stay inside `workspace/`.
-15. **Safe Subprocess Shell**: Enforces `shell=False` inside `subprocess.run()`, parses arguments with `shlex.split()`, and checks binaries against an allowlist.
-16. **Ephemeral Browser Lifespan**: Playwright launches headless Chromium per scraping request with strict 15s timeouts and auto-termination to prevent zombie processes.
-17. **Built-in Telemetry**: Exposes Prometheus metrics on `/metrics` with pre-configured Grafana dashboards for latency, tokens/s, and tool error rates.
-18. **Epistemic Grounding (Canonical Lore vs. Speculation)**: Strictly separates canonical ground truth from speculative forum debates, blog essays, and fan theories. Prevents SEO/Theory Scrape Collapse by prioritizing primary source data and official wikis while omitting unverified internet theories unless the user explicitly requests them.
-19. **Conditional Temporal Grounding & Chronological Causality**: Distinguishes active modern metrics from historical events. Appends the current year strictly for financial metrics, earnings, and tech benchmarks, while strictly forbidding temporal distortion on historical figures, eras, or lore. Enforces strict chronological timeline verification before asserting cause-and-effect relationships. Prevents search redundancy and Wikipedia loops via session-scoped URL deduplication and lexical query similarity checks.
+Maidere provides three cognitive paradigms selectable from the top navigation bar or bottom input deck:
+
+| Mode | Selector | Execution Pipeline & Behavior |
+| :--- | :--- | :--- |
+| **Auto** *(Default)* | `Auto` | **Dynamic Complexity Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b`) with sub-millisecond intent evaluation. |
+| **Thinking** | `Thinking` | **Single-Pass Chain-of-Thought**: Generates step-by-step reasoning inside `<think>...</think>` scratchpad tags with real-time token streaming and collapsible UI accordions. |
+| **Deep Reason** | `Deep Reason` | **Multi-Stage System 2 Deliberation**: Exhaustive 3-phase cognitive framework:<br>1. *Divergent Exploration*: Problem deconstruction, alternative hypotheses, falsification stress-testing.<br>2. *Analytical Verification*: Independent recalculation of math, state mutations, and citation integrity.<br>3. *Convergent Synthesis*: Formal synthesis with fourth-wall reviewer leakage prevention. |
+
+---
+
+## Dynamic Context Window Selector
+
+Maidere allows users to tune the context window size on the fly via the top bar `CTX:` selector:
+
+| Context Tier | Tokens (`num_ctx`) | Target Engine | KV Cache Impact | Best For |
+| :--- | :--- | :--- | :--- | :--- |
+| **8K - Medium** | `8192` | Local Ollama | ~0.46 GB | High-speed chit-chat & lightweight scripts |
+| **16K - High** *(Default)* | `16384` | Local Ollama | ~0.92 GB | **Balanced standard**; 2.4 GB VRAM headroom |
+| **32K - Ultra** | `32768` | Local Ollama | ~1.84 GB | Deep multi-turn conversations & complex code |
+| **64K - Cloud Massive** | `65536` | NVIDIA Nemotron | Offloaded | Enterprise refactoring & massive documentation |
+| **128K - Cloud Extreme** | `131072` | NVIDIA Nemotron | Offloaded | Full repository analysis & extensive research |
+
+*Selecting a cloud model automatically promotes the context window to 64K, and switches back safely when returning to local models.*
+
+---
+
+## Hybrid Inference & Cloud Scaling
+
+Configure cloud acceleration in `.env` to unlock models like **NVIDIA Nemotron 3 Ultra 550B**:
+
+```ini
+# NVIDIA NIM / OpenAI-Compatible Cloud Endpoint
+CLOUD_API_BASE=https://integrate.api.nvidia.com/v1
+CLOUD_API_KEY=nvapi-your-key-here
+CLOUD_MODEL=nvidia/nemotron-3-ultra-550b-a55b
+CLOUD_NUM_CTX=65536
+```
+
+- **Native Thinking Protocol**: Automatically sends `extra_body={"chat_template_kwargs": {"enable_thinking": True}}` and streams `delta.reasoning_content` in real time.
+- **Fail-Safe Fallback**: If the cloud API is unreachable or rate-limited, Maidere falls back gracefully to local Ollama models.
+
+---
+
+## 3-Tier Memory Engine
+
+```mermaid
+graph TD
+    subgraph T1["Tier 1: Instruction Memory"]
+        R["RULES.md"] --> BAK[".RULES.md.bak"]
+    end
+
+    subgraph T2["Tier 2: Structured Auto-Memory"]
+        IDX["index.json (LRU Cache, Max 40)"] <--> TOPICS["memory/*.md"]
+    end
+
+    subgraph T3["Tier 3: Session Fact Extraction"]
+        INSPECT["Turn Completion"] --> NOVELTY{"Jaccard Overlap < 0.6?"}
+        NOVELTY -->|Yes| PROMO["Promote to Tier 2 Topic"]
+        NOVELTY -->|No| DEDUP["Deduplicate & Discard"]
+    end
+
+    T1 --> INJECT["Turn Prompt Context"]
+    T2 --> INJECT
+    VEC["sqlite-vec Vector Recall"] --> INJECT
+```
+
+1. **Tier 1 (Instruction Memory)**: Manages `.maidere/RULES.md` with automatic `.bak` backups created prior to file mutation for one-step rollback.
+2. **Tier 2 (Structured Auto-Memory)**: Topic markdown files (`.maidere/memory/*.md`) indexed via `index.json`, enforcing the Two-Step Save Invariant, LRU eviction capped at 40 indexed entries, and startup reconciliation.
+3. **Tier 3 (Session Fact Extraction)**: Extracts user preferences, architectural rules, and project decisions upon turn completion, verifies novelty with Jaccard word-overlap scoring, and auto-promotes unique facts to Tier 2.
 
 ---
 
 ## Registered Agent Tools
 
-| Tool | Purpose | Args |
+| Tool | Purpose | Signature |
 | :--- | :--- | :--- |
-| `read_file` | Read file contents from workspace | `path: str` |
-| `write_file` | Write text to file in workspace | `path: str, content: str` |
-| `list_dir` | List files and directories in workspace | `path: str` |
-| `shell` | Run allowlisted shell command | `command: str` |
-| `code_runner` | Execute Python script inside workspace | `code: str` |
-| `browser` | Scrape webpage DOM text via Playwright | `url: str` |
-| `delegate_task` | Spawn autonomous subagent (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) | `prompt: str, subagent_type: str, max_turns: int` |
-| `manage_memory` | 3-Tier memory manager (read/save topic facts, view rules) | `action: str, topic: str, content: str` |
-| `agy_staffer` | External Gemini 3.8 Flash delegate via Antigravity CLI (`researcher`, `reviewer`, `implementer`, `ask`, `staffer`) | `prompt: str, persona: str` |
-| `obsidian` | Search, read, write, and create notes in Obsidian vault | `action: str, note_name: str, content: str` |
-| `scheduler` | Schedule recurring or one-shot cron jobs via APScheduler | `action: str, job_id: str, ...` |
+| `read_file` | Read workspace file contents with path confinement | `path: str` |
+| `write_file` | Atomic file write with automatic directory creation | `path: str, content: str` |
+| `list_dir` | List files and directories within the sandbox | `path: str` |
+| `shell` | Run allowlisted shell command with `shell=False` | `command: str` |
+| `code_runner` | Execute sandboxed Python script inside workspace | `code: str` |
+| `browser` | Scrape webpage DOM text via ephemeral Playwright | `url: str` |
+| `delegate_task` | Spawn isolated subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) | `prompt: str, subagent_type: str, max_turns: int` |
+| `manage_memory`| 3-Tier memory manager (read/save topic facts, view rules) | `action: str, topic: str, content: str` |
+| `agy_staffer` | External Gemini 3.8 Flash delegate via Antigravity CLI | `prompt: str, persona: str` |
+| `obsidian` | Bi-directional Obsidian note search, read, write, and open | `action: str, note_name: str, content: str` |
+| `scheduler` | Schedule persistent cron jobs via SQLite APScheduler | `action: str, job_id: str, ...` |
 | `web_search` | Private local metasearch via SearXNG | `query: str` |
-| `list_available_skills` | List installed specialized skills | `{}` |
-| `load_skill` | Load instructions for a specific skill | `skill_name: str` |
+| `list_available_skills` | Discover installed specialized skills | `{}` |
+| `load_skill` | Load executable instructions for a skill | `skill_name: str` |
 
 ---
 
-## Automated Test Suite
+## Automated Verification Suite
+
+Maidere maintains an exhaustive automated test suite with **245 tests across 23 modules**:
 
 ```bash
-# Run full automated test suite (209 tests across 21 test suites)
-uv run --no-sync python -m unittest discover -s tests -p "test_*.py" -v
-# or with active venv:
-.venv/bin/python -m unittest discover -s tests -p "test_*.py" -v
+# Execute full test suite
+HF_HUB_OFFLINE=1 .venv/bin/python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 ```text
-Ran 209 tests in 3.945s — OK (100% Passed, 0 Failures, 0 Errors)
+Ran 245 tests in 4.808s — OK (100% Passed, 0 Failures, 0 Errors)
 ```
+
+| Test Module | Coverage Area | Status |
+| :--- | :--- | :---: |
+| `test_agent.py` | LangGraph cyclic execution, message trimming, tool loops | **PASS** |
+| `test_cloud_llm.py` | NVIDIA NIM & OpenAI cloud client, Nemotron thinking stream | **PASS** |
+| `test_desktop_launcher.py`| Desktop lifecycle, port probing, signal handling, XDG launcher | **PASS** |
+| `test_memory_tiers.py` | Tier 1 RULES.md backups, Tier 2 LRU auto-memory, Tier 3 Jaccard filter | **PASS** |
+| `test_subagent.py` | Ephemeral subagent isolation, handoff briefs, tool restrictions | **PASS** |
+| `test_router.py` | Tri-model intent classifier, reasoning detection, overrides | **PASS** |
+| `test_synthesis_hardening.py` | Inline citation bracket normalization, fourth-wall leak filtering | **PASS** |
+| `test_tools.py` | Path traversal prevention, shell allowlist, safe argument parsing | **PASS** |
+| `test_obsidian.py` | Obsidian vault resolution, frontmatter formatting, note search | **PASS** |
+| `test_monitoring.py` | Prometheus metrics exposition, latency histograms, token counters | **PASS** |
+| `test_phase4.py` | Python code runner, Playwright browser cleanup, APScheduler crons | **PASS** |
+| `test_web_ui.py` | Static serving, WebSocket protocol, theme settings, thread persistence | **PASS** |
 
 ---
 
-## Comprehensive Documentation
+## Documentation
 
-For the exhaustive technical specification, hardware budget allocation matrix, security controls, and skill specifications, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Exhaustive technical specification, hardware budget allocation matrix, security controls, and design patterns.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Guidelines for extending tools, adding skills, and running benchmarks.
 
 ---
 
 ## License
 
-MIT License — free for personal, educational, and commercial use.
-
+MIT License — Free for personal, academic, and commercial use.
