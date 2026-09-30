@@ -187,8 +187,6 @@ def install_desktop_entry() -> bool:
 Version=1.0
 Type=Application
 Name=Maidere
-GenericName=Autonomous AI Agent
-Comment=100% Free, self-hosted autonomous AI agent running locally
 Exec={python_bin} {main_script}
 Icon={target_icon}
 Terminal=false
