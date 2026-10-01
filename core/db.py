@@ -8,6 +8,7 @@ Every connection from this module has:
 """
 
 import aiosqlite
+from pathlib import Path
 import sqlite_vec
 import structlog
 
@@ -77,6 +78,11 @@ async def get_db(db_path: str = "db/maidere.db") -> aiosqlite.Connection:
     Enables WAL mode, loads sqlite-vec, and applies all PRAGMAs.
     The caller is responsible for closing the connection.
     """
+    if db_path != ":memory:":
+        parent = Path(db_path).parent
+        if str(parent) not in ("", "."):
+            parent.mkdir(parents=True, exist_ok=True)
+
     db = await aiosqlite.connect(db_path)
     db.row_factory = aiosqlite.Row
 

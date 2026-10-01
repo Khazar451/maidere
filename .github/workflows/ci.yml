@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --no-install-project
 
+      - name: Ensure runtime directories
+        run: mkdir -p db logs workspace
+
       - name: Run test suite
         env:
           HF_HUB_OFFLINE: "1"

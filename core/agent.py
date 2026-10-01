@@ -12,6 +12,7 @@ import asyncio
 from datetime import datetime
 import json
 import re
+from pathlib import Path
 from typing import Any
 import uuid
 import structlog
@@ -1817,6 +1818,10 @@ async def create_graph(db_path: str | None = None) -> tuple:
         manage the context lifecycle (call __aexit__ on shutdown).
     """
     path = db_path or settings.db_path
+    if path != ":memory:":
+        parent = Path(path).parent
+        if str(parent) not in ("", "."):
+            parent.mkdir(parents=True, exist_ok=True)
     checkpointer_ctx = AsyncSqliteSaver.from_conn_string(path)
     checkpointer = await checkpointer_ctx.__aenter__()
 

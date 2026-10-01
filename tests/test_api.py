@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from api.app import create_app
 from api.routes import set_graph
 from core.agent import create_graph
+from core.config import settings
 from core.db import get_db, init_tables
 from core.memory import store_memory
 
@@ -45,6 +46,10 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
         self.temp_db_path = self.temp_db.name
         self.temp_db.close()
 
+        # Patch settings.db_path so all endpoint requests use the isolated test database
+        self.db_patcher = patch.object(settings, "db_path", self.temp_db_path)
+        self.db_patcher.start()
+
         # Init DB tables
         db = await get_db(self.temp_db_path)
         await init_tables(db)
@@ -58,6 +63,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+        self.db_patcher.stop()
         await self.checkpointer_ctx.__aexit__(None, None, None)
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
