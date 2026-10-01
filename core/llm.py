@@ -111,6 +111,19 @@ def _normalize_messages_for_cloud(messages: list[dict]) -> list[dict]:
                 "content": str(content or ""),
             })
 
+        elif role == "user":
+            images = msg.get("images")
+            if images:
+                parts: list[dict] = [{"type": "text", "text": str(content or "")}]
+                for img in images:
+                    img_str = str(img).strip()
+                    if not img_str.startswith("data:"):
+                        img_str = f"data:image/jpeg;base64,{img_str}"
+                    parts.append({"type": "image_url", "image_url": {"url": img_str}})
+                normalized.append({"role": "user", "content": parts})
+            else:
+                normalized.append({"role": "user", "content": str(content or "")})
+
         else:
             normalized.append(dict(msg))
 

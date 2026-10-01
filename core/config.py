@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5:7b-instruct"
     ollama_fast_model: str = "qwen2.5:3b"
     ollama_thinking_model: str = "deepseek-r1:7b"
+    ollama_vision_model: str = "qwen2.5-vl:7b"
     ollama_num_ctx: int = 8192
     enable_model_routing: bool = True
     ollama_timeout: float = 180.0

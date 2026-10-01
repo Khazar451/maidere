@@ -32,3 +32,5 @@ class AgentState(TypedDict, total=False):
     reasoning_steps: list[str]
     complexity: Any
     username: str
+    images: list[str]
+    attachments: list[dict]

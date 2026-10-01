@@ -904,6 +904,9 @@ async def think_node(state: AgentState) -> dict:
     ollama_messages: list[dict] = [{"role": "system", "content": system_content}]
 
     raw_messages = state.get("messages", [])
+    turn_images = list(state.get("images") or [])
+    has_images = bool(turn_images)
+
     last_user_idx = -1
     for i, msg in enumerate(raw_messages):
         if isinstance(msg, HumanMessage):
@@ -923,7 +926,10 @@ async def think_node(state: AgentState) -> dict:
 
         # Current active turn: retain HumanMessage, tool calls, and ToolMessages
         if isinstance(msg, HumanMessage):
-            ollama_messages.append({"role": "user", "content": str(msg.content or "")})
+            user_msg_dict: dict = {"role": "user", "content": str(msg.content or "")}
+            if i == last_user_idx and turn_images:
+                user_msg_dict["images"] = turn_images
+            ollama_messages.append(user_msg_dict)
         elif isinstance(msg, ToolMessage):
             tool_dict: dict = {"role": "tool", "content": str(msg.content or "")}
             call_id = getattr(msg, "tool_call_id", None)
@@ -969,6 +975,7 @@ async def think_node(state: AgentState) -> dict:
         history=state["messages"],
         thinking_mode=thinking_mode_flag,
         deep_reasoning=deep_reasoning_flag,
+        has_images=has_images,
     )
 
     ROUTER_DECISIONS_TOTAL.labels(

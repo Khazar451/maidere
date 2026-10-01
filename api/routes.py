@@ -267,6 +267,17 @@ async def chat(request: ChatRequest) -> ChatResponse:
     except Exception:
         pass
 
+    from core.attachments import compose_turn_prompt_with_attachments
+
+    incoming_attachments = list(request.attachments or [])
+    if request.images:
+        for img in request.images:
+            incoming_attachments.append({"name": "screenshot.png", "type": "image/png", "data": img})
+
+    composed_query, extracted_images = compose_turn_prompt_with_attachments(
+        request.message, incoming_attachments
+    )
+
     try:
         resolved_num_ctx = request.num_ctx or (
             getattr(settings, "cloud_num_ctx", 65536)
@@ -275,7 +286,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         )
         result = await _graph.ainvoke(
             {
-                "messages": [HumanMessage(content=request.message)],
+                "messages": [HumanMessage(content=composed_query)],
                 "memory_context": "No relevant memories found.",
                 "thread_id": thread_id,
                 "model": model_name,
@@ -289,6 +300,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 "refinement_count": 0,
                 "reasoning_steps": [],
                 "username": (request.username or "").strip() or "User",
+                "images": extracted_images,
+                "attachments": incoming_attachments,
             },
             config=config,
         )
@@ -520,12 +533,23 @@ async def websocket_chat(websocket: WebSocket) -> None:
                     "thread_id": thread_id,
                 })
 
+            from core.attachments import compose_turn_prompt_with_attachments
+
+            incoming_attachments = list(data.get("attachments") or [])
+            if data.get("images"):
+                for img in data.get("images"):
+                    incoming_attachments.append({"name": "screenshot.png", "type": "image/png", "data": img})
+
+            composed_query, extracted_images = compose_turn_prompt_with_attachments(
+                message_text, incoming_attachments
+            )
+
             register_stream_callback(thread_id, token_stream_handler)
             user_name = str(data.get("username") or "").strip() or "User"
             generation_task = asyncio.create_task(
                 _graph.ainvoke(
                     {
-                        "messages": [HumanMessage(content=message_text)],
+                        "messages": [HumanMessage(content=composed_query)],
                         "memory_context": "No relevant memories found.",
                         "thread_id": thread_id,
                         "model": model_name,
@@ -539,6 +563,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
                         "refinement_count": 0,
                         "reasoning_steps": [],
                         "username": user_name,
+                        "images": extracted_images,
+                        "attachments": incoming_attachments,
                     },
                     config=config,
                 )

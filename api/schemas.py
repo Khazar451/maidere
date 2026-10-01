@@ -34,6 +34,14 @@ class ChatRequest(BaseModel):
         max_length=64,
         description="The user's nickname or chosen username.",
     )
+    images: list[str] | None = Field(
+        None,
+        description="Optional list of base64-encoded images for multimodal vision reasoning.",
+    )
+    attachments: list[dict] | None = Field(
+        None,
+        description="Optional list of attachment dicts ({name, type, data, size}) for documents, PDFs, code, or images.",
+    )
 
 
 class UserLoginRequest(BaseModel):

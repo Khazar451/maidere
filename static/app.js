@@ -598,13 +598,35 @@
   };
 
   // --- Rendering Chat Timeline ---
-  function appendUserMessage(text) {
+  function appendUserMessage(text, attachments = []) {
     const welcome = document.getElementById('welcome-empty-state');
     if (welcome) welcome.remove();
 
     const row = document.createElement('div');
     row.className = 'message-row user-row';
-    row.innerHTML = `<div class="user-bubble">${escapeHTML(text)}</div>`;
+
+    let attachmentsHtml = '';
+    if (attachments && attachments.length > 0) {
+      attachmentsHtml = '<div class="msg-attachments-container">';
+      for (const att of attachments) {
+        if (att.type && att.type.startsWith('image/')) {
+          attachmentsHtml += `<img src="${att.data}" class="msg-img-preview" alt="${escapeHTML(att.name)}" onclick="window.openImageLightbox('${att.data}')" title="Click to view full image" />`;
+        } else {
+          const isPdf = att.name.toLowerCase().endsWith('.pdf') || att.type === 'application/pdf';
+          const isCode = /\.(py|js|ts|tsx|jsx|json|md|html|css|csv|sh|sql|log|yaml|yml)$/i.test(att.name);
+          const badgeClass = isPdf ? 'badge-pdf' : (isCode ? 'badge-code' : 'badge-text');
+          const ext = att.name.split('.').pop().toUpperCase() || 'FILE';
+          attachmentsHtml += `
+            <div class="msg-doc-card">
+              <span class="doc-badge ${badgeClass}">${escapeHTML(ext.slice(0, 4))}</span>
+              <span class="doc-name" title="${escapeHTML(att.name)}">${escapeHTML(att.name)}</span>
+            </div>`;
+        }
+      }
+      attachmentsHtml += '</div>';
+    }
+
+    row.innerHTML = `<div class="user-bubble">${attachmentsHtml}<div>${escapeHTML(text)}</div></div>`;
     el.chatTimeline.appendChild(row);
     el.chatTimeline.scrollTop = el.chatTimeline.scrollHeight;
   }
@@ -802,10 +824,278 @@
     el.chatInput.style.height = `${Math.min(el.chatInput.scrollHeight, 160)}px`;
   };
 
+  // --- Image Lightbox Global Helpers ---
+  window.openImageLightbox = function (src) {
+    const modal = document.getElementById('image-lightbox-modal');
+    const img = document.getElementById('lightbox-img');
+    if (modal && img) {
+      img.src = src;
+      modal.style.display = 'flex';
+    }
+  };
+
+  window.closeImageLightbox = function () {
+    const modal = document.getElementById('image-lightbox-modal');
+    if (modal) {
+      modal.style.display = 'none';
+      const img = document.getElementById('lightbox-img');
+      if (img) img.src = '';
+    }
+  };
+
+  // --- Attachments & Antigravity Add Context Deck ---
+  function formatFileSize(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  }
+
+  function renderAttachmentsTray() {
+    const tray = document.getElementById('attachments-tray');
+    if (!tray) return;
+
+    if (!state.attachedFiles || state.attachedFiles.length === 0) {
+      tray.innerHTML = '';
+      tray.style.display = 'none';
+      return;
+    }
+
+    tray.style.display = 'flex';
+    tray.innerHTML = '';
+
+    state.attachedFiles.forEach((file, index) => {
+      const chip = document.createElement('div');
+      chip.className = 'attachment-chip';
+
+      const isImage = file.type && file.type.startsWith('image/');
+      if (isImage) {
+        chip.classList.add('chip-image');
+        chip.title = `${file.name} (${formatFileSize(file.size)})`;
+        chip.innerHTML = `
+          <img src="${file.data}" alt="${escapeHTML(file.name)}" />
+          <button type="button" class="chip-remove-btn" title="Remove attachment" data-index="${index}">✕</button>
+        `;
+        chip.addEventListener('click', (e) => {
+          if (e.target.classList.contains('chip-remove-btn')) return;
+          window.openImageLightbox(file.data);
+        });
+      } else {
+        chip.classList.add('chip-doc');
+        const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+        const isCode = /\.(py|js|ts|tsx|jsx|json|md|html|css|csv|sh|sql|log|yaml|yml)$/i.test(file.name);
+        const badgeClass = isPdf ? 'badge-pdf' : (isCode ? 'badge-code' : 'badge-text');
+        const ext = file.name.split('.').pop().toUpperCase() || 'FILE';
+
+        chip.innerHTML = `
+          <span class="doc-badge ${badgeClass}">${escapeHTML(ext.slice(0, 4))}</span>
+          <div class="doc-info">
+            <span class="doc-name" title="${escapeHTML(file.name)}">${escapeHTML(file.name)}</span>
+            <span class="doc-size">${formatFileSize(file.size)}</span>
+          </div>
+          <button type="button" class="doc-remove-btn" title="Remove attachment" data-index="${index}">✕</button>
+        `;
+      }
+
+      const removeBtn = chip.querySelector('.chip-remove-btn, .doc-remove-btn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          removeAttachment(index);
+        });
+      }
+
+      tray.appendChild(chip);
+    });
+  }
+
+  function removeAttachment(index) {
+    state.attachedFiles.splice(index, 1);
+    renderAttachmentsTray();
+  }
+
+  function addAttachmentFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUri = e.target.result;
+      state.attachedFiles.push({
+        name: file.name || 'attachment',
+        type: file.type || 'application/octet-stream',
+        size: file.size || dataUri.length,
+        data: dataUri,
+      });
+      renderAttachmentsTray();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleFilesSelected(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    Array.from(fileList).forEach(addAttachmentFile);
+  }
+
+  function setupDragAndDrop() {
+    const dropzone = document.getElementById('input-deck-dropzone');
+    const timeline = document.getElementById('chat-timeline');
+
+    [dropzone, timeline].forEach((target) => {
+      if (!target) return;
+
+      target.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (dropzone) dropzone.classList.add('drag-over');
+      });
+
+      target.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (dropzone) dropzone.classList.remove('drag-over');
+      });
+
+      target.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (dropzone) dropzone.classList.remove('drag-over');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleFilesSelected(e.dataTransfer.files);
+          if (el.chatInput) el.chatInput.focus();
+        }
+      });
+    });
+  }
+
+  function setupClipboardPaste() {
+    window.addEventListener('paste', (e) => {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData || !clipboardData.items) return;
+
+      let hasFile = false;
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            hasFile = true;
+            let fname = file.name;
+            if (!fname || fname === 'image.png') {
+              fname = `screenshot_${Date.now().toString().slice(-4)}.png`;
+            }
+            const renamedFile = new File([file], fname, { type: file.type });
+            addAttachmentFile(renamedFile);
+          }
+        }
+      }
+
+      if (hasFile && el.chatInput) {
+        el.chatInput.focus();
+      }
+    });
+  }
+
+  function setupAddContextMenu() {
+    const btnAddContext = document.getElementById('btn-add-context');
+    const popup = document.getElementById('context-menu-popup');
+    const fileInput = document.getElementById('file-upload-input');
+    const cmenuMedia = document.getElementById('cmenu-media');
+    const cmenuMentions = document.getElementById('cmenu-mentions');
+    const cmenuActions = document.getElementById('cmenu-actions');
+    const cmenuBrowser = document.getElementById('cmenu-browser');
+
+    if (!btnAddContext || !popup) return;
+
+    function toggleMenu(show) {
+      const isVisible = popup.style.display === 'flex';
+      const next = typeof show === 'boolean' ? show : !isVisible;
+      popup.style.display = next ? 'flex' : 'none';
+      btnAddContext.classList.toggle('active', next);
+    }
+
+    btnAddContext.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMenu();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!popup.contains(e.target) && !btnAddContext.contains(e.target)) {
+        toggleMenu(false);
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && popup.style.display === 'flex') {
+        toggleMenu(false);
+      }
+    });
+
+    // 1. Media: Open hidden file picker
+    if (cmenuMedia && fileInput) {
+      cmenuMedia.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleMenu(false);
+        fileInput.value = '';
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        handleFilesSelected(e.target.files);
+      });
+    }
+
+    // 2. Mentions: Insert @ mention trigger
+    if (cmenuMentions) {
+      cmenuMentions.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleMenu(false);
+        if (el.chatInput) {
+          el.chatInput.value += ' @';
+          el.chatInput.focus();
+        }
+      });
+    }
+
+    // 3. Actions: Insert / action trigger
+    if (cmenuActions) {
+      cmenuActions.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleMenu(false);
+        if (el.chatInput) {
+          el.chatInput.value += ' /';
+          el.chatInput.focus();
+        }
+      });
+    }
+
+    // 4. Browser: Prompt or insert web browsing
+    if (cmenuBrowser) {
+      cmenuBrowser.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleMenu(false);
+        const url = prompt('Enter a web URL to analyze or browse:');
+        if (url && url.trim()) {
+          if (el.chatInput) {
+            el.chatInput.value = (el.chatInput.value ? el.chatInput.value + ' ' : '') + `Fetch and analyze ${url.trim()}`;
+            el.chatInput.focus();
+          }
+        } else if (el.chatInput) {
+          el.chatInput.value += ' [search] ';
+          el.chatInput.focus();
+        }
+      });
+    }
+  }
+
   // --- Chat Message Dispatch with Token Streaming ---
   async function sendMessage() {
     let text = el.chatInput.value.trim();
-    if (!text) return;
+    const attachments = [...state.attachedFiles];
+
+    if (!text && attachments.length === 0) return;
+    if (!text && attachments.length > 0) {
+      text = 'Analyze the attached file(s).';
+    }
     if (state.isGenerating) return;
 
     el.chatInput.value = '';
@@ -814,7 +1104,11 @@
     el.sendBtn.style.display = 'none';
     el.stopBtn.style.display = 'inline-flex';
 
-    appendUserMessage(text);
+    // Clear attachments tray
+    state.attachedFiles = [];
+    renderAttachmentsTray();
+
+    appendUserMessage(text, attachments);
     const agentGroup = createAgentMessageGroup();
 
     setRunningTask('Agent Reasoning', text.substring(0, 40));
@@ -844,6 +1138,7 @@
             thinking_mode: state.thinkingMode,
             deep_reasoning: state.deepReasoning,
             username: state.username || 'User',
+            attachments: attachments,
           })
         );
       };
@@ -963,14 +1258,14 @@
       };
 
       socket.onerror = () => {
-        if (!wsSuccess) fallbackRestChat(text, agentGroup, selectedModelParam);
+        if (!wsSuccess) fallbackRestChat(text, agentGroup, selectedModelParam, attachments);
       };
     } catch (e) {
-      fallbackRestChat(text, agentGroup, selectedModelParam);
+      fallbackRestChat(text, agentGroup, selectedModelParam, attachments);
     }
   }
 
-  async function fallbackRestChat(text, agentGroup, model) {
+  async function fallbackRestChat(text, agentGroup, model, attachments = []) {
     appendTerminal('agent-shell', `Executing via REST fallback...`, 'warn');
     const startTime = Date.now();
 
@@ -986,6 +1281,7 @@
           thinking_mode: state.thinkingMode,
           deep_reasoning: state.deepReasoning,
           username: state.username || 'User',
+          attachments: attachments,
         }),
       });
 
@@ -1479,6 +1775,10 @@
     initElements();
     applyLayout();
     setupEventListeners();
+    setupDragAndDrop();
+    setupClipboardPaste();
+    setupAddContextMenu();
+    renderAttachmentsTray();
     updateModeUI();
     if (!state.username || state.username.toLowerCase() === 'khazar') {
       state.username = 'User';

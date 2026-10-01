@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=3.0" />
+  <link rel="stylesheet" href="/static/style.css?v=3.1" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -155,6 +155,11 @@
         </div>
 
         <div class="input-deck" id="input-deck-dropzone">
+          <input type="file" id="file-upload-input" multiple accept="image/*,.pdf,.txt,.py,.js,.ts,.tsx,.jsx,.json,.md,.html,.css,.csv,.sh,.log,*" style="display:none;" />
+          
+          <!-- Attachments Preview Tray -->
+          <div id="attachments-tray" class="attachments-tray" style="display:none;"></div>
+
           <textarea
             id="chat-input"
             class="chat-textarea"
@@ -163,6 +168,33 @@
           ></textarea>
 
           <div class="input-controls-bar">
+            <!-- Antigravity + Add Context Button and Floating Popup Menu (Opens UPWARDS) -->
+            <div class="context-menu-container">
+              <button type="button" id="btn-add-context" class="btn-add-context" title="Add Context (Media, Mentions, Actions, Browser)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+              <div id="context-menu-popup" class="context-menu-popup" style="display:none;">
+                <div class="context-menu-header">Add Context</div>
+                <button type="button" class="context-menu-item" id="cmenu-media" title="Upload images, PDFs, code files, or documents">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span>Media</span>
+                </button>
+                <button type="button" class="context-menu-item" id="cmenu-mentions" title="Mention workspace files, notes, or memories">
+                  <span class="cmenu-icon-at">@</span>
+                  <span>Mentions</span>
+                </button>
+                <button type="button" class="context-menu-item" id="cmenu-actions" title="Quick slash commands and workflows">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                  <span>Actions</span>
+                </button>
+                <button type="button" class="context-menu-item" id="cmenu-browser" title="Fetch webpage or interact with browser">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                  <span>Browser</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Scrollable Quick Actions Pills -->
             <div class="input-quick-actions">
               <button id="deck-btn-thinking" class="quick-action-pill thinking-deck-pill" title="Toggle Deep Thinking & Reasoning Mode">
                 <span class="thinking-pill-dot"></span> Thinking
@@ -257,8 +289,17 @@
     </div>
   </div>
 
+  <!-- Image Lightbox Modal -->
+  <div id="image-lightbox-modal" class="image-lightbox-modal" style="display:none;">
+    <div class="lightbox-overlay" onclick="closeImageLightbox()"></div>
+    <div class="lightbox-content">
+      <img id="lightbox-img" src="" alt="Full Preview" />
+      <button type="button" class="lightbox-close" onclick="closeImageLightbox()">✕</button>
+    </div>
+  </div>
+
   <!-- Main Application Script -->
-  <script src="/static/app.js?v=3.0"></script>
+  <script src="/static/app.js?v=3.1"></script>
 </body>
 </html>
 

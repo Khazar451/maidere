@@ -19,6 +19,7 @@ class TaskComplexity(str, Enum):
     SIMPLE = "simple"
     COMPLEX = "complex"
     REASONING = "reasoning"
+    VISION = "vision"
 
 
 # Keywords and patterns indicative of deep reasoning, mathematical proofs, and logic puzzles
@@ -60,8 +61,15 @@ _LAST_CACHE_TIME: float = 0.0
 _CACHE_TTL: float = 30.0  # seconds
 
 
-def classify_complexity(query: str, history: list[Any] | None = None) -> TaskComplexity:
+def classify_complexity(
+    query: str,
+    history: list[Any] | None = None,
+    has_images: bool = False,
+) -> TaskComplexity:
     """Classify the complexity of a user query based on intent, triggers, and context."""
+    if has_images:
+        return TaskComplexity.VISION
+
     if not query or not query.strip():
         return TaskComplexity.SIMPLE
 
@@ -147,6 +155,7 @@ async def select_model(
     history: list[Any] | None = None,
     thinking_mode: bool = False,
     deep_reasoning: bool = False,
+    has_images: bool = False,
     *args: Any,
     **kwargs: Any,
 ) -> tuple[str, str, TaskComplexity]:
@@ -155,14 +164,34 @@ async def select_model(
     Returns:
         (selected_model_name, routing_reason, complexity)
     """
-    complexity = (
-        TaskComplexity.REASONING
-        if (thinking_mode or deep_reasoning)
-        else classify_complexity(query, history)
-    )
+    if has_images:
+        complexity = TaskComplexity.VISION
+    elif thinking_mode or deep_reasoning:
+        complexity = TaskComplexity.REASONING
+    else:
+        complexity = classify_complexity(query, history, has_images=has_images)
 
-    # 1. Explicit thinking mode or deep reasoning mode override
     available = await get_available_models()
+    vision_model = getattr(settings, "ollama_vision_model", "qwen2.5-vl:7b")
+
+    # 1. Multimodal Vision Routing
+    if has_images:
+        if requested_model and requested_model.lower() not in ("auto", "none", ""):
+            return requested_model, "user_override_vision", TaskComplexity.VISION
+
+        matched_vision = None
+        for cand in (vision_model, "qwen2.5-vl", "qwen2.5-vl:7b", "llama3.2-vision", "vl"):
+            for m in available:
+                if cand in m.lower():
+                    matched_vision = m
+                    break
+            if matched_vision:
+                break
+        if matched_vision:
+            return matched_vision, "multimodal_vision", TaskComplexity.VISION
+        return vision_model, "multimodal_vision_default", TaskComplexity.VISION
+
+    # 2. Explicit thinking mode or deep reasoning mode override
     thinking_model = getattr(settings, "ollama_thinking_model", "deepseek-r1:7b")
 
     if deep_reasoning:
