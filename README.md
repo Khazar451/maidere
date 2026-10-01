@@ -10,11 +10,11 @@
 [![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com/)
 [![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM_%2F_Nemotron-76B900?style=flat-square&logo=nvidia&logoColor=white)](https://build.nvidia.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Tests Passing](https://img.shields.io/badge/Tests-245%2F245_Passing-10b981?style=flat-square)](tests/)
+[![Tests Passing](https://img.shields.io/badge/Tests-258%2F258_Passing-10b981?style=flat-square)](tests/)
 
 *Engineered for zero subscription costs, zero GPU model-thrashing, and enterprise-grade reasoning on consumer hardware (NVIDIA RTX 5060 8GB / 16GB RAM) with instant hybrid scaling to massive cloud models (Nemotron-3-Ultra 550B up to 128K context).*
 
-[Quickstart](#quickstart-in-60-seconds) • [Architecture](#subsystem-architecture) • [Cognitive Modes](#cognitive-engine--operational-modes) • [Hybrid LLM & Cloud](#hybrid-inference--cloud-scaling) • [Memory Engine](#3-tier-memory-engine) • [Tools](#registered-agent-tools) • [Documentation](ARCHITECTURE.md)
+[Quickstart](#quickstart-in-60-seconds) • [Architecture](#subsystem-architecture) • [Cognitive Modes](#cognitive-engine--operational-modes) • [Multimodal Vision](#multimodal-vision--antigravity-context-deck) • [Hybrid LLM & Cloud](#hybrid-inference--cloud-scaling) • [Memory Engine](#3-tier-memory-engine) • [Tools](#registered-agent-tools) • [Documentation](ARCHITECTURE.md)
 
 </div>
 
@@ -22,6 +22,7 @@
 
 ## Highlights & Key Capabilities
 
+- **Antigravity-Grade Multimodal Vision & Input Deck**: Paste screenshots (`Ctrl+V`), drag-and-drop UI mockups or documents, and open the upward-popping **Add Context** (`+`) menu for media, `@ file mentions`, `/ actions`, and browser links. Automatically routes visual queries to `qwen2.5-vl:7b` with high-speed in-memory PDF/document text extraction.
 - **Zero-VRAM CPU Embeddings**: High-performance semantic vector embeddings executed entirely on CPU via `fastembed` (`BAAI/bge-small-en-v1.5`), preserving 100% of GPU VRAM for LLM generation.
 - **Native Desktop & Continuous Development App**: Runs as a lightweight native desktop application (`python3 maidere.py`) with OS dock integration, intelligent server lifecycle management, and a live hot-reloading development mode (`--dev`).
 - **Dynamic 5-Tier Context Selector**: Real-time context window switcher scalable from **8K (Local Fast)** up to **128K (Cloud Extreme)** with automatic token trimming and context-aware KV cache management.
@@ -60,6 +61,7 @@ pip install -e .
 ollama pull qwen2.5:7b-instruct
 ollama pull qwen2.5:3b
 ollama pull deepseek-r1:7b
+ollama pull qwen2.5-vl:7b # Multimodal vision for screenshots & documents
 
 # Launch background infrastructure (SearXNG metasearch, Prometheus, Grafana)
 docker compose up -d
@@ -128,9 +130,33 @@ Maidere provides three cognitive paradigms selectable from the top navigation ba
 
 | Mode | Selector | Execution Pipeline & Behavior |
 | :--- | :--- | :--- |
-| **Auto** *(Default)* | `Auto` | **Dynamic Complexity Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b`) with sub-millisecond intent evaluation. |
+| **Auto** *(Default)* | `Auto` | **Dynamic Complexity & Vision Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b`, `VISION` &rarr; `qwen2.5-vl:7b`) with sub-millisecond intent evaluation. |
 | **Thinking** | `Thinking` | **Single-Pass Chain-of-Thought**: Generates step-by-step reasoning inside `<think>...</think>` scratchpad tags with real-time token streaming and collapsible UI accordions. |
 | **Deep Reason** | `Deep Reason` | **Multi-Stage System 2 Deliberation**: Exhaustive 3-phase cognitive framework:<br>1. *Divergent Exploration*: Problem deconstruction, alternative hypotheses, falsification stress-testing.<br>2. *Analytical Verification*: Independent recalculation of math, state mutations, and citation integrity.<br>3. *Convergent Synthesis*: Formal synthesis with fourth-wall reviewer leakage prevention. |
+
+---
+
+## Multimodal Vision & Antigravity Context Deck
+
+Maidere features an **Antigravity-grade context ingestion deck** designed for rapid multi-modal interaction:
+
+- **Upward-Opening Add Context Menu (`+`)**:
+  - `🖼️ Media`: Multi-file picker for screenshots (`.png`, `.jpg`, `.webp`), PDFs, documents, and code files.
+  - `@ Mentions`: Instant `@` token injection for referencing workspace files, notes, or memories.
+  - `☑ Actions`: Triggers slash workflows (`/plan`, `/review`, `[deep-research]`).
+  - `🌐 Browser`: Quick web URL scraping and browsing query injection.
+- **Attachment Preview Tray & Lightbox**:
+  - Rendered above the input textarea with real-time file previews.
+  - Image thumbnails feature hover-zoom and full-screen lightbox modal on click.
+  - Document chips feature color-coded format badges (`PDF`, `CODE`, `TEXT`), formatted file sizes, and single-click removal buttons.
+- **Clipboard & Drag-and-Drop Ingestion**:
+  - Direct `Ctrl+V` screenshot pasting anywhere on the interface.
+  - Drag-and-drop onto the input deck or chat stream with active dropzone glow highlighting.
+- **Fast Attachment Processing Engine**:
+  - High-speed PDF text extraction via `/usr/bin/pdftotext` with pure-Python FlateDecode zlib stream decompression fallback.
+  - Automatic code and markdown formatting injection into turn prompts.
+- **Automatic Multimodal Routing**:
+  - Image payloads automatically elevate complexity to `TaskComplexity.VISION` and route to `qwen2.5-vl:7b` (or cloud OpenAI vision endpoints).
 
 ---
 
@@ -219,7 +245,7 @@ graph TD
 
 ## Automated Verification Suite
 
-Maidere maintains an exhaustive automated test suite with **245 tests across 23 modules**:
+Maidere maintains an exhaustive automated test suite with **258 tests across 24 modules**:
 
 ```bash
 # Execute full test suite
@@ -227,12 +253,13 @@ HF_HUB_OFFLINE=1 .venv/bin/python -m unittest discover -s tests -p "test_*.py" -
 ```
 
 ```text
-Ran 245 tests in 4.808s — OK (100% Passed, 0 Failures, 0 Errors)
+Ran 258 tests in 5.322s — OK (100% Passed, 0 Failures, 0 Errors)
 ```
 
 | Test Module | Coverage Area | Status |
 | :--- | :--- | :---: |
 | `test_agent.py` | LangGraph cyclic execution, message trimming, tool loops | **PASS** |
+| `test_multimodal.py` | Multimodal vision routing, PDF stream extraction, base64 normalization, cloud formats | **PASS** |
 | `test_cloud_llm.py` | NVIDIA NIM & OpenAI cloud client, Nemotron thinking stream | **PASS** |
 | `test_desktop_launcher.py`| Desktop lifecycle, port probing, signal handling, XDG launcher | **PASS** |
 | `test_memory_tiers.py` | Tier 1 RULES.md backups, Tier 2 LRU auto-memory, Tier 3 Jaccard filter | **PASS** |
