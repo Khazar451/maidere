@@ -32,6 +32,8 @@ venv/
 db/*.db
 db/*.db-shm
 db/*.db-wal
+db/*.db.bak
+*.db.bak
 .jupiter/
 
 # Logs & telemetry
