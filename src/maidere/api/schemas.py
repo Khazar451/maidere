@@ -6,9 +6,7 @@ from pydantic import BaseModel, Field
 class ChatRequest(BaseModel):
     """Incoming chat message."""
 
-    message: str = Field(
-        ..., min_length=1, max_length=10000, description="The user's message"
-    )
+    message: str = Field(..., min_length=1, max_length=10000, description="The user's message")
     thread_id: str | None = Field(
         None,
         description="Conversation thread ID. Auto-generated if not provided.",
@@ -47,19 +45,14 @@ class ChatRequest(BaseModel):
 class UserLoginRequest(BaseModel):
     """User nickname login request without passwords."""
 
-    username: str = Field(
-        ..., min_length=1, max_length=64, description="User nickname"
-    )
+    username: str = Field(..., min_length=1, max_length=64, description="User nickname")
 
 
 class UserProfileResponse(BaseModel):
     """Active user profile and known nicknames."""
 
     username: str = Field(..., description="Active user nickname")
-    known_users: list[str] = Field(
-        default_factory=list, description="Previously known nicknames"
-    )
-
+    known_users: list[str] = Field(default_factory=list, description="Previously known nicknames")
 
 
 class ToolExecutionItem(BaseModel):
@@ -76,28 +69,19 @@ class ChatResponse(BaseModel):
     """Agent response."""
 
     response: str = Field(..., description="The agent's response")
-    thread_id: str = Field(
-        ..., description="Conversation thread ID for continuity"
-    )
-    trimmed: bool = Field(
-        False, description="Whether messages were trimmed in this turn"
-    )
+    thread_id: str = Field(..., description="Conversation thread ID for continuity")
+    trimmed: bool = Field(False, description="Whether messages were trimmed in this turn")
     tools_executed: list[ToolExecutionItem] = Field(
         default_factory=list, description="List of tools executed during this turn"
     )
-    memory_context: str | None = Field(
-        None, description="Memory context retrieved for this turn"
-    )
-
+    memory_context: str | None = Field(None, description="Memory context retrieved for this turn")
 
 
 class HealthResponse(BaseModel):
     """Health check response."""
 
     status: str = Field(..., description="Service status")
-    ollama_available: bool = Field(
-        ..., description="Whether Ollama is reachable and model is loaded"
-    )
+    ollama_available: bool = Field(..., description="Whether Ollama is reachable and model is loaded")
     model: str = Field(..., description="Configured LLM model")
     db_path: str = Field(..., description="Database file path")
     sandbox_mode: str | None = Field(
@@ -131,7 +115,6 @@ class ThreadItem(BaseModel):
     last_updated: str | None = Field(None, description="Last activity timestamp")
 
 
-
 class ThreadsListResponse(BaseModel):
     """List of past conversation threads."""
 
@@ -140,7 +123,6 @@ class ThreadsListResponse(BaseModel):
 
 class MemoryItem(BaseModel):
     """Stored semantic memory."""
-
 
     content: str = Field(..., description="Memory text content")
     timestamp: str = Field(..., description="Timestamp when memory was recorded")
@@ -151,4 +133,3 @@ class MemoryRecallResponse(BaseModel):
     """List of recalled semantic memories."""
 
     memories: list[MemoryItem] = Field(default_factory=list, description="Top matching memories")
-

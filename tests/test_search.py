@@ -1,17 +1,15 @@
 """Tests for WebSearchTool (SearXNG client) and search-and-browse integration."""
 
-import asyncio
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
-import httpx
 
+import httpx
 from langchain_core.messages import AIMessage, HumanMessage
 
 from maidere.core.agent import create_graph
 from maidere.core.config import settings
-from maidere.tools.registry import execute_tool, get_tool
-from maidere.tools.web_search import WebSearchTool, search_searxng
+from maidere.tools.web_search import WebSearchTool
 
 
 class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
@@ -78,7 +76,6 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         self.assertIn("[Search Unavailable: SearXNG container is offline]", result)
 
 
-
 class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
     """Test full multi-step agent flow: search -> browse page -> synthesize answer."""
 
@@ -89,6 +86,7 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
 
@@ -151,10 +149,15 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
             request=httpx.Request("GET", f"{settings.searxng_url}/search"),
         )
 
-        with patch("maidere.core.llm.chat", side_effect=mock_responses) as mock_chat, \
-             patch("httpx.AsyncClient.get", return_value=mock_searxng_res), \
-             patch("maidere.tools.browser.browse_url", new_callable=AsyncMock, return_value="Article Body: Autonomous agents operate 24/7 with zero VRAM thrashing using fastembed and sqlite-vec."):
-
+        with (
+            patch("maidere.core.llm.chat", side_effect=mock_responses) as mock_chat,
+            patch("httpx.AsyncClient.get", return_value=mock_searxng_res),
+            patch(
+                "maidere.tools.browser.browse_url",
+                new_callable=AsyncMock,
+                return_value="Article Body: Autonomous agents operate 24/7 with zero VRAM thrashing using fastembed and sqlite-vec.",
+            ),
+        ):
             config = {"configurable": {"thread_id": "test-search-browse-thread"}}
             result = await graph.ainvoke(
                 {

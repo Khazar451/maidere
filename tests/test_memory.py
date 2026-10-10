@@ -1,17 +1,11 @@
 """Tests for vector memory storage, fastembed CPU embeddings, and recall."""
 
-import asyncio
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, patch
-
-from langchain_core.messages import AIMessage, HumanMessage
 
 from maidere.core.db import get_db, init_tables
-from maidere.core.embeddings import embed_one
 from maidere.core.memory import (
     format_memories,
-    init_memory_table,
     recall,
     serialize_vector,
     store_memory,
@@ -33,6 +27,7 @@ class TestVectorMemory(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
 

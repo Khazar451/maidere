@@ -2,9 +2,8 @@
 
 import asyncio
 import re
-from pathlib import Path
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, WebSocket, WebSocketDisconnect
@@ -22,8 +21,6 @@ from maidere.api.schemas import (
     ChatResponse,
     HealthResponse,
     HistoryResponse,
-    MemoryItem,
-    MemoryRecallResponse,
     MessageItem,
     ThreadItem,
     ThreadsListResponse,
@@ -31,7 +28,6 @@ from maidere.api.schemas import (
     UserLoginRequest,
     UserProfileResponse,
 )
-
 from maidere.core import llm
 from maidere.core.agent import (
     get_system_prompt,
@@ -40,7 +36,7 @@ from maidere.core.agent import (
     unregister_stream_callback,
 )
 from maidere.core.config import settings
-from maidere.core.db import get_db, get_db_context
+from maidere.core.db import get_db_context
 from maidere.core.memory import delete_memory, list_all_memories, recall, store_memory
 
 logger = structlog.get_logger()
@@ -52,13 +48,14 @@ _graph = None
 
 # Active generation tasks for cancellation tracking
 _active_generation_tasks: dict[str, asyncio.Task] = {}
+# Fire-and-forget tasks (session extraction). Held so the loop does not drop them.
+_background_tasks: set[asyncio.Task] = set()
 
 
 def set_graph(graph) -> None:
     """Set the compiled LangGraph instance. Called from app lifespan."""
     global _graph
     _graph = graph
-
 
 
 SUMMARIZATION_INTERVAL = 20
@@ -107,7 +104,7 @@ async def update_thread_metadata_and_title(
                     ]
                     resp = await llm.chat(title_prompt, tools=None)
                     raw_title = resp.get("message", {}).get("content", "").strip()
-                    clean_title = raw_title.strip('"\'`').replace("\n", " ").strip()
+                    clean_title = raw_title.strip("\"'`").replace("\n", " ").strip()
                     if clean_title and len(clean_title) <= 50:
                         title = clean_title
                     else:
@@ -156,15 +153,12 @@ async def update_thread_metadata_and_title(
         return (first_user_text[:35] + "...") if len(first_user_text) > 35 else first_user_text
 
 
-
 async def maybe_summarize_conversation(
     thread_id: str,
     messages: list[Any],
 ) -> None:
     """Summarize conversation when it reaches every 20 turns and store to memories."""
-    human_and_ai_msgs = [
-        m for m in messages if isinstance(m, (HumanMessage, AIMessage))
-    ]
+    human_and_ai_msgs = [m for m in messages if isinstance(m, (HumanMessage, AIMessage))]
     count = len(human_and_ai_msgs)
     if count >= SUMMARIZATION_INTERVAL and count % SUMMARIZATION_INTERVAL == 0:
         try:
@@ -197,8 +191,6 @@ async def maybe_summarize_conversation(
             await logger.aerror("summarization_failed", error=str(e))
 
 
-
-
 @router.get("/models")
 @router.get("/api/models")
 async def list_available_models() -> dict[str, list[str]]:
@@ -217,15 +209,22 @@ async def list_available_models() -> dict[str, list[str]]:
         return {"models": ["auto", settings.ollama_model, settings.ollama_fast_model, thinking_model, "deepseek-r1:8b"]}
 
 
-
 def should_store_memory(text: str) -> bool:
     """Filter out short greetings, casual chat, and low-information queries from permanent vector storage."""
     cleaned = text.strip().lower()
     if len(cleaned) < 12:
         return False
     ignore_prefixes = (
-        "hello", "hi ", "hey", "how are you", "who are you", "what can you do",
-        "why dont you answer", "well why dont you", "test", "testing"
+        "hello",
+        "hi ",
+        "hey",
+        "how are you",
+        "who are you",
+        "what can you do",
+        "why dont you answer",
+        "well why dont you",
+        "test",
+        "testing",
     )
     if any(cleaned.startswith(p) for p in ignore_prefixes) and len(cleaned) < 35:
         return False
@@ -256,11 +255,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
         except Exception as e:
             await logger.awarn("memory_ingest_skipped", error=str(e))
 
-
     config = {"configurable": {"thread_id": thread_id}}
 
     # Reset sub-agent spawn counter for this new query
     from maidere.tools.registry import get_tool
+
     delegate_tool = get_tool("delegate_task")
     if delegate_tool and hasattr(delegate_tool, "reset_spawn_count"):
         delegate_tool.reset_spawn_count()
@@ -281,15 +280,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
         for img in request.images:
             incoming_attachments.append({"name": "screenshot.png", "type": "image/png", "data": img})
 
-    composed_query, extracted_images = compose_turn_prompt_with_attachments(
-        request.message, incoming_attachments
-    )
+    composed_query, extracted_images = compose_turn_prompt_with_attachments(request.message, incoming_attachments)
 
     try:
         resolved_num_ctx = request.num_ctx or (
-            getattr(settings, "cloud_num_ctx", 65536)
-            if llm.is_cloud_model(model_name)
-            else settings.ollama_num_ctx
+            getattr(settings, "cloud_num_ctx", 65536) if llm.is_cloud_model(model_name) else settings.ollama_num_ctx
         )
         result = await _graph.ainvoke(
             {
@@ -318,7 +313,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(
             status_code=503,
             detail=f"LLM unavailable. Is Ollama running? Error: {type(e).__name__}",
-        )
+        ) from e
 
     # 2. Check for conversation summarization trigger & update AI thread title
     all_messages = result.get("messages", [])
@@ -341,15 +336,17 @@ async def chat(request: ChatRequest) -> ChatResponse:
             )
 
     ai_message = all_messages[-1]
-    response_text = (
-        ai_message.content if hasattr(ai_message, "content") else str(ai_message)
-    )
-
+    response_text = ai_message.content if hasattr(ai_message, "content") else str(ai_message)
 
     # Tier 3: Trigger async session memory extraction
     try:
         from maidere.core.memory_tiers import run_session_extraction
-        asyncio.create_task(run_session_extraction(thread_id, [HumanMessage(content=request.message), ai_message]))
+
+        task = asyncio.create_task(
+            run_session_extraction(thread_id, [HumanMessage(content=request.message), ai_message])
+        )
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
     except Exception as e:
         await logger.awarn("session_extraction_failed", error=str(e))
 
@@ -369,7 +366,6 @@ async def chat(request: ChatRequest) -> ChatResponse:
     )
 
 
-
 @router.get("/threads", response_model=ThreadsListResponse)
 async def list_threads() -> ThreadsListResponse:
     """List past conversation threads with smart AI titles and summaries."""
@@ -385,9 +381,7 @@ async def list_threads() -> ThreadsListResponse:
             meta_dict = {r[0]: r for r in meta_rows}
 
             # 2. Check checkpoints table for any legacy unindexed threads
-            cp_rows = await db.execute_fetchall(
-                "SELECT DISTINCT thread_id FROM checkpoints ORDER BY rowid DESC"
-            )
+            cp_rows = await db.execute_fetchall("SELECT DISTINCT thread_id FROM checkpoints ORDER BY rowid DESC")
             all_tids = []
             seen = set()
             for r in meta_rows:
@@ -449,7 +443,7 @@ async def delete_thread(thread_id: str) -> dict[str, Any]:
         return {"status": "deleted", "thread_id": thread_id}
     except Exception as e:
         await logger.aerror("delete_thread_failed", thread_id=thread_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.websocket("/ws/chat")
@@ -464,10 +458,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
     if websocket_auth_required():
         try:
-            first_frame = await asyncio.wait_for(
-                websocket.receive_json(), timeout=WS_AUTH_TIMEOUT_SECONDS
-            )
-        except (asyncio.TimeoutError, ValueError):
+            first_frame = await asyncio.wait_for(websocket.receive_json(), timeout=WS_AUTH_TIMEOUT_SECONDS)
+        except (TimeoutError, ValueError):
             await websocket.close(code=WS_CLOSE_UNAUTHORIZED, reason="Authentication required")
             return
         except WebSocketDisconnect:
@@ -519,8 +511,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
             # Create a thread-safe send lock for WebSocket
             ws_lock = asyncio.Lock()
 
-            async def safe_ws_send(payload: dict) -> None:
-                async with ws_lock:
+            async def safe_ws_send(payload: dict, lock: asyncio.Lock = ws_lock) -> None:
+                async with lock:
                     try:
                         await websocket.send_json(payload)
                     except Exception as e:
@@ -529,9 +521,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
             # Notify UI that thinking started
             model_name = data.get("model") or settings.ollama_model
             num_ctx = data.get("num_ctx") or (
-                getattr(settings, "cloud_num_ctx", 65536)
-                if llm.is_cloud_model(model_name)
-                else settings.ollama_num_ctx
+                getattr(settings, "cloud_num_ctx", 65536) if llm.is_cloud_model(model_name) else settings.ollama_num_ctx
             )
             thinking_mode = bool(data.get("thinking_mode", False))
             deep_reasoning = bool(data.get("deep_reasoning", False))
@@ -541,32 +531,26 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             # Reset sub-agent spawn counter for this new query
             from maidere.tools.registry import get_tool as _get_tool
+
             _delegate = _get_tool("delegate_task")
             if _delegate and hasattr(_delegate, "reset_spawn_count"):
                 _delegate.reset_spawn_count()
 
             # Wire rich agent telemetry and sub-agent progress to WebSocket
             from maidere.core.agent import register_event_callback, unregister_event_callback
-            from maidere.core.subagent import set_progress_callback, clear_progress_callback
+            from maidere.core.subagent import clear_progress_callback, set_progress_callback
 
             register_event_callback(thread_id, safe_ws_send)
             set_progress_callback(safe_ws_send)
 
-            # Capture message count before invocation to isolate new turn tools
-            prior_msg_count = 0
-            try:
-                state_before = await _graph.aget_state(config)
-                if state_before and state_before.values:
-                    prior_msg_count = len(state_before.values.get("messages", []))
-            except Exception:
-                pass
-
-            async def token_stream_handler(token_text: str) -> None:
-                await safe_ws_send({
-                    "type": "token",
-                    "text": token_text,
-                    "thread_id": thread_id,
-                })
+            async def token_stream_handler(token_text: str, tid: str = thread_id) -> None:
+                await safe_ws_send(
+                    {
+                        "type": "token",
+                        "text": token_text,
+                        "thread_id": tid,
+                    }
+                )
 
             from maidere.core.attachments import compose_turn_prompt_with_attachments
 
@@ -575,9 +559,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 for img in data.get("images"):
                     incoming_attachments.append({"name": "screenshot.png", "type": "image/png", "data": img})
 
-            composed_query, extracted_images = compose_turn_prompt_with_attachments(
-                message_text, incoming_attachments
-            )
+            composed_query, extracted_images = compose_turn_prompt_with_attachments(message_text, incoming_attachments)
 
             register_stream_callback(thread_id, token_stream_handler)
             user_name = str(data.get("username") or "").strip() or "User"
@@ -615,13 +597,15 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 ai_message = all_messages[-1]
                 response_text = ai_message.content if hasattr(ai_message, "content") else str(ai_message)
 
-                await safe_ws_send({
-                    "type": "response",
-                    "content": response_text,
-                    "response": response_text,
-                    "thread_id": thread_id,
-                    "memory_context": result.get("memory_context", ""),
-                })
+                await safe_ws_send(
+                    {
+                        "type": "response",
+                        "content": response_text,
+                        "response": response_text,
+                        "thread_id": thread_id,
+                        "memory_context": result.get("memory_context", ""),
+                    }
+                )
                 await safe_ws_send({"type": "done", "thread_id": thread_id})
 
             except asyncio.CancelledError:
@@ -629,7 +613,7 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 await safe_ws_send({"type": "cancelled", "thread_id": thread_id})
             except Exception as e:
                 await logger.aerror("ws_chat_failed", thread_id=thread_id, error=str(e))
-                await safe_ws_send({"type": "error", "message": f"Error: {str(e)}"})
+                await safe_ws_send({"type": "error", "message": f"Error: {e!s}"})
             finally:
                 unregister_stream_callback(thread_id)
                 unregister_event_callback(thread_id)
@@ -700,10 +684,7 @@ async def export_thread(thread_id: str, format: str = "md") -> Response:
     messages = state.values.get("messages", [])
 
     if format.lower() == "json":
-        data = [
-            {"role": type(m).__name__, "content": getattr(m, "content", "")}
-            for m in messages
-        ]
+        data = [{"role": type(m).__name__, "content": getattr(m, "content", "")} for m in messages]
         return JSONResponse(content={"thread_id": thread_id, "messages": data})
 
     # Default Markdown format
@@ -770,7 +751,7 @@ def sanitize_upload_filename(raw: str | None) -> str:
 
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)) -> dict[str, Any]:
+async def upload_file(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
     """Upload a file to workspace/uploads/ (sanitized name, size-capped)."""
     from maidere.paths import workspace_dir
 
@@ -856,6 +837,7 @@ async def update_system_prompt_setting(payload: dict[str, Any]) -> dict[str, Any
 async def list_skills_endpoint() -> dict[str, Any]:
     """List all available loaded skills and their metadata."""
     from maidere.core.skills import load_all_skills
+
     skills = load_all_skills()
     return {
         "skills": [
@@ -869,7 +851,6 @@ async def list_skills_endpoint() -> dict[str, Any]:
             for s in skills.values()
         ]
     }
-
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -892,16 +873,19 @@ async def health() -> HealthResponse:
 async def get_obsidian_vault() -> dict[str, Any]:
     """Get active Obsidian vault info."""
     from maidere.core.config import get_obsidian_vault_info
+
     vpath, vname = get_obsidian_vault_info()
     return {"vault_path": vpath, "vault_name": vname}
 
 
 @router.post("/obsidian/open")
-async def open_obsidian_note(payload: dict[str, str] = {}) -> dict[str, Any]:
+async def open_obsidian_note(payload: dict[str, str] | None = None) -> dict[str, Any]:
     """Open a note or vault in the desktop Obsidian application."""
     from maidere.tools.obsidian import ObsidianTool
+
     tool = ObsidianTool()
-    file_title = payload.get("file") or payload.get("title")
+    body = payload or {}
+    file_title = body.get("file") or body.get("title")
     res = await tool.execute(action="open_note", title=file_title)
     return {"status": "ok", "message": res}
 
@@ -909,12 +893,12 @@ async def open_obsidian_note(payload: dict[str, str] = {}) -> dict[str, Any]:
 @router.get("/user/profile", response_model=UserProfileResponse)
 async def get_user_profile() -> UserProfileResponse:
     """Get active username and previously known local nicknames."""
-    async with get_db_context(settings.db_path) as db:
-        async with db.execute(
-            "SELECT display_name FROM users WHERE lower(display_name) != 'khazar' ORDER BY id DESC"
-        ) as cursor:
-            rows = await cursor.fetchall()
-            names = [r["display_name"] for r in rows if r["display_name"]]
+    async with (
+        get_db_context(settings.db_path) as db,
+        db.execute("SELECT display_name FROM users WHERE lower(display_name) != 'khazar' ORDER BY id DESC") as cursor,
+    ):
+        rows = await cursor.fetchall()
+        names = [r["display_name"] for r in rows if r["display_name"]]
     active_name = names[0] if names else "User"
     return UserProfileResponse(username=active_name, known_users=names)
 
@@ -939,8 +923,3 @@ async def login_user(payload: UserLoginRequest) -> UserProfileResponse:
             rows = await cursor.fetchall()
             names = [r["display_name"] for r in rows if r["display_name"]]
     return UserProfileResponse(username=clean_name, known_users=names)
-
-
-
-
-

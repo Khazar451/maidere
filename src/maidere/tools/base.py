@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -16,7 +17,6 @@ class BaseTool(ABC, BaseModel):
     @abstractmethod
     async def execute(self, **kwargs: Any) -> str:
         """Execute the tool action asynchronously and return string output."""
-        pass
 
     def to_ollama_schema(self) -> dict[str, Any]:
         """Convert tool definition to Ollama API tool schema format."""

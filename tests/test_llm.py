@@ -1,7 +1,8 @@
 """Tests for LLM client integration and payload configuration."""
 
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
+
 import httpx
 
 from maidere.core import llm
@@ -73,6 +74,7 @@ class TestLLMClient(unittest.IsolatedAsyncioTestCase):
     @patch("httpx.AsyncClient.stream")
     async def test_chat_streaming_on_token(self, mock_stream):
         """Test chat with on_token streams chunks in real-time."""
+
         class MockStreamResponse:
             async def __aenter__(self):
                 return self
@@ -91,6 +93,7 @@ class TestLLMClient(unittest.IsolatedAsyncioTestCase):
         mock_stream.return_value = MockStreamResponse()
 
         tokens = []
+
         async def token_cb(tok):
             tokens.append(tok)
 
@@ -102,4 +105,3 @@ class TestLLMClient(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

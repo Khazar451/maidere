@@ -1,6 +1,7 @@
 """Async web search tool using SearXNG JSON API."""
 
 from typing import Any
+
 import httpx
 import structlog
 
@@ -48,7 +49,7 @@ async def search_searxng(query: str, num_results: int = 5) -> str:
         return "[Search Unavailable: SearXNG container is offline]"
     except Exception as e:
         await logger.aerror("searxng_error", query=query, error=str(e))
-        return f"[Search Error: {str(e)}]"
+        return f"[Search Error: {e!s}]"
 
 
 class WebSearchTool(BaseTool):
@@ -78,4 +79,3 @@ class WebSearchTool(BaseTool):
 
     async def execute(self, query: str, num_results: int = 5, **kwargs: Any) -> str:
         return await search_searxng(query=query, num_results=num_results)
-

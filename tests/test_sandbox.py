@@ -45,13 +45,17 @@ class TestModeResolution(unittest.TestCase):
             self.assertIs(resolve_mode(), SandboxMode.RESTRICTED)
 
     def test_auto_falls_back_to_restricted_without_bwrap(self):
-        with patch.object(settings, "tool_sandbox_mode", "auto"), \
-             patch.object(sandbox, "bwrap_available", return_value=False):
+        with (
+            patch.object(settings, "tool_sandbox_mode", "auto"),
+            patch.object(sandbox, "bwrap_available", return_value=False),
+        ):
             self.assertIs(resolve_mode(), SandboxMode.RESTRICTED)
 
     def test_forced_bwrap_fails_closed_without_bwrap(self):
-        with patch.object(settings, "tool_sandbox_mode", "bwrap"), \
-             patch.object(sandbox, "bwrap_available", return_value=False):
+        with (
+            patch.object(settings, "tool_sandbox_mode", "bwrap"),
+            patch.object(sandbox, "bwrap_available", return_value=False),
+        ):
             with self.assertRaises(SandboxError):
                 resolve_mode()
             info = sandbox.describe()
@@ -109,7 +113,7 @@ class TestBwrapCommandConstruction(unittest.TestCase):
         # The host's home, /etc/passwd, and the server's own files are never bound.
         self.assertNotIn("/etc/passwd", joined)
         self.assertNotIn("--bind /home", joined)
-        self.assertNotIn("--ro-bind /home " , joined)
+        self.assertNotIn("--ro-bind /home ", joined)
 
     def test_network_opt_in(self):
         cmd = self._cmd(["/usr/bin/ls"], allow_network=True)
@@ -246,9 +250,7 @@ class TestBwrapEscapeProbes(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(os.uname().nodename, out)
 
     async def test_cannot_see_host_home(self):
-        out = await self.runner.execute(
-            code="import os; print(sorted(os.listdir(os.path.expanduser('~'))))"
-        )
+        out = await self.runner.execute(code="import os; print(sorted(os.listdir(os.path.expanduser('~'))))")
         self.assertEqual(out.strip(), "[]", out)
 
     async def test_find_root_shows_only_sandbox(self):

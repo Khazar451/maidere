@@ -1,18 +1,17 @@
 """Tests for Obsidian Vault integration, tools, API endpoints, and skills."""
 
-import os
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
 from maidere.api.app import app
-from maidere.core.config import get_obsidian_vault_info, settings
+from maidere.core.config import settings
 from maidere.core.skills import load_all_skills, match_skills
+from maidere.tools.obsidian import ObsidianTool
 from tests.authhelpers import AUTH_HEADERS, TEST_TOKEN
-from maidere.tools.obsidian import ObsidianTool, format_frontmatter
 
 
 class TestObsidianTool(unittest.IsolatedAsyncioTestCase):
@@ -45,7 +44,7 @@ class TestObsidianTool(unittest.IsolatedAsyncioTestCase):
         target_file = self.vault_path / "Hugging Face Architecture.md"
         self.assertTrue(target_file.exists())
         file_text = target_file.read_text(encoding="utf-8")
-        self.assertIn("title: \"Hugging Face Architecture\"", file_text)
+        self.assertIn('title: "Hugging Face Architecture"', file_text)
         self.assertIn("tags:", file_text)
         self.assertIn("  - ai", file_text)
         self.assertIn("created_by: Maidere", file_text)

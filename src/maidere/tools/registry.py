@@ -1,24 +1,23 @@
 """Tool registry and dispatcher with audit logging for Maidere."""
 
-import json
 import time
 from typing import Any
 
 import structlog
 
-from maidere.core.db import get_db
+from maidere.core.audit import log_audit_record
+from maidere.tools.agy_bridge import AgyStafferTool
 from maidere.tools.base import BaseTool
 from maidere.tools.browser import BrowserTool
 from maidere.tools.code_runner import CodeRunnerTool
 from maidere.tools.delegate import AgentTool, DelegateTaskTool
 from maidere.tools.filesystem import ListDirTool, ReadFileTool, ReplaceFileContentTool, RollbackFileTool, WriteFileTool
 from maidere.tools.github import GitHubTool
+from maidere.tools.memory_tool import ManageMemoryTool
 from maidere.tools.obsidian import ObsidianTool
 from maidere.tools.scheduler import SchedulerTool
 from maidere.tools.shell import ShellTool
 from maidere.tools.skills import ListSkillsTool, LoadSkillTool
-from maidere.tools.agy_bridge import AgyStafferTool
-from maidere.tools.memory_tool import ManageMemoryTool
 from maidere.tools.web_search import WebSearchTool
 
 logger = structlog.get_logger()
@@ -80,12 +79,10 @@ _ALIASES: dict[str, str] = {
 }
 
 
-
 def get_tool(name: str) -> BaseTool | None:
     """Retrieve a tool instance by name with alias support."""
     actual_name = _ALIASES.get(name, name)
     return _TOOLS.get(actual_name)
-
 
 
 ORCHESTRATOR_TOOL_NAMES: tuple[str, ...] = (
@@ -131,10 +128,6 @@ def get_orchestrator_ollama_schemas() -> list[dict[str, Any]]:
     return schemas
 
 
-from maidere.core.audit import log_audit_record, record_audit, sanitize_secrets
-
-
-
 async def execute_tool(
     name: str,
     args: dict[str, Any],
@@ -158,7 +151,7 @@ async def execute_tool(
             success = False
     except Exception as e:
         success = False
-        result = f"Error executing tool '{name}': {str(e)}"
+        result = f"Error executing tool '{name}': {e!s}"
         await logger.aerror("tool_execution_exception", tool_name=name, error=str(e))
 
     duration_s = time.perf_counter() - start_time
@@ -225,5 +218,3 @@ def is_tool_call_concurrent_safe(name: str, args: dict[str, Any] | None = None) 
         return first_token in ("ls", "cat", "grep", "pwd", "wc", "head", "tail")
 
     return getattr(tool, "is_concurrent_safe", False)
-
-

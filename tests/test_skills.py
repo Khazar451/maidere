@@ -3,20 +3,19 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
 from maidere.core.agent import create_graph, remember_node
 from maidere.core.skills import (
-    Skill,
     get_skills_overview,
     load_all_skills,
     match_skills,
     parse_skill_file,
 )
-from maidere.tools.registry import execute_tool, get_tool
-from maidere.tools.skills import ListSkillsTool, LoadSkillTool, list_available_skills, load_skill
+from maidere.tools.registry import execute_tool
+from maidere.tools.skills import ListSkillsTool, LoadSkillTool
 
 
 class TestSkillDiscoveryAndParsing(unittest.TestCase):
@@ -82,8 +81,6 @@ triggers:
         self.assertIn("Deep Research Directives", deep_skill.instructions)
         self.assertIn("delegate_task", deep_skill.instructions)
 
-
-
         ethics_skill = skills["agent-ethics"]
         self.assertIn("ethics", ethics_skill.triggers)
         self.assertIn("privacy", ethics_skill.triggers)
@@ -92,7 +89,6 @@ triggers:
         obs_skill = skills["obsidian"]
         self.assertIn("vault", obs_skill.triggers)
         self.assertIn("Obsidian Markdown Guidelines", obs_skill.instructions)
-
 
     def test_get_skills_overview(self):
         """Test overview string generation."""
@@ -103,8 +99,6 @@ triggers:
         self.assertIn("`deep-research`:", overview)
         self.assertIn("`agent-ethics`:", overview)
         self.assertIn("`obsidian`:", overview)
-
-
 
     def test_match_skills(self):
         """Test keyword trigger matching."""
@@ -122,7 +116,6 @@ triggers:
 
         no_matches = match_skills("Hello, what is the weather today?")
         self.assertEqual(len(no_matches), 0)
-
 
 
 class TestSkillTools(unittest.IsolatedAsyncioTestCase):
@@ -145,7 +138,6 @@ class TestSkillTools(unittest.IsolatedAsyncioTestCase):
         self.assertIn("=== LOADED SKILL: git-workflow ===", res)
         self.assertIn("Conventional Commits", res)
         self.assertIn("Never stage `.env`", res)
-
 
     async def test_load_skill_not_found(self):
         """Test loading a nonexistent skill returns a clean error."""
@@ -229,6 +221,7 @@ class TestSkillsAgentIntegration(unittest.IsolatedAsyncioTestCase):
 
         await checkpointer_ctx.__aexit__(None, None, None)
         import os
+
         if os.path.exists(temp_db_path):
             os.remove(temp_db_path)
 

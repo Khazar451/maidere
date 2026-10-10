@@ -7,18 +7,17 @@ and live-reloading continuous development (--dev).
 
 from __future__ import annotations
 
-import argparse
 import os
-from pathlib import Path
 import shutil
 import signal
 import subprocess
 import sys
 import time
-from typing import Any
 import urllib.error
 import urllib.request
 import webbrowser
+from pathlib import Path
+from typing import Any
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
@@ -70,7 +69,9 @@ def wait_for_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, max_wait
     return False
 
 
-def start_server_process(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, dev_mode: bool = False) -> subprocess.Popen:
+def start_server_process(
+    host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, dev_mode: bool = False
+) -> subprocess.Popen:
     """Launch Uvicorn backend server as a managed child subprocess."""
     python_bin = sys.executable
     cmd = [
@@ -153,7 +154,7 @@ def launch_window(url: str, title: str = "Maidere", dev_mode: bool = False) -> s
         import webview  # type: ignore
 
         print(f"[DESKTOP] Launching via pywebview window engine (dev_mode={dev_mode})...")
-        window = webview.create_window(
+        _window = webview.create_window(
             title=title,
             url=url,
             width=1440,

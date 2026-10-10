@@ -8,18 +8,16 @@ Implements Keli Wen's harness memory patterns:
 - Tier 3: Session Extraction pipeline with similarity deduplication replacing raw chat dumping.
 """
 
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import re
 import shutil
 import time
-from typing import Any
 import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import structlog
-
-from maidere.core.config import settings
 
 logger = structlog.get_logger()
 
@@ -50,6 +48,7 @@ def get_maidere_dir() -> Path:
 # Tier 1: Instruction Memory (RULES.md)
 # ==============================================================================
 
+
 def get_rules_path() -> Path:
     """Return path to workspace/.maidere/RULES.md."""
     return get_maidere_dir() / "RULES.md"
@@ -62,13 +61,13 @@ def load_instruction_memory() -> str:
         try:
             rules_file.write_text(DEFAULT_RULES, encoding="utf-8")
         except Exception as e:
-            logger.warn("failed_initializing_default_rules", error=str(e))
+            logger.warning("failed_initializing_default_rules", error=str(e))
             return DEFAULT_RULES
 
     try:
         return rules_file.read_text(encoding="utf-8").strip()
     except Exception as e:
-        logger.warn("failed_reading_rules_file", error=str(e))
+        logger.warning("failed_reading_rules_file", error=str(e))
         return DEFAULT_RULES
 
 
@@ -113,6 +112,7 @@ def rollback_instruction_memory() -> bool:
 # Tier 2: Auto-Memory (Topic Files + Capped Index + 2-Step Save Invariant)
 # ==============================================================================
 
+
 def get_auto_memory_dir() -> Path:
     """Return workspace/.maidere/memory/ directory, ensuring it exists."""
     mem_dir = get_maidere_dir() / "memory"
@@ -129,7 +129,7 @@ def read_memory_index() -> dict[str, Any]:
     """Read the memory index, initializing if missing."""
     idx_path = get_index_path()
     if not idx_path.exists():
-        initial = {"version": "1.0", "updated_at": datetime.now(timezone.utc).isoformat(), "entries": []}
+        initial = {"version": "1.0", "updated_at": datetime.now(UTC).isoformat(), "entries": []}
         try:
             idx_path.write_text(json.dumps(initial, indent=2), encoding="utf-8")
         except Exception:
@@ -139,10 +139,10 @@ def read_memory_index() -> dict[str, Any]:
     try:
         data = json.loads(idx_path.read_text(encoding="utf-8"))
         if not isinstance(data, dict) or "entries" not in data:
-            return {"version": "1.0", "updated_at": datetime.now(timezone.utc).isoformat(), "entries": []}
+            return {"version": "1.0", "updated_at": datetime.now(UTC).isoformat(), "entries": []}
         return data
     except Exception as e:
-        logger.warn("corrupted_memory_index", error=str(e))
+        logger.warning("corrupted_memory_index", error=str(e))
         return reconcile_memory_index()
 
 
@@ -175,26 +175,28 @@ def reconcile_memory_index() -> dict[str, Any]:
     # Add any unindexed topic files found on disk
     for fname, fpath in existing_files.items():
         if fname not in indexed_files:
-            topic_name = fname[:-3] if fname.endswith(".md") else fname
+            topic_name = fname.removesuffix(".md")
             try:
-                first_lines = [l.strip() for l in fpath.read_text(encoding="utf-8").splitlines() if l.strip()]
+                first_lines = [line.strip() for line in fpath.read_text(encoding="utf-8").splitlines() if line.strip()]
                 summary = first_lines[0].lstrip("#- ")[:100] if first_lines else "Reconciled topic file"
             except Exception:
                 summary = "Reconciled topic file"
 
-            entries.append({
-                "id": uuid.uuid4().hex[:8],
-                "topic": topic_name,
-                "file": fname,
-                "summary": summary,
-                "category": "project",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "last_accessed": time.time(),
-            })
+            entries.append(
+                {
+                    "id": uuid.uuid4().hex[:8],
+                    "topic": topic_name,
+                    "file": fname,
+                    "summary": summary,
+                    "category": "project",
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "last_accessed": time.time(),
+                }
+            )
 
     healed_index = {
         "version": "1.0",
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
         "entries": entries,
     }
 
@@ -202,7 +204,7 @@ def reconcile_memory_index() -> dict[str, Any]:
         idx_path.write_text(json.dumps(healed_index, indent=2), encoding="utf-8")
         logger.info("memory_index_reconciled", entry_count=len(entries))
     except Exception as e:
-        logger.warn("failed_writing_reconciled_index", error=str(e))
+        logger.warning("failed_writing_reconciled_index", error=str(e))
 
     return healed_index
 
@@ -225,7 +227,7 @@ def save_auto_memory_fact(
     topic_file = mem_dir / f"{clean_topic}.md"
 
     # Step 1: Write to topic file
-    timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     fact_entry = f"- [{timestamp_str}] {clean_fact}\n"
 
     try:
@@ -236,7 +238,7 @@ def save_auto_memory_fact(
                 f.write(fact_entry)
     except Exception as e:
         logger.error("step1_topic_write_failed", topic=clean_topic, error=str(e))
-        return {"success": False, "error": f"Failed writing topic file: {str(e)}"}
+        return {"success": False, "error": f"Failed writing topic file: {e!s}"}
 
     # Step 2: Update index.json (Two-step save invariant)
     try:
@@ -250,7 +252,7 @@ def save_auto_memory_fact(
         if existing:
             existing["summary"] = clean_fact[:120]
             existing["last_accessed"] = now_ts
-            existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+            existing["updated_at"] = datetime.now(UTC).isoformat()
         else:
             new_entry = {
                 "id": uuid.uuid4().hex[:8],
@@ -258,7 +260,7 @@ def save_auto_memory_fact(
                 "file": f"{clean_topic}.md",
                 "summary": clean_fact[:120],
                 "category": category,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
                 "last_accessed": now_ts,
             }
             entries.append(new_entry)
@@ -273,14 +275,14 @@ def save_auto_memory_fact(
             logger.info("memory_index_cap_enforced", evicted_topics=[e.get("topic") for e in evicted])
 
         index_data["entries"] = entries
-        index_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        index_data["updated_at"] = datetime.now(UTC).isoformat()
 
         get_index_path().write_text(json.dumps(index_data, indent=2), encoding="utf-8")
         return {"success": True, "topic": clean_topic, "fact": clean_fact}
     except Exception as e:
         logger.error("step2_index_update_failed", topic=clean_topic, error=str(e))
         # File is on disk, reconcile can heal it later
-        return {"success": True, "topic": clean_topic, "warning": f"Topic saved, index update delayed: {str(e)}"}
+        return {"success": True, "topic": clean_topic, "warning": f"Topic saved, index update delayed: {e!s}"}
 
 
 def read_auto_memory_topic(topic: str) -> str:
@@ -305,7 +307,7 @@ def read_auto_memory_topic(topic: str) -> str:
                 break
         return content
     except Exception as e:
-        return f"Error reading topic '{topic}': {str(e)}"
+        return f"Error reading topic '{topic}': {e!s}"
 
 
 def list_auto_memory_topics() -> list[dict[str, Any]]:
@@ -330,6 +332,7 @@ def format_auto_memory_context() -> str:
 # ==============================================================================
 # Tier 3: Session Extraction Pipeline & Deduplication
 # ==============================================================================
+
 
 def jaccard_similarity(text1: str, text2: str) -> float:
     """Compute token-level Jaccard similarity for deduplication."""
@@ -382,11 +385,13 @@ def extract_session_facts_from_messages(messages: list[dict[str, Any]]) -> list[
             if match:
                 captured = match.group(0).strip()
                 if len(captured) >= 15:
-                    extracted.append({
-                        "topic": topic,
-                        "fact": captured,
-                        "category": "user" if "preference" in topic else "project",
-                    })
+                    extracted.append(
+                        {
+                            "topic": topic,
+                            "fact": captured,
+                            "category": "user" if "preference" in topic else "project",
+                        }
+                    )
 
     return extracted
 

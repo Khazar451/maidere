@@ -5,7 +5,8 @@ Always enforces num_ctx=8192 to prevent VRAM overflow on RTX 5060 8GB.
 """
 
 import time
-from typing import Any, Callable, Awaitable
+from typing import Any
+
 import httpx
 import structlog
 
@@ -88,14 +89,16 @@ def _normalize_messages_for_cloud(messages: list[dict]) -> list[dict]:
                         raw_args = tc.get("args", {})
                     args_str = json.dumps(raw_args) if isinstance(raw_args, (dict, list)) else str(raw_args or "{}")
 
-                    norm_tool_calls.append({
-                        "id": str(call_id),
-                        "type": "function",
-                        "function": {
-                            "name": name,
-                            "arguments": args_str,
-                        },
-                    })
+                    norm_tool_calls.append(
+                        {
+                            "id": str(call_id),
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": args_str,
+                            },
+                        }
+                    )
                 norm_msg["tool_calls"] = norm_tool_calls
             normalized.append(norm_msg)
 
@@ -105,11 +108,13 @@ def _normalize_messages_for_cloud(messages: list[dict]) -> list[dict]:
                 tool_call_id = pending_tool_call_ids.pop(0)
             elif not tool_call_id:
                 tool_call_id = f"call_{uuid.uuid4().hex[:8]}"
-            normalized.append({
-                "role": "tool",
-                "tool_call_id": str(tool_call_id),
-                "content": str(content or ""),
-            })
+            normalized.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": str(tool_call_id),
+                    "content": str(content or ""),
+                }
+            )
 
         elif role == "user":
             images = msg.get("images")
@@ -191,7 +196,7 @@ async def _chat_cloud(
                         line = raw_line.strip()
                         if not line.startswith("data:"):
                             continue
-                        data_str = line[len("data:"):].strip()
+                        data_str = line[len("data:") :].strip()
                         if data_str == "[DONE]":
                             break
                         try:
@@ -234,11 +239,13 @@ async def _chat_cloud(
                             for tc in tc_delta:
                                 idx = tc.get("index", len(streamed_tool_calls))
                                 while len(streamed_tool_calls) <= idx:
-                                    streamed_tool_calls.append({
-                                        "id": "",
-                                        "type": "function",
-                                        "function": {"name": "", "arguments": ""},
-                                    })
+                                    streamed_tool_calls.append(
+                                        {
+                                            "id": "",
+                                            "type": "function",
+                                            "function": {"name": "", "arguments": ""},
+                                        }
+                                    )
                                 if tc.get("id"):
                                     streamed_tool_calls[idx]["id"] = tc["id"]
                                 func = tc.get("function", {})
@@ -340,7 +347,7 @@ async def _chat_cloud_stream(
                     line = raw_line.strip()
                     if not line.startswith("data:"):
                         continue
-                    data_str = line[len("data:"):].strip()
+                    data_str = line[len("data:") :].strip()
                     if data_str == "[DONE]":
                         break
                     try:
@@ -482,7 +489,7 @@ async def chat(
                 duration_s=round(duration, 3),
             )
             return data
-        except Exception as e:
+        except Exception:
             duration = time.perf_counter() - start_time
             LLM_DURATION_SECONDS.labels(model=target_model).observe(duration)
             LLM_REQUESTS_TOTAL.labels(model=target_model, status="error").inc()
@@ -546,13 +553,11 @@ async def chat_stream(
                         if eval_c:
                             LLM_TOKENS_TOTAL.labels(model=target_model, token_type="completion").inc(eval_c)
                     yield chunk
-        except Exception as e:
+        except Exception:
             duration = time.perf_counter() - start_time
             LLM_DURATION_SECONDS.labels(model=target_model).observe(duration)
             LLM_REQUESTS_TOTAL.labels(model=target_model, status="error").inc()
             raise
-
-
 
 
 async def is_available() -> bool:
@@ -569,4 +574,3 @@ async def is_available() -> bool:
             return any(settings.ollama_model in m for m in models)
     except (httpx.HTTPError, Exception):
         return bool(api_key)
-

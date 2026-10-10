@@ -82,7 +82,7 @@ class SchedulerTool(BaseTool):
                     f"Next run: {job_info['next_run_time']} UTC."
                 )
             except Exception as e:
-                return f"Error creating scheduled task: {str(e)}"
+                return f"Error creating scheduled task: {e!s}"
 
         elif act == "list":
             try:
@@ -92,7 +92,7 @@ class SchedulerTool(BaseTool):
                 formatted = [f"- {j['name']} (ID: {j['id']}, Next Run: {j['next_run_time']} UTC)" for j in jobs]
                 return "Active scheduled tasks:\n" + "\n".join(formatted)
             except Exception as e:
-                return f"Error listing scheduled tasks: {str(e)}"
+                return f"Error listing scheduled tasks: {e!s}"
 
         elif act == "delete":
             if not task_name:
@@ -103,7 +103,7 @@ class SchedulerTool(BaseTool):
                     return f"Successfully deleted scheduled task '{task_name}'."
                 return f"Error: Task '{task_name}' not found."
             except Exception as e:
-                return f"Error deleting scheduled task: {str(e)}"
+                return f"Error deleting scheduled task: {e!s}"
 
         else:
             return f"Error: Unknown action '{action}'. Use 'create', 'list', or 'delete'."

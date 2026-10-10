@@ -15,16 +15,17 @@ Adapted from Claude Code's sub-agent pattern for local Ollama execution.
 """
 
 import json
-from pathlib import Path
 import re
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Coroutine
 import uuid
-import yaml
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import structlog
+import yaml
 
 from maidere.core import llm
 from maidere.core.config import settings
@@ -39,12 +40,14 @@ DEFAULT_MAX_TURNS = 6
 MAX_TURNS_HARD_CAP = 10
 
 # Strictly read-only tools — sub-agents are data-gatherers, never writers.
-SUBAGENT_ALLOWED_TOOLS: frozenset[str] = frozenset({
-    "web_search",
-    "browser",
-    "read_file",
-    "list_dir",
-})
+SUBAGENT_ALLOWED_TOOLS: frozenset[str] = frozenset(
+    {
+        "web_search",
+        "browser",
+        "read_file",
+        "list_dir",
+    }
+)
 
 # --- Progress Callback ---
 
@@ -207,6 +210,7 @@ Validation Task:
 
 # --- Data Classes ---
 
+
 @dataclass
 class SubAgentDefinition:
     """Claude Code subagent configuration parsed from frontmatter markdown."""
@@ -236,6 +240,7 @@ class SubAgentResult:
 
 
 # --- Artifact Bus & Handoff Engineering ---
+
 
 def prune_artifacts(
     artifacts_dir: Path | None = None,
@@ -287,7 +292,7 @@ def prune_artifacts(
                 except OSError:
                     continue
     except Exception as e:
-        logger.warn("artifact_pruning_failed", error=str(e))
+        logger.warning("artifact_pruning_failed", error=str(e))
 
     return pruned_count
 
@@ -308,21 +313,20 @@ def write_subagent_artifact(
     target_dir = artifacts_dir or (workspace_dir() / ".maidere" / "artifacts")
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%f")
+    timestamp_str = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%f")
     unique_suffix = uuid.uuid4().hex[:8]
     clean_type = re.sub(r"[^\w\-]", "_", subagent_type.lower())
     filename = f"{timestamp_str}_{clean_type}_{unique_suffix}.md"
     file_path = target_dir / filename
 
-    tools_summary = ", ".join(
-        f"{t.get('tool_name', 'tool')}({'OK' if t.get('success') else 'FAIL'})"
-        for t in tools_used
-    ) or "none"
+    tools_summary = (
+        ", ".join(f"{t.get('tool_name', 'tool')}({'OK' if t.get('success') else 'FAIL'})" for t in tools_used) or "none"
+    )
 
     artifact_md = f"""# Sub-Agent Research Artifact: {task}
 
 - **Agent Type**: {subagent_type}
-- **Timestamp**: {datetime.now(timezone.utc).isoformat()}
+- **Timestamp**: {datetime.now(UTC).isoformat()}
 - **Model**: {model}
 - **Duration**: {duration_ms}ms
 - **Turns Used**: {turns_used}
@@ -362,7 +366,7 @@ def generate_handoff_brief(
     citations: set[str] = set()
     metrics: list[str] = []
 
-    url_regex = re.compile(r'\[([^\]]+)\]\((https?://[^\)]+)\)')
+    url_regex = re.compile(r"\[([^\]]+)\]\((https?://[^\)]+)\)")
 
     for line in lines:
         # Check for URLs / citations
@@ -384,7 +388,7 @@ def generate_handoff_brief(
 
     # If no bullet points found, extract leading substantive sentences
     if not bullet_points:
-        substantive = [l for l in lines if not l.startswith("#") and len(l) > 30]
+        substantive = [line for line in lines if not line.startswith("#") and len(line) > 30]
         bullet_points = substantive[:4]
 
     selected_bullets = bullet_points[:6]
@@ -401,10 +405,10 @@ def generate_handoff_brief(
     if metrics:
         unique_metrics = [m for m in metrics if not any(m in b for b in selected_bullets)][:3]
         if unique_metrics:
-            sections.append(f"**Verified Metrics:**\n" + "\n".join(f"• {m}" for m in unique_metrics))
+            sections.append("**Verified Metrics:**\n" + "\n".join(f"• {m}" for m in unique_metrics))
 
     if citations:
-        sections.append(f"**Verified Sources:**\n" + ", ".join(sorted(citations)))
+        sections.append("**Verified Sources:**\n" + ", ".join(sorted(citations)))
 
     try:
         from maidere.paths import workspace_dir
@@ -481,7 +485,7 @@ def parse_subagent_file(agent_file: Path) -> SubAgentDefinition | None:
             system_prompt=body,
         )
     except Exception as e:
-        logger.warn("failed_parsing_subagent_file", path=str(agent_file), error=str(e))
+        logger.warning("failed_parsing_subagent_file", path=str(agent_file), error=str(e))
         return None
 
 
@@ -636,14 +640,31 @@ def normalize_subagent_url(url: str) -> str:
 def is_search_query_redundant(new_query: str, past_queries: list[str], threshold: float = 0.60) -> bool:
     """Check if a new search query has high lexical overlap with previous queries in this session."""
     stop_words = {
-        "the", "and", "for", "with", "from", "that", "this", "what", "how", "who",
-        "which", "are", "was", "were", "about", "into", "key", "programs", "during",
+        "the",
+        "and",
+        "for",
+        "with",
+        "from",
+        "that",
+        "this",
+        "what",
+        "how",
+        "who",
+        "which",
+        "are",
+        "was",
+        "were",
+        "about",
+        "into",
+        "key",
+        "programs",
+        "during",
     }
-    new_words = {w for w in re.findall(r'\w+', new_query.lower()) if len(w) > 2 and w not in stop_words}
+    new_words = {w for w in re.findall(r"\w+", new_query.lower()) if len(w) > 2 and w not in stop_words}
     if not new_words:
         return False
     for past in past_queries:
-        past_words = {w for w in re.findall(r'\w+', past.lower()) if len(w) > 2 and w not in stop_words}
+        past_words = {w for w in re.findall(r"\w+", past.lower()) if len(w) > 2 and w not in stop_words}
         if not past_words:
             continue
         intersection = new_words & past_words
@@ -654,6 +675,7 @@ def is_search_query_redundant(new_query: str, past_queries: list[str], threshold
 
 
 # --- Core Execution Engine ---
+
 
 async def run_subagent(
     task: str,
@@ -736,13 +758,15 @@ async def run_subagent(
     # Emit progress: started
     if _progress_callback:
         try:
-            await _progress_callback({
-                "type": "subagent_started",
-                "task": task,
-                "subagent_type": agent_def.name,
-                "index": subagent_index,
-                "total": total_subagents,
-            })
+            await _progress_callback(
+                {
+                    "type": "subagent_started",
+                    "task": task,
+                    "subagent_type": agent_def.name,
+                    "index": subagent_index,
+                    "total": total_subagents,
+                }
+            )
         except Exception:
             pass
 
@@ -782,14 +806,16 @@ async def run_subagent(
                 # Emit progress: tool started
                 if _progress_callback:
                     try:
-                        await _progress_callback({
-                            "type": "subagent_tool_started",
-                            "tool_name": tool_name,
-                            "args": tool_args,
-                            "subagent_type": agent_def.name,
-                            "subagent_index": subagent_index,
-                            "total": total_subagents,
-                        })
+                        await _progress_callback(
+                            {
+                                "type": "subagent_tool_started",
+                                "tool_name": tool_name,
+                                "args": tool_args,
+                                "subagent_type": agent_def.name,
+                                "subagent_index": subagent_index,
+                                "total": total_subagents,
+                            }
+                        )
                     except Exception:
                         pass
 
@@ -819,7 +845,7 @@ async def run_subagent(
                             if tool_success and norm_url:
                                 visited_urls.add(norm_url)
                         except Exception as e:
-                            result = f"Error: {str(e)}"
+                            result = f"Error: {e!s}"
                             tool_success = False
                 elif tool_name == "web_search":
                     query_str = str(tool_args.get("query") or "").strip()
@@ -829,7 +855,7 @@ async def run_subagent(
                         result = await tool_instance.execute(**tool_args)
                         tool_success = not str(result).startswith("Error:")
                         if tool_success:
-                            found_urls = re.findall(r'https?://[^\s\)\"\']+', str(result))
+                            found_urls = re.findall(r"https?://[^\s\)\"\']+", str(result))
                             norm_found = [normalize_subagent_url(u) for u in found_urls if u]
                             repeated_urls = [u for u in norm_found if u in retrieved_search_urls]
                             has_url_redundancy = bool(norm_found and len(repeated_urls) >= max(1, len(norm_found) // 2))
@@ -845,7 +871,7 @@ async def run_subagent(
                             if query_str:
                                 executed_search_queries.append(query_str)
                     except Exception as e:
-                        result = f"Error: {str(e)}"
+                        result = f"Error: {e!s}"
                         tool_success = False
                 else:
                     try:
@@ -853,16 +879,18 @@ async def run_subagent(
                         result = await tool_instance.execute(**tool_args)
                         tool_success = not str(result).startswith("Error:")
                     except Exception as e:
-                        result = f"Error: {str(e)}"
+                        result = f"Error: {e!s}"
                         tool_success = False
 
                 tool_duration_ms = int((time.perf_counter() - tool_start) * 1000)
 
-                tools_used.append({
-                    "tool_name": tool_name,
-                    "args": tool_args,
-                    "success": tool_success,
-                })
+                tools_used.append(
+                    {
+                        "tool_name": tool_name,
+                        "args": tool_args,
+                        "success": tool_success,
+                    }
+                )
 
                 messages.append({"role": "tool", "content": str(result)})
 
@@ -871,17 +899,19 @@ async def run_subagent(
                     try:
                         res_str = str(result)
                         preview = res_str[:120].replace("\n", " ").strip()
-                        await _progress_callback({
-                            "type": "subagent_tool",
-                            "tool_name": tool_name,
-                            "args": tool_args,
-                            "subagent_type": agent_def.name,
-                            "subagent_index": subagent_index,
-                            "total": total_subagents,
-                            "duration_ms": tool_duration_ms,
-                            "success": tool_success,
-                            "result_preview": preview,
-                        })
+                        await _progress_callback(
+                            {
+                                "type": "subagent_tool",
+                                "tool_name": tool_name,
+                                "args": tool_args,
+                                "subagent_type": agent_def.name,
+                                "subagent_index": subagent_index,
+                                "total": total_subagents,
+                                "duration_ms": tool_duration_ms,
+                                "success": tool_success,
+                                "result_preview": preview,
+                            }
+                        )
                     except Exception:
                         pass
 
@@ -889,23 +919,27 @@ async def run_subagent(
             total_chars = sum(len(m.get("content", "") or "") for m in messages)
             char_limit = settings.agent_token_limit * settings.agent_chars_per_token
             if total_chars > int(char_limit * 0.80):
-                messages.append({
-                    "role": "user",
-                    "content": (
-                        "Context limit approaching. Provide your FINAL research summary "
-                        "NOW based on everything you've gathered so far. Use the dense "
-                        "data payload format with specific facts and sources."
-                    ),
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Context limit approaching. Provide your FINAL research summary "
+                            "NOW based on everything you've gathered so far. Use the dense "
+                            "data payload format with specific facts and sources."
+                        ),
+                    }
+                )
         else:
             # Exhausted all turns — force a final summary with no tools
-            messages.append({
-                "role": "user",
-                "content": (
-                    "Maximum research turns reached. Provide your FINAL research summary "
-                    "NOW. Include all specific data points, metrics, and sources you found."
-                ),
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Maximum research turns reached. Provide your FINAL research summary "
+                        "NOW. Include all specific data points, metrics, and sources you found."
+                    ),
+                }
+            )
             response = await llm.chat(messages, tools=None, model=target_model, num_ctx=num_ctx)
             final_content = response.get("message", {}).get("content", "")
 
@@ -941,11 +975,13 @@ async def run_subagent(
 
         if _progress_callback:
             try:
-                await _progress_callback({
-                    "type": "agent_log",
-                    "text": f"[MEMORY] Sub-Agent [{agent_def.name}] persisted research findings to vector database",
-                    "level": "info",
-                })
+                await _progress_callback(
+                    {
+                        "type": "agent_log",
+                        "text": f"[MEMORY] Sub-Agent [{agent_def.name}] persisted research findings to vector database",
+                        "level": "info",
+                    }
+                )
             except Exception:
                 pass
 
@@ -963,16 +999,18 @@ async def run_subagent(
         # Emit progress: completed
         if _progress_callback:
             try:
-                await _progress_callback({
-                    "type": "subagent_completed",
-                    "index": subagent_index,
-                    "total": total_subagents,
-                    "subagent_type": agent_def.name,
-                    "task": task[:100],
-                    "duration_ms": duration_ms,
-                    "summary_preview": final_content[:150] if final_content else "",
-                    "artifact_path": str(artifact_file),
-                })
+                await _progress_callback(
+                    {
+                        "type": "subagent_completed",
+                        "index": subagent_index,
+                        "total": total_subagents,
+                        "subagent_type": agent_def.name,
+                        "task": task[:100],
+                        "duration_ms": duration_ms,
+                        "summary_preview": final_content[:150] if final_content else "",
+                        "artifact_path": str(artifact_file),
+                    }
+                )
             except Exception:
                 pass
 
@@ -993,14 +1031,14 @@ async def run_subagent(
         await logger.aerror("subagent_failed", task=task[:100], subagent_type=agent_def.name, error=str(e))
         return SubAgentResult(
             task=task,
-            summary=f"Sub-agent [{agent_def.name}] failed: {str(e)}",
+            summary=f"Sub-agent [{agent_def.name}] failed: {e!s}",
             subagent_type=agent_def.name,
             tools_used=tools_used,
             duration_ms=duration_ms,
             success=False,
             turns_used=turns_used,
             artifact_path="",
-            brief=f"Sub-agent [{agent_def.name}] failed: {str(e)}",
+            brief=f"Sub-agent [{agent_def.name}] failed: {e!s}",
         )
 
 
@@ -1017,10 +1055,7 @@ async def _store_subagent_memory(task: str, summary: str, subagent_type: str = "
         from maidere.core.db import get_db
         from maidere.core.memory import store_memory
 
-        tagged_content = (
-            f"[source: subagent_{subagent_type}] [task: {task[:120]}] "
-            f"{summary[:2000]}"
-        )
+        tagged_content = f"[source: subagent_{subagent_type}] [task: {task[:120]}] {summary[:2000]}"
 
         db = await get_db(settings.db_path)
         try:

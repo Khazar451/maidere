@@ -18,6 +18,7 @@ class TestDatabaseAndConcurrency(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
 

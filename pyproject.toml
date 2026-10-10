@@ -43,6 +43,80 @@ where = ["src"]
 [tool.setuptools.package-data]
 maidere = ["static/*", "static/**/*", "skills/**/*", "agents/*"]
 
+[dependency-groups]
+dev = [
+    "mypy>=1.15",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.17",
+]
+
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Bug-finding and hygiene rules. BLE001/S110 (bare except, try/except/pass)
+# stay out until the error-handling pass replaces them with logged, typed failures.
+select = ["E", "F", "I", "B", "UP", "RUF", "SIM", "PIE", "C4", "PERF", "G", "FURB", "ISC"]
+ignore = [
+    "E501",    # prompt strings are long on purpose
+    "RUF001",  # curly quotes and dashes inside prompt text are intentional
+    "RUF005",  # list concatenation reads more clearly than splat at these call sites
+    "RUF012",  # tool models keep mutable defaults for their JSON-schema fields
+    "RUF013",  # deferred: implicit Optional
+    "SIM102",
+    "SIM103",
+    "SIM105",  # try/except/pass stays until the error-handling pass logs those sites
+    "SIM108",
+    "SIM115",  # deferred: open() without a context manager
+    "SIM117",
+    "SIM118",
+    "PIE810",
+    "PERF102",
+    "PERF401",
+    "C401",
+    "ISC004",  # joining those strings would change the fixture data
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+files = [
+    "src/maidere/paths.py",
+    "src/maidere/api/auth.py",
+    "src/maidere/core/tokens.py",
+    "src/maidere/tools/sandbox.py",
+]
+mypy_path = "src"
+follow_imports = "silent"
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_return_any = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+source = ["maidere"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = false
+skip_covered = true

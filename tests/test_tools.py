@@ -1,23 +1,19 @@
 """Tests for sandboxed filesystem and shell maidere.tools."""
 
-import asyncio
-import os
 import shutil
-import tempfile
 import unittest
-from pathlib import Path
 
 from maidere.tools.filesystem import (
+    WORKSPACE,
     ListDirTool,
     ReadFileTool,
     ReplaceFileContentTool,
     RollbackFileTool,
     WriteFileTool,
     secure_path,
-    WORKSPACE,
 )
-from maidere.tools.shell import ShellTool, ALLOWED_COMMANDS
-from maidere.tools.registry import get_all_tools, get_tool, get_tools_ollama_schemas, execute_tool
+from maidere.tools.registry import execute_tool, get_tool, get_tools_ollama_schemas
+from maidere.tools.shell import ShellTool
 
 
 class TestFilesystemTools(unittest.IsolatedAsyncioTestCase):
@@ -91,11 +87,7 @@ class TestFilesystemTools(unittest.IsolatedAsyncioTestCase):
         read_tool = ReadFileTool()
         edit_tool = ReplaceFileContentTool()
 
-        initial_code = (
-            "def calculate(a, b):\n"
-            "    # TODO: fix formula\n"
-            "    return a - b\n"
-        )
+        initial_code = "def calculate(a, b):\n    # TODO: fix formula\n    return a - b\n"
         await write_tool.execute(path=self.test_file, content=initial_code)
 
         target = "    # TODO: fix formula\n    return a - b"
@@ -234,7 +226,7 @@ class TestShellTool(unittest.IsolatedAsyncioTestCase):
         """Inline python runs under bwrap isolation; restricted mode refuses inline code."""
         from maidere.tools.sandbox import SandboxMode, resolve_mode
 
-        result = await self.shell_tool.execute("python3 -c \"print(21 * 2)\"")
+        result = await self.shell_tool.execute('python3 -c "print(21 * 2)"')
         if resolve_mode() is SandboxMode.RESTRICTED:
             self.assertIn("inline code", result)
             self.assertIn("not permitted", result)
@@ -254,7 +246,6 @@ class TestShellTool(unittest.IsolatedAsyncioTestCase):
             res = await self.shell_tool.execute(cmd)
             self.assertIn("Error: Command binary", res)
             self.assertIn("not permitted", res)
-
 
     async def test_unclosed_quotes_shlex_handling(self):
         """Test safe exception handling when shlex receives unclosed quotes."""

@@ -7,16 +7,15 @@ Supports:
 - Persistent storage across restarts in db/maidere.db
 """
 
-import asyncio
 from datetime import datetime
 from typing import Any
 
+import structlog
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-import structlog
 
 from maidere.core.config import settings
 
@@ -52,9 +51,7 @@ def get_scheduler(db_path: str | None = None) -> AsyncIOScheduler:
         from maidere.paths import resolve_db_path
 
         path = resolve_db_path(db_path or settings.db_path)
-        jobstores = {
-            "default": SQLAlchemyJobStore(url=f"sqlite:///{path}")
-        }
+        jobstores = {"default": SQLAlchemyJobStore(url=f"sqlite:///{path}")}
         _scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
     return _scheduler
 

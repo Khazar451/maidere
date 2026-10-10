@@ -7,15 +7,21 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from maidere.api.app import create_app
 from maidere.api.routes import set_graph
-from maidere.core.agent import MAX_TOOL_LOOPS, act_node, create_graph, get_system_prompt, set_custom_system_prompt, should_continue
-from maidere.core.db import get_db, get_db_context, init_tables
+from maidere.core.agent import (
+    MAX_TOOL_LOOPS,
+    act_node,
+    create_graph,
+    get_system_prompt,
+    set_custom_system_prompt,
+    should_continue,
+)
+from maidere.core.db import get_db_context, init_tables
 from maidere.core.llm import chat_stream
-from maidere.core.memory import delete_memory, is_duplicate_memory, list_all_memories, recall, store_memory
-from maidere.core.state import AgentState
+from maidere.core.memory import delete_memory, list_all_memories, recall, store_memory
 from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
@@ -186,7 +192,13 @@ class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
         asyncio.run(
             self.graph.aupdate_state(
                 config,
-                {"messages": [HumanMessage(content="Turn 1"), AIMessage(content="Ans 1"), HumanMessage(content="Turn 2")]},
+                {
+                    "messages": [
+                        HumanMessage(content="Turn 1"),
+                        AIMessage(content="Ans 1"),
+                        HumanMessage(content="Turn 2"),
+                    ]
+                },
             )
         )
 

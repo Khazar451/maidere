@@ -72,4 +72,3 @@ ROUTER_DECISIONS_TOTAL = Counter(
     "Total number of model routing decisions made",
     ["model", "complexity", "reason"],
 )
-

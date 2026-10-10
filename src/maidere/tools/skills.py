@@ -31,11 +31,7 @@ async def load_skill(skill_name: str) -> str:
         available = ", ".join(f"'{k}'" for k in skills.keys())
         return f"Error: Skill '{skill_name}' not found. Available skills: {available or 'None'}"
 
-    return (
-        f"=== LOADED SKILL: {skill.name} ===\n"
-        f"{skill.instructions}\n"
-        f"================================"
-    )
+    return f"=== LOADED SKILL: {skill.name} ===\n{skill.instructions}\n================================"
 
 
 class ListSkillsTool(BaseTool):
@@ -58,9 +54,7 @@ class LoadSkillTool(BaseTool):
 
     name: str = "load_skill"
     is_concurrent_safe: bool = True
-    description: str = (
-        "Load step-by-step instructions and constraints for a specialized skill package."
-    )
+    description: str = "Load step-by-step instructions and constraints for a specialized skill package."
     parameters: dict[str, Any] = {
         "type": "object",
         "properties": {

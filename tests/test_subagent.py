@@ -12,7 +12,6 @@ Tests cover:
 """
 
 import asyncio
-import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -24,9 +23,9 @@ from maidere.core.subagent import (
     SUBAGENT_ALLOWED_TOOLS,
     SUBAGENT_SYSTEM_PROMPT,
     SubAgentResult,
+    clear_progress_callback,
     run_subagent,
     set_progress_callback,
-    clear_progress_callback,
 )
 from maidere.tools.delegate import DelegateTaskTool
 
@@ -74,7 +73,6 @@ class TestSubAgentEngine(unittest.TestCase):
 
     def test_epistemic_grounding_in_researcher_markdown(self):
         """Verify agents/researcher.md contains Epistemic Grounding Directive."""
-        from pathlib import Path
         from maidere.paths import agents_dir
 
         researcher_path = agents_dir() / "researcher.md"
@@ -138,9 +136,10 @@ class TestSubAgentEngine(unittest.TestCase):
             }
         }
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
-             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock) as mock_store:
-
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response),
+            patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock) as mock_store,
+        ):
             result = asyncio.run(run_subagent(task="Benchmark React vs Vue", max_turns=3))
 
             self.assertTrue(result.success)
@@ -178,10 +177,11 @@ class TestSubAgentEngine(unittest.TestCase):
             },
         ]
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
-             patch("maidere.tools.registry.get_tool") as mock_get_tool, \
-             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
-
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses),
+            patch("maidere.tools.registry.get_tool") as mock_get_tool,
+            patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock),
+        ):
             mock_search_tool = AsyncMock()
             mock_search_tool.execute = AsyncMock(return_value="1. Svelte 5 benchmarks: 650ms LCP")
             mock_search_tool.to_ollama_schema = lambda: {"type": "function", "function": {"name": "web_search"}}
@@ -224,9 +224,10 @@ class TestSubAgentEngine(unittest.TestCase):
             },
         ]
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
-             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
-
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses),
+            patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock),
+        ):
             result = asyncio.run(run_subagent(task="Try shell command", max_turns=3))
 
             self.assertTrue(result.success)
@@ -251,9 +252,10 @@ class TestSubAgentEngine(unittest.TestCase):
             }
         }
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
-             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
-
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response),
+            patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock),
+        ):
             asyncio.run(run_subagent(task="Test Progress", subagent_index=1, total_subagents=1))
 
         clear_progress_callback()
@@ -290,7 +292,7 @@ class TestDelegateTaskTool(unittest.TestCase):
 
         with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_subagent_result):
             for i in range(MAX_SUBAGENTS_PER_QUERY):
-                output = asyncio.run(self.tool.execute(task=f"Subtask {i+1}"))
+                output = asyncio.run(self.tool.execute(task=f"Subtask {i + 1}"))
                 self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
 
             # 6th call should be rejected
@@ -383,7 +385,9 @@ class TestPatch3InfiniteDelegationPrevention(unittest.TestCase):
             "thread_id": "test_thread",
         }
 
-        with patch("maidere.core.agent.execute_tool", new_callable=AsyncMock, return_value="[SUB-AGENT RESEARCH RESULT]"):
+        with patch(
+            "maidere.core.agent.execute_tool", new_callable=AsyncMock, return_value="[SUB-AGENT RESEARCH RESULT]"
+        ):
             result = asyncio.run(act_node(state))
             self.assertTrue(result.get("has_delegated"))
 
@@ -447,7 +451,9 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         )
 
         with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=v_result) as mock_run:
-            output = asyncio.run(tool.execute(prompt="Verify mathematical invariant in proof", subagent_type="verification"))
+            output = asyncio.run(
+                tool.execute(prompt="Verify mathematical invariant in proof", subagent_type="verification")
+            )
             self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
             self.assertIn("Agent Type: verification", output)
             self.assertIn("[PASS: VERIFIED]", output)
@@ -472,7 +478,9 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         )
 
         with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=val_result) as mock_run:
-            output = asyncio.run(tool.execute(prompt="Validate PyTorch 2.6 CUDA 12.8 compatibility in 2026", subagent_type="validation"))
+            output = asyncio.run(
+                tool.execute(prompt="Validate PyTorch 2.6 CUDA 12.8 compatibility in 2026", subagent_type="validation")
+            )
             self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
             self.assertIn("Agent Type: validation", output)
             self.assertIn("[PASS: VALIDATED]", output)
@@ -571,16 +579,17 @@ class TestClaudeCodeSubagents(unittest.TestCase):
                     "tool_calls": [],
                 }
             }
-            with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=[mock_turn1, mock_turn2]), \
-                 patch("maidere.tools.registry.get_tool") as mock_get_tool, \
-                 patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
-
+            with (
+                patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=[mock_turn1, mock_turn2]),
+                patch("maidere.tools.registry.get_tool") as mock_get_tool,
+                patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock),
+            ):
                 tool_inst = AsyncMock()
                 tool_inst.execute.return_value = "Zen 5 features 16 cores and +16% IPC"
                 tool_inst.to_ollama_schema.return_value = {"type": "function", "function": {"name": "web_search"}}
                 mock_get_tool.return_value = tool_inst
 
-                res = asyncio.run(run_subagent("Research AMD 2026", subagent_index=1, total_subagents=1))
+                asyncio.run(run_subagent("Research AMD 2026", subagent_index=1, total_subagents=1))
 
             types = [e.get("type") for e in events]
             self.assertIn("subagent_started", types)
@@ -598,6 +607,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_temporal_anchor_in_system_prompt(self):
         """Verify dynamic date and current year (2026) are anchored in the system prompt."""
         from datetime import datetime
+
         from maidere.core.agent import get_system_prompt
 
         prompt = get_system_prompt()
@@ -613,14 +623,19 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_turn_scoping_prevents_prior_toolmessage_leak(self):
         """Verify prior turn's raw ToolMessages are stripped when building LLM context for a new turn."""
-        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+        from langchain_core.messages import AIMessage, HumanMessage
+
         from maidere.core.agent import think_node
 
         state = {
             "messages": [
                 HumanMessage(content="What was Meta's revenue?"),
                 AIMessage(content="", tool_calls=[{"name": "Agent", "args": {"prompt": "Meta"}, "id": "call1"}]),
-                ToolMessage(content="[LEAK TEST: Meta revenue $39B in 2026, Kraken market cap]", tool_call_id="call1", name="Agent"),
+                ToolMessage(
+                    content="[LEAK TEST: Meta revenue $39B in 2026, Kraken market cap]",
+                    tool_call_id="call1",
+                    name="Agent",
+                ),
                 AIMessage(content="Meta revenue in 2026 was over $39B."),
                 HumanMessage(content="Find software engineering internships"),
             ],
@@ -635,16 +650,19 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             captured_messages.extend(messages)
             return {"message": {"role": "assistant", "content": "Here are 2026 internships."}}
 
-        with patch("maidere.core.llm.chat", side_effect=fake_chat), \
-             patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock):
+        with (
+            patch("maidere.core.llm.chat", side_effect=fake_chat),
+            patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+        ):
             asyncio.run(think_node(state))
 
         # Check captured messages sent to Ollama
-        roles = [m.get("role") for m in captured_messages]
         contents = [str(m.get("content", "")) for m in captured_messages]
 
         # Prior turn tool message must NOT be in the LLM context
-        self.assertFalse(any("[LEAK TEST" in c for c in contents), "Prior turn ToolMessage leaked into new turn context!")
+        self.assertFalse(
+            any("[LEAK TEST" in c for c in contents), "Prior turn ToolMessage leaked into new turn context!"
+        )
         # The new turn query must be present
         self.assertTrue(any("internships" in c for c in contents))
         # Prior turn human question and completed answer should be present
@@ -654,9 +672,9 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_reality_check_and_enterprise_grounding_directive_domain_isolation(self):
         """Verify Reality Check directive is isolated to tech-hardware subagent and stripped from root orchestrator."""
         from datetime import datetime
-        from pathlib import Path
+
         from maidere.core.agent import get_system_prompt, is_hardware_query
-        from maidere.core.subagent import TECH_HARDWARE_SYSTEM_PROMPT, SUBAGENT_SYSTEM_PROMPT
+        from maidere.core.subagent import SUBAGENT_SYSTEM_PROMPT, TECH_HARDWARE_SYSTEM_PROMPT
 
         # 1. Verify root Orchestrator prompt is clean of hardware directives (NO instruction bleed)
         prompt = get_system_prompt()
@@ -696,6 +714,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_strict_url_citation_rules_in_prompt(self):
         """Verify strict inline index citation rules forbid bibliography sections and require [1]-style inline citations."""
         from datetime import datetime
+
         from maidere.core.agent import get_system_prompt
 
         prompt = get_system_prompt()
@@ -711,7 +730,6 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_restore_markdown_urls_revives_stripped_urls(self):
         """Verify restore_markdown_urls revives stripped titles into clickable markdown links."""
-        from langchain_core.messages import ToolMessage
         from maidere.core.agent import restore_markdown_urls
 
         tool_msg = ToolMessage(
@@ -742,18 +760,23 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         restored = restore_markdown_urls(broken_ai_output, [tool_msg])
 
         self.assertIn("[NVIDIA Inception Program](https://www.nvidia.com/en-us/startups/)", restored)
-        self.assertIn("[NVIDIA AI for Robotics Program](https://www.nvidia.com/en-us/deep-learning-ai/solutions/robotics/)", restored)
+        self.assertIn(
+            "[NVIDIA AI for Robotics Program](https://www.nvidia.com/en-us/deep-learning-ai/solutions/robotics/)",
+            restored,
+        )
         self.assertIn("[National AI Research Resource (NAIRR) Pilot](https://nairrpilot.org/)", restored)
         self.assertIn("[Google](https://google.com)", restored)
         self.assertNotIn("URL: NVIDIA Inception Program", restored)
 
     def test_conditional_temporal_constraint_in_subagent_prompts(self):
         """Verify conditional temporal constraint in SUBAGENT_SYSTEM_PROMPT and researcher.md."""
-        from pathlib import Path
         prompt = SUBAGENT_SYSTEM_PROMPT.format(task="Research Adolf Hitler")
         self.assertIn("CONDITIONAL TEMPORAL CONSTRAINT", prompt)
         self.assertIn("Append the current year (2026) to search queries ONLY for financial data", prompt)
-        self.assertIn("Do NOT append the current year to queries about historical events, historical figures, or established lore", prompt)
+        self.assertIn(
+            "Do NOT append the current year to queries about historical events, historical figures, or established lore",
+            prompt,
+        )
 
         from maidere.paths import agents_dir
 
@@ -765,12 +788,14 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_chronological_timeline_directive_in_prompts(self):
         """Verify Chronological Timeline Directive in researcher.md, subagent prompt, and SYSTEM_PROMPT."""
-        from pathlib import Path
         from maidere.core.agent import SYSTEM_PROMPT
 
         prompt = SUBAGENT_SYSTEM_PROMPT.format(task="Research WWII")
         self.assertIn("CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION", prompt)
-        self.assertIn("Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships", prompt)
+        self.assertIn(
+            "Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships",
+            prompt,
+        )
 
         from maidere.paths import agents_dir
 
@@ -779,11 +804,13 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         self.assertIn("CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION", content)
 
         self.assertIn("Chronological Timeline & Causality Verification", SYSTEM_PROMPT)
-        self.assertIn("Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships", SYSTEM_PROMPT)
+        self.assertIn(
+            "Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships",
+            SYSTEM_PROMPT,
+        )
 
     def test_search_diversity_rule_in_prompts(self):
         """Verify Search Diversity & Redundancy Prevention rule in researcher.md and subagent prompt."""
-        from pathlib import Path
         prompt = SUBAGENT_SYSTEM_PROMPT.format(task="Research Nazi rearmament")
         self.assertIn("SEARCH DIVERSITY & REDUNDANCY PREVENTION", prompt)
         self.assertIn("prevent retrieving the same source URL multiple times", prompt)
@@ -801,7 +828,11 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
         # Historical figures and events -> True for historical, False for temporally sensitive
         self.assertTrue(is_historical_or_lore("Adolf Hitler biography key events", "Adolf Hitler"))
-        self.assertTrue(is_historical_or_lore("Nazi rearmament programs Luftwaffe Wehrmacht military buildup 1930s", "Nazi rearmament"))
+        self.assertTrue(
+            is_historical_or_lore(
+                "Nazi rearmament programs Luftwaffe Wehrmacht military buildup 1930s", "Nazi rearmament"
+            )
+        )
         self.assertTrue(is_historical_or_lore("Julius Caesar reign and assassination", "Julius Caesar"))
         self.assertTrue(is_historical_or_lore("Battle of Stalingrad 20th century", "Battle of Stalingrad"))
 
@@ -825,6 +856,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_extract_research_subtasks_historical_no_2026(self):
         """Verify extract_research_subtasks produces historical decomposition without 2026."""
         from datetime import datetime
+
         from maidere.core.agent import extract_research_subtasks
 
         current_year = str(datetime.now().year)
@@ -853,7 +885,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_subagent_url_normalization_and_redundancy_helpers(self):
         """Verify URL normalization and search query redundancy detection."""
-        from maidere.core.subagent import normalize_subagent_url, is_search_query_redundant
+        from maidere.core.subagent import is_search_query_redundant, normalize_subagent_url
 
         # URL normalization
         url1 = "https://en.wikipedia.org/wiki/German_military_technology_during_World_War_II#Luftwaffe/"
@@ -871,6 +903,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_run_subagent_prevents_duplicate_browsing_and_flags_redundancy(self):
         """Verify subagent execution loop prevents duplicate URL browsing and flags redundant searches."""
         from unittest.mock import AsyncMock, patch
+
         from maidere.core.subagent import run_subagent
 
         wiki_url = "https://en.wikipedia.org/wiki/German_military_technology_during_World_War_II"
@@ -881,13 +914,17 @@ class TestClaudeCodeSubagents(unittest.TestCase):
                 "message": {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "function": {
-                            "name": "web_search",
-                            "arguments": {"query": "Nazi rearmament programs Luftwaffe Wehrmacht military buildup 1930s"},
-                        },
-                    }],
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": {
+                                    "query": "Nazi rearmament programs Luftwaffe Wehrmacht military buildup 1930s"
+                                },
+                            },
+                        }
+                    ],
                 }
             },
             # Turn 2: Redundant search (The Wikipedia Loop query)
@@ -895,13 +932,17 @@ class TestClaudeCodeSubagents(unittest.TestCase):
                 "message": {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{
-                        "id": "call_2",
-                        "function": {
-                            "name": "web_search",
-                            "arguments": {"query": "Luftwaffe expansion and German rearmament key military programs 1930s"},
-                        },
-                    }],
+                    "tool_calls": [
+                        {
+                            "id": "call_2",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": {
+                                    "query": "Luftwaffe expansion and German rearmament key military programs 1930s"
+                                },
+                            },
+                        }
+                    ],
                 }
             },
             # Turn 3: Browse Wikipedia article twice
@@ -909,26 +950,30 @@ class TestClaudeCodeSubagents(unittest.TestCase):
                 "message": {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{
-                        "id": "call_3",
-                        "function": {
-                            "name": "browser",
-                            "arguments": {"url": wiki_url},
-                        },
-                    }],
+                    "tool_calls": [
+                        {
+                            "id": "call_3",
+                            "function": {
+                                "name": "browser",
+                                "arguments": {"url": wiki_url},
+                            },
+                        }
+                    ],
                 }
             },
             {
                 "message": {
                     "role": "assistant",
                     "content": "",
-                    "tool_calls": [{
-                        "id": "call_4",
-                        "function": {
-                            "name": "browser",
-                            "arguments": {"url": f"{wiki_url}/#overview"},
-                        },
-                    }],
+                    "tool_calls": [
+                        {
+                            "id": "call_4",
+                            "function": {
+                                "name": "browser",
+                                "arguments": {"url": f"{wiki_url}/#overview"},
+                            },
+                        }
+                    ],
                 }
             },
             # Turn 5: Final summary
@@ -941,16 +986,19 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             },
         ]
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
-             patch("maidere.tools.registry.get_tool") as mock_get_tool, \
-             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
-
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses),
+            patch("maidere.tools.registry.get_tool") as mock_get_tool,
+            patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock),
+        ):
             mock_search = AsyncMock()
-            mock_search.execute = AsyncMock(return_value=(
-                f"1. German military technology - Wikipedia\n"
-                f"   URL: {wiki_url}\n"
-                f"   Snippet: Overview of Luftwaffe and Wehrmacht equipment."
-            ))
+            mock_search.execute = AsyncMock(
+                return_value=(
+                    f"1. German military technology - Wikipedia\n"
+                    f"   URL: {wiki_url}\n"
+                    f"   Snippet: Overview of Luftwaffe and Wehrmacht equipment."
+                )
+            )
             mock_search.to_ollama_schema = lambda: {"type": "function", "function": {"name": "web_search"}}
 
             mock_browser = AsyncMock()
@@ -974,8 +1022,3 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             self.assertEqual(len(result.tools_used), 4)
             # Second browser call in tools_used succeeded via cache/notice
             self.assertTrue(result.tools_used[3]["success"])
-
-
-
-
-

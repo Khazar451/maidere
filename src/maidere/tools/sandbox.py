@@ -34,7 +34,7 @@ import subprocess
 import sys
 import threading
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import structlog
@@ -44,7 +44,7 @@ from maidere.core.config import settings
 logger = structlog.get_logger()
 
 
-class SandboxMode(str, Enum):
+class SandboxMode(StrEnum):
     BWRAP = "bwrap"
     RESTRICTED = "restricted"
     OFF = "off"
@@ -84,7 +84,7 @@ class SandboxResult:
 _probe_lock = threading.Lock()
 _bwrap_path: str | None = None
 _bwrap_ok: bool | None = None
-_prlimit_path: str | None | bool = False  # False = not probed yet
+_prlimit_path: str | bool | None = False  # False = not probed yet
 _warned_fallback = False
 
 
@@ -115,7 +115,9 @@ def _probe_bwrap() -> tuple[str | None, bool]:
         proc = subprocess.run(cmd, capture_output=True, timeout=10, check=False)
         ok = proc.returncode == 0
         if not ok:
-            logger.warning("bwrap_probe_failed", returncode=proc.returncode, stderr=proc.stderr.decode(errors="replace")[:300])
+            logger.warning(
+                "bwrap_probe_failed", returncode=proc.returncode, stderr=proc.stderr.decode(errors="replace")[:300]
+            )
         return path, ok
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("bwrap_probe_error", error=str(exc))
@@ -367,6 +369,8 @@ def canonical_binary_name(argv0: str) -> str:
     name = Path(argv0).name
     m = _INTERPRETER_CANON.match(name)
     return m.group("name") if m else name
+
+
 _FIND_BLOCKED = {"-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"}
 _PATH_FLAG_PREFIXES = ("--work-tree=", "--git-dir=", "--output=", "-o=")
 
@@ -411,7 +415,7 @@ def validate_restricted(argv: list[str], workspace: Path) -> str | None:
         value = arg
         for prefix in _PATH_FLAG_PREFIXES:
             if arg.startswith(prefix):
-                value = arg[len(prefix):]
+                value = arg[len(prefix) :]
                 break
         else:
             if "=" in arg and arg.startswith("-"):
@@ -487,8 +491,8 @@ def run_sandboxed(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        out = (exc.stdout or b"")
-        err = (exc.stderr or b"")
+        out = exc.stdout or b""
+        err = exc.stderr or b""
         out_s = out.decode(errors="replace") if isinstance(out, bytes) else str(out)
         err_s = err.decode(errors="replace") if isinstance(err, bytes) else str(err)
         return SandboxResult(

@@ -4,14 +4,13 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from maidere.core.agent import create_graph
 from maidere.core.config import settings
 from maidere.core.router import (
     TaskComplexity,
     classify_complexity,
-    get_available_models,
     select_model,
 )
 
@@ -184,6 +183,7 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         await self.checkpointer_ctx.__aexit__(None, None, None)
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
@@ -199,9 +199,11 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with (
+            patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models,
+            patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]),
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat,
+        ):
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
 
             config = {"configurable": {"thread_id": "test-router-simple"}}
@@ -230,9 +232,11 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with (
+            patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models,
+            patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]),
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat,
+        ):
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
 
             config = {"configurable": {"thread_id": "test-router-complex"}}
@@ -261,9 +265,11 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with (
+            patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models,
+            patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]),
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat,
+        ):
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b", "deepseek-r1:7b"]
 
             config = {"configurable": {"thread_id": "test-router-reasoning"}}
@@ -292,13 +298,15 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with (
+            patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models,
+            patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]),
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat,
+        ):
             mock_models.return_value = ["qwen2.5:7b-instruct", "deepseek-r1:7b"]
 
             config = {"configurable": {"thread_id": "test-router-thinking-flag"}}
-            result = await self.graph.ainvoke(
+            await self.graph.ainvoke(
                 {
                     "messages": [HumanMessage(content="Hello simple message")],
                     "memory_context": "No relevant memories found.",
@@ -313,7 +321,9 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             called_messages = mock_chat.call_args[0][0]
             system_directives = [m["content"] for m in called_messages if m.get("role") == "system"]
             has_directive = any("THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE" in d for d in system_directives)
-            self.assertTrue(has_directive, "Expected THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE in system messages")
+            self.assertTrue(
+                has_directive, "Expected THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE in system messages"
+            )
 
     async def test_agent_forced_deep_reasoning_mode_directive_injection(self):
         """Test agent graph injects System 2 divergent directive into LLM messages when deep_reasoning=True."""
@@ -326,13 +336,15 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with (
+            patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models,
+            patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]),
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat,
+        ):
             mock_models.return_value = ["qwen2.5:7b-instruct", "deepseek-r1:7b"]
 
             config = {"configurable": {"thread_id": "test-router-deep-reason-flag"}}
-            result = await self.graph.ainvoke(
+            await self.graph.ainvoke(
                 {
                     "messages": [HumanMessage(content="Prove the theorem")],
                     "memory_context": "No relevant memories found.",
@@ -346,7 +358,9 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             # Think node was the first call in the pipeline
             first_called_messages = mock_chat.call_args_list[0][0][0]
             system_directives = [m["content"] for m in first_called_messages if m.get("role") == "system"]
-            has_directive = any("SYSTEM 2: DIVERGENT COGNITIVE EXPLORATION & DECONSTRUCTION" in d for d in system_directives)
+            has_directive = any(
+                "SYSTEM 2: DIVERGENT COGNITIVE EXPLORATION & DECONSTRUCTION" in d for d in system_directives
+            )
             self.assertTrue(has_directive, "Expected SYSTEM 2 directive in system messages for deep_reasoning")
             # Verify that deep_reasoning triggered verification/convergence (multiple LLM calls)
             self.assertGreater(mock_chat.call_count, 1)

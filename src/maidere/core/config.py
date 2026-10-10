@@ -17,8 +17,6 @@ class Settings(BaseSettings):
     ollama_timeout: float = 180.0
     ollama_connect_timeout: float = 10.0
 
-
-
     # Database
     db_path: str = "db/maidere.db"
 
@@ -120,10 +118,7 @@ class Settings(BaseSettings):
         """Resolve effective cloud API key, base URL, and default model."""
         api_key = self.cloud_api_key or self.nvidia_api_key or self.openai_api_key
         base_url = (
-            self.cloud_api_base
-            or self.nvidia_base_url
-            or self.openai_base_url
-            or "https://integrate.api.nvidia.com/v1"
+            self.cloud_api_base or self.nvidia_base_url or self.openai_base_url or "https://integrate.api.nvidia.com/v1"
         )
         model = self.cloud_model or "nvidia/nemotron-3-ultra-550b-a55b"
         return api_key.strip(), base_url.strip().rstrip("/"), model.strip()
@@ -184,5 +179,3 @@ def get_obsidian_vault_info() -> tuple[str, str]:
     # Default to creating/using standard Documents/Obsidian Vault
     default_path = Path.home() / "Documents/Obsidian Vault"
     return str(default_path), "Obsidian Vault"
-
-

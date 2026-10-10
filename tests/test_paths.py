@@ -55,10 +55,9 @@ class TestPaths(unittest.TestCase):
         self.assertEqual(resolve_db_path(":memory:"), ":memory:")
 
     def test_runtime_root_override(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict(os.environ, {"MAIDERE_RUNTIME_ROOT": tmp}):
-                self.assertEqual(runtime_root(), Path(tmp).resolve())
-                self.assertEqual(resolve_config_path("logs/x.jsonl"), Path(tmp).resolve() / "logs" / "x.jsonl")
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"MAIDERE_RUNTIME_ROOT": tmp}):
+            self.assertEqual(runtime_root(), Path(tmp).resolve())
+            self.assertEqual(resolve_config_path("logs/x.jsonl"), Path(tmp).resolve() / "logs" / "x.jsonl")
 
 
 class TestFileLogging(unittest.TestCase):
@@ -73,11 +72,7 @@ class TestFileLogging(unittest.TestCase):
 
                 structlog.get_logger("maidere.test").info("phase3-structlog-probe", marker="ok")
             self.assertTrue(log_file.is_file(), "log file was not created")
-            parsed = [
-                json.loads(line)
-                for line in log_file.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
+            parsed = [json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip()]
             self.assertTrue(parsed)
             self.assertTrue(any(item.get("marker") == "ok" for item in parsed), parsed[-1])
             # Console handler exists alongside the file handler.

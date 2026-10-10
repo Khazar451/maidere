@@ -42,7 +42,6 @@ SECRET_PATTERNS = [
         r"(?i)([\"']?(?:api[_-]?key|secret[_-]?key|auth[_-]?token|access[_-]?token|password|passwd|pwd|client[_-]?secret)[\"']?)\s*([:=])\s*([\"']?)([^\"'\s,;}{]{4,})([\"']?)",
         r"\1\2 \3[REDACTED_SECRET]\5",
     ),
-
 ]
 
 

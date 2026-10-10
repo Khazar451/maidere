@@ -10,7 +10,7 @@
 [![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com/)
 [![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM_%2F_Nemotron-76B900?style=flat-square&logo=nvidia&logoColor=white)](https://build.nvidia.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Tests Passing](https://img.shields.io/badge/Tests-258%2F258_Passing-10b981?style=flat-square)](tests/)
+[![CI](https://github.com/Khazar451/maidere/actions/workflows/ci.yml/badge.svg)](https://github.com/Khazar451/maidere/actions/workflows/ci.yml)
 
 *Engineered for zero subscription costs, zero GPU model-thrashing, and enterprise-grade reasoning on consumer hardware (NVIDIA RTX 5060 8GB / 16GB RAM) with instant hybrid scaling to massive cloud models (Nemotron-3-Ultra 550B up to 128K context).*
 

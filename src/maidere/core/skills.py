@@ -8,9 +8,10 @@ Discovers, parses, indexes, and activates specialized skill packages from:
 import re
 from pathlib import Path
 from typing import Any
-from pydantic import BaseModel
+
 import structlog
 import yaml
+from pydantic import BaseModel
 
 logger = structlog.get_logger()
 
@@ -92,7 +93,7 @@ def parse_skill_file(skill_file: Path) -> Skill | None:
             path=skill_file.parent,
         )
     except Exception as e:
-        logger.warn("skill_parse_failed", path=str(skill_file), error=str(e))
+        logger.warning("skill_parse_failed", path=str(skill_file), error=str(e))
         return None
 
 
@@ -115,10 +116,7 @@ def get_skills_overview() -> str:
     if not skills:
         return "No specialized skills currently installed."
 
-    return "\n".join(
-        f"- `{name}`: {skill.description}"
-        for name, skill in skills.items()
-    )
+    return "\n".join(f"- `{name}`: {skill.description}" for name, skill in skills.items())
 
 
 def match_skills(query: str) -> list[Skill]:

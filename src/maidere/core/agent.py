@@ -9,12 +9,12 @@ Phase 3 will add: trim → remember → think (memory injection)
 """
 
 import asyncio
-from datetime import datetime
 import json
 import re
-from pathlib import Path
-from typing import Any
 import uuid
+from datetime import datetime
+from typing import Any
+
 import structlog
 from langchain_core.messages import (
     AIMessage,
@@ -34,7 +34,6 @@ from maidere.core.state import AgentState
 from maidere.tools.registry import (
     execute_tool,
     get_orchestrator_ollama_schemas,
-    get_tools_ollama_schemas,
     is_tool_call_concurrent_safe,
 )
 
@@ -121,10 +120,6 @@ Relevant context, memories, and active skills:
 )
 
 
-
-
-
-
 TOKEN_LIMIT = settings.agent_token_limit
 CHARS_PER_TOKEN = settings.agent_chars_per_token
 CHAR_LIMIT = TOKEN_LIMIT * CHARS_PER_TOKEN
@@ -157,11 +152,7 @@ def trim_messages_node(state: AgentState) -> dict:
     char_limit = token_limit * CHARS_PER_TOKEN
 
     messages = state.get("messages", [])
-    total_chars = sum(
-        len(m.content)
-        for m in messages
-        if hasattr(m, "content") and isinstance(m.content, str)
-    )
+    total_chars = sum(len(m.content) for m in messages if hasattr(m, "content") and isinstance(m.content, str))
 
     removals: list[RemoveMessage] = []
 
@@ -215,11 +206,7 @@ def trim_messages_node(state: AgentState) -> dict:
             continue
         if freed >= chars_to_free:
             break
-        content_len = (
-            len(msg.content)
-            if hasattr(msg, "content") and isinstance(msg.content, str)
-            else 0
-        )
+        content_len = len(msg.content) if hasattr(msg, "content") and isinstance(msg.content, str) else 0
         freed += content_len
         removals.append(RemoveMessage(id=msg.id))
 
@@ -246,6 +233,7 @@ async def remember_node(state: AgentState) -> dict:
     # 1. Tier 1: Instruction Memory (RULES.md)
     try:
         from maidere.core.memory_tiers import format_auto_memory_context, load_instruction_memory
+
         rules_text = load_instruction_memory()
         if rules_text:
             context_blocks.append(f"[TIER 1 INSTRUCTION RULES]\n{rules_text}\n[END RULES]")
@@ -264,9 +252,7 @@ async def remember_node(state: AgentState) -> dict:
         try:
             matched = match_skills(latest_user_query)
             if matched:
-                skills_formatted = "\n\n".join(
-                    f"### Skill: {s.name}\n{s.instructions}" for s in matched
-                )
+                skills_formatted = "\n\n".join(f"### Skill: {s.name}\n{s.instructions}" for s in matched)
                 context_blocks.append(f"[ACTIVE SKILLS]\n{skills_formatted}\n[END SKILLS]")
                 await emit_agent_event(
                     state.get("thread_id"),
@@ -322,9 +308,7 @@ def get_system_prompt() -> str:
 
 def set_custom_system_prompt(text: str | None) -> None:
     global _custom_system_prompt
-    _custom_system_prompt = (
-        SystemPromptTemplate(text.strip()) if text and text.strip() else None
-    )
+    _custom_system_prompt = SystemPromptTemplate(text.strip()) if text and text.strip() else None
 
 
 def register_stream_callback(thread_id: str, callback: Any) -> None:
@@ -410,22 +394,132 @@ def is_logic_puzzle(query: str) -> bool:
 
 
 # Common English stop words excluded from topic comparison
-_STOP_WORDS = frozenset({
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "shall",
-    "should", "may", "might", "must", "can", "could", "i", "you", "he",
-    "she", "it", "we", "they", "me", "him", "her", "us", "them", "my",
-    "your", "his", "its", "our", "their", "this", "that", "these", "those",
-    "what", "which", "who", "whom", "when", "where", "why", "how", "if",
-    "then", "than", "but", "and", "or", "not", "no", "so", "too", "very",
-    "just", "also", "about", "up", "out", "on", "off", "over", "under",
-    "again", "further", "once", "here", "there", "all", "each", "every",
-    "both", "few", "more", "most", "other", "some", "such", "only", "own",
-    "same", "of", "in", "to", "for", "with", "at", "by", "from", "as",
-    "into", "through", "during", "before", "after", "above", "below",
-    "between", "because", "until", "while", "tell", "me", "explain",
-    "describe", "give", "please", "know", "think", "make", "like",
-})
+_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "shall",
+        "should",
+        "may",
+        "might",
+        "must",
+        "can",
+        "could",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+        "me",
+        "him",
+        "her",
+        "us",
+        "them",
+        "my",
+        "your",
+        "his",
+        "its",
+        "our",
+        "their",
+        "this",
+        "that",
+        "these",
+        "those",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "when",
+        "where",
+        "why",
+        "how",
+        "if",
+        "then",
+        "than",
+        "but",
+        "and",
+        "or",
+        "not",
+        "no",
+        "so",
+        "too",
+        "very",
+        "just",
+        "also",
+        "about",
+        "up",
+        "out",
+        "on",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "once",
+        "here",
+        "there",
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "only",
+        "own",
+        "same",
+        "of",
+        "in",
+        "to",
+        "for",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "because",
+        "until",
+        "while",
+        "tell",
+        "explain",
+        "describe",
+        "give",
+        "please",
+        "know",
+        "think",
+        "make",
+        "like",
+    }
+)
 
 # Minimum message count before topic-change detection activates
 _TOPIC_CHANGE_MIN_MESSAGES = 4
@@ -467,13 +561,13 @@ def detect_topic_change(latest_query: str, context_text: str) -> bool:
 def clean_query_for_topic(query: str) -> str:
     """Extract topic from query by stripping research prefixes."""
     cleaned = re.sub(
-        r'^(?:conduct|make|do|perform)?\s*(?:a\s+)?(?:deep\s+)?research\s*(?:on|into|about)?\s*',
-        '',
+        r"^(?:conduct|make|do|perform)?\s*(?:a\s+)?(?:deep\s+)?research\s*(?:on|into|about)?\s*",
+        "",
         query,
         flags=re.IGNORECASE,
     )
-    cleaned = re.sub(r'\[deep-research\]', '', cleaned, flags=re.IGNORECASE)
-    cleaned = cleaned.strip().strip(':').strip('?').strip()
+    cleaned = re.sub(r"\[deep-research\]", "", cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.strip().strip(":").strip("?").strip()
     return cleaned if len(cleaned) > 2 else query
 
 
@@ -484,15 +578,50 @@ def is_historical_or_lore(query: str, topic: str) -> bool:
     if any(w in text for w in ("in 202", "modern day", "today", "current day", "contemporary")):
         return False
     hist_keywords = (
-        "history", "historical", "ancient", "century", "war", "world war",
-        "wwi", "wwii", "reich", "wehrmacht", "luftwaffe", "nazi", "hitler",
-        "holocaust", "fascism", "totalitarian", "empire", "dynasty", "biography",
-        "reign", "revolution", "treaty", "medieval", "feudal", "chancellor",
-        "monarch", "emperor", "caesar", "napoleon", "churchill", "stalin",
-        "roosevelt", "lenin", "battle", "treaty of", "king", "queen",
-        "character", "novel", "fiction", "lore", "mythology",
+        "history",
+        "historical",
+        "ancient",
+        "century",
+        "war",
+        "world war",
+        "wwi",
+        "wwii",
+        "reich",
+        "wehrmacht",
+        "luftwaffe",
+        "nazi",
+        "hitler",
+        "holocaust",
+        "fascism",
+        "totalitarian",
+        "empire",
+        "dynasty",
+        "biography",
+        "reign",
+        "revolution",
+        "treaty",
+        "medieval",
+        "feudal",
+        "chancellor",
+        "monarch",
+        "emperor",
+        "caesar",
+        "napoleon",
+        "churchill",
+        "stalin",
+        "roosevelt",
+        "lenin",
+        "battle",
+        "treaty of",
+        "king",
+        "queen",
+        "character",
+        "novel",
+        "fiction",
+        "lore",
+        "mythology",
     )
-    return any(re.search(r'\b' + re.escape(kw) + r'\b', text) for kw in hist_keywords)
+    return any(re.search(r"\b" + re.escape(kw) + r"\b", text) for kw in hist_keywords)
 
 
 def is_temporally_sensitive(query: str, topic: str) -> bool:
@@ -501,12 +630,28 @@ def is_temporally_sensitive(query: str, topic: str) -> bool:
     # Strictly forbid appending current year to historical events, figures, or established lore
     if is_historical_or_lore(query, topic):
         return False
-    if any(w in text for w in ("202", "latest", "recent", "current", "today", "now", "upcoming", "q1", "q2", "q3", "q4")):
+    if any(
+        w in text for w in ("202", "latest", "recent", "current", "today", "now", "upcoming", "q1", "q2", "q3", "q4")
+    ):
         return True
     temporal_keywords = (
-        "financial", "earning", "revenue", "quarter", "market cap", "stock",
-        "valuation", "benchmark", "metric", "roadmap", "gpu", "hardware spec",
-        "cloud credits", "nairr", "startup", "company earnings", "quarterly",
+        "financial",
+        "earning",
+        "revenue",
+        "quarter",
+        "market cap",
+        "stock",
+        "valuation",
+        "benchmark",
+        "metric",
+        "roadmap",
+        "gpu",
+        "hardware spec",
+        "cloud credits",
+        "nairr",
+        "startup",
+        "company earnings",
+        "quarterly",
     )
     return any(kw in text for kw in temporal_keywords)
 
@@ -525,19 +670,18 @@ def is_hardware_query(query: str) -> bool:
 def sanitize_subtask_theories(task: str, user_query: str) -> str:
     """Sanitize fan theories or speculation from subtasks unless user asked for them."""
     user_wants_theories = any(
-        w in user_query.lower()
-        for w in ("theory", "theories", "speculat", "headcanon", "fanfiction", "rumor")
+        w in user_query.lower() for w in ("theory", "theories", "speculat", "headcanon", "fanfiction", "rumor")
     )
     if user_wants_theories:
         return task
     sanitized = re.sub(
-        r'(?i)\b(fan\s*theories|speculative\s*blog\s*posts|crackpot\s*theories|fanfiction|headcanons?|rumors?|unverified\s*theories)\b',
-        'canonical lore and narrative arc',
+        r"(?i)\b(fan\s*theories|speculative\s*blog\s*posts|crackpot\s*theories|fanfiction|headcanons?|rumors?|unverified\s*theories)\b",
+        "canonical lore and narrative arc",
         task,
     )
     sanitized = re.sub(
-        r'(?i)\bfan\s*theor(?:y|ies)?\b',
-        'canonical facts',
+        r"(?i)\bfan\s*theor(?:y|ies)?\b",
+        "canonical facts",
         sanitized,
     )
     return sanitized.strip()
@@ -550,12 +694,12 @@ def extract_research_subtasks(text: str, user_query: str) -> list[str]:
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         for line in lines:
             match = re.match(
-                r'^(?:\d+[\.\)]|\*|\-)\s*(?:\*\*)?(?:Sub-task\s*\d+:|Task\s*\d+:)?\s*(.*?)(?:\*\*)?$',
+                r"^(?:\d+[\.\)]|\*|\-)\s*(?:\*\*)?(?:Sub-task\s*\d+:|Task\s*\d+:)?\s*(.*?)(?:\*\*)?$",
                 line,
                 re.IGNORECASE,
             )
             if match:
-                candidate = match.group(1).strip().strip('*').strip(':').strip()
+                candidate = match.group(1).strip().strip("*").strip(":").strip()
                 if (
                     len(candidate) > 15
                     and not candidate.lower().startswith("let's")
@@ -574,8 +718,8 @@ def extract_research_subtasks(text: str, user_query: str) -> list[str]:
         for t in tasks:
             clean_t = sanitize_subtask_theories(t, user_query)
             if not needs_year:
-                clean_t = re.sub(rf'\s*\({current_year}\)', '', clean_t)
-                clean_t = re.sub(rf'\b{current_year}\b', '', clean_t).strip()
+                clean_t = re.sub(rf"\s*\({current_year}\)", "", clean_t)
+                clean_t = re.sub(rf"\b{current_year}\b", "", clean_t).strip()
             if topic.lower() not in clean_t.lower():
                 clean_tasks.append(f"Research {topic}{year_tag}: {clean_t}")
             else:
@@ -598,7 +742,9 @@ def extract_research_subtasks(text: str, user_query: str) -> list[str]:
             f"Research {topic} ({current_year}): products, software stack, ecosystem, roadmap, and major {current_year} developments.",
             f"Research {topic} ({current_year}): real-world benchmarks, {current_year} financial metrics (quarterly revenue, earnings, verified market cap), performance data, and verified sources.",
         ]
-    elif is_historical_or_lore(user_query, topic) and not any(w in user_query.lower() for w in ("fiction", "lore", "character", "novel")):
+    elif is_historical_or_lore(user_query, topic) and not any(
+        w in user_query.lower() for w in ("fiction", "lore", "character", "novel")
+    ):
         return [
             f"Research {topic}: origins, early background, ideological/political rise, and primary historical sources.",
             f"Research {topic}: strict chronological timeline of major events, pivotal decisions, and primary historical developments.",
@@ -619,10 +765,12 @@ def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]
         return calls
 
     # 1. Regex match for Agent(prompt="...") or delegate_task(task="...") or tool_name(arg="...")
-    pattern = r'(\b[a-zA-Z0-9_]+)\s*\((.*?)\)'
+    pattern = r"(\b[a-zA-Z0-9_]+)\s*\((.*?)\)"
     for match in re.finditer(pattern, text):
         t_name = match.group(1)
-        normalized_name = "Agent" if t_name in ("Agent", "agent", "delegate_task", "subagent", "Task", "task") else t_name
+        normalized_name = (
+            "Agent" if t_name in ("Agent", "agent", "delegate_task", "subagent", "Task", "task") else t_name
+        )
         if t_name in available_tools or normalized_name in available_tools:
             actual_tool_name = normalized_name if normalized_name in available_tools else t_name
             raw_args = match.group(2)
@@ -631,11 +779,17 @@ def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]
             subagent_type = type_match.group(1) if type_match else "researcher"
 
             if prompt_match:
-                calls.append({
-                    "name": actual_tool_name,
-                    "args": {"subagent_type": subagent_type, "prompt": prompt_match.group(1), "task": prompt_match.group(1)},
-                    "id": str(uuid.uuid4()),
-                })
+                calls.append(
+                    {
+                        "name": actual_tool_name,
+                        "args": {
+                            "subagent_type": subagent_type,
+                            "prompt": prompt_match.group(1),
+                            "task": prompt_match.group(1),
+                        },
+                        "id": str(uuid.uuid4()),
+                    }
+                )
             elif raw_args.strip().startswith("{"):
                 try:
                     args_dict = json.loads(raw_args)
@@ -643,27 +797,37 @@ def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]
                 except Exception:
                     pass
             elif raw_args.strip():
-                clean_arg = raw_args.strip().strip('"\'')
-                calls.append({
-                    "name": actual_tool_name,
-                    "args": {"prompt": clean_arg, "task": clean_arg, "subagent_type": subagent_type} if actual_tool_name in ("Agent", "delegate_task") else {"query": clean_arg},
-                    "id": str(uuid.uuid4()),
-                })
+                clean_arg = raw_args.strip().strip("\"'")
+                calls.append(
+                    {
+                        "name": actual_tool_name,
+                        "args": {"prompt": clean_arg, "task": clean_arg, "subagent_type": subagent_type}
+                        if actual_tool_name in ("Agent", "delegate_task")
+                        else {"query": clean_arg},
+                        "id": str(uuid.uuid4()),
+                    }
+                )
 
     # 2. JSON blocks: ```json {"name": "...", "arguments": ...} ```
-    json_blocks = re.findall(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    json_blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     for block in json_blocks:
         try:
             parsed = json.loads(block)
             raw_name = parsed.get("name", "")
-            norm_name = "Agent" if raw_name in ("Agent", "agent", "delegate_task", "subagent", "Task", "task") else raw_name
-            target_name = norm_name if norm_name in available_tools else (raw_name if raw_name in available_tools else None)
+            norm_name = (
+                "Agent" if raw_name in ("Agent", "agent", "delegate_task", "subagent", "Task", "task") else raw_name
+            )
+            target_name = (
+                norm_name if norm_name in available_tools else (raw_name if raw_name in available_tools else None)
+            )
             if target_name:
-                calls.append({
-                    "name": target_name,
-                    "args": parsed.get("arguments") or parsed.get("args") or {},
-                    "id": str(uuid.uuid4()),
-                })
+                calls.append(
+                    {
+                        "name": target_name,
+                        "args": parsed.get("arguments") or parsed.get("args") or {},
+                        "id": str(uuid.uuid4()),
+                    }
+                )
         except Exception:
             pass
 
@@ -671,10 +835,38 @@ def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]
 
 
 EXCLUDED_CITATION_WORDS: set[str] = {
-    "section", "figure", "table", "phase", "step", "rule", "version", "v",
-    "chapter", "page", "in", "for", "year", "top", "of", "to", "at",
-    "model", "day", "cycle", "part", "tier", "level", "item", "option",
-    "node", "round", "turn", "iteration", "factor", "grade", "class",
+    "section",
+    "figure",
+    "table",
+    "phase",
+    "step",
+    "rule",
+    "version",
+    "v",
+    "chapter",
+    "page",
+    "in",
+    "for",
+    "year",
+    "top",
+    "of",
+    "to",
+    "at",
+    "model",
+    "day",
+    "cycle",
+    "part",
+    "tier",
+    "level",
+    "item",
+    "option",
+    "node",
+    "round",
+    "turn",
+    "iteration",
+    "factor",
+    "grade",
+    "class",
 }
 
 
@@ -854,6 +1046,7 @@ def should_deliberate(state: AgentState, user_query: str, last_message: Any) -> 
     # Check for basic greetings or trivial chit-chat
     q_clean = user_query.strip().lower()
     from maidere.core.router import _SIMPLE_GREETINGS
+
     if q_clean in _SIMPLE_GREETINGS or len(q_clean) < 4:
         return False
 
@@ -868,6 +1061,7 @@ def should_deliberate(state: AgentState, user_query: str, last_message: Any) -> 
     # 3. Dynamic Auto-mode reasoning complexity (only when deep_reasoning enabled and thinking_mode not set)
     if not state.get("thinking_mode") and getattr(settings, "enable_deep_reasoning", True):
         from maidere.core.router import TaskComplexity, classify_complexity
+
         complexity = classify_complexity(user_query, state.get("messages", []))
         if complexity == TaskComplexity.REASONING:
             return True
@@ -1016,10 +1210,8 @@ async def think_node(state: AgentState) -> dict:
         # After the orchestrator has delegated once, remove Agent and delegate_task from
         # available tools for the remainder of this query. One shot at delegation.
         tools_schemas = [
-            t for t in tools_schemas
-            if t.get("function", {}).get("name") not in ("Agent", "delegate_task")
+            t for t in tools_schemas if t.get("function", {}).get("name") not in ("Agent", "delegate_task")
         ]
-
 
     callback = state.get("callback") or _stream_callbacks.get(state.get("thread_id", ""))
 
@@ -1033,94 +1225,100 @@ async def think_node(state: AgentState) -> dict:
     )
 
     if deep_reasoning_flag and not is_synthesis_turn:
-        ollama_messages.append({
-            "role": "system",
-            "content": (
-                "[SYSTEM 2: DIVERGENT COGNITIVE EXPLORATION & DECONSTRUCTION]\n"
-                "You are operating in SYSTEM 2 DEEP REASONING mode.\n"
-                "Do NOT provide a superficial, hasty, or intuitive answer. You MUST systematically think and deconstruct the problem inside <think> and </think> tags.\n"
-                "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'.\n"
-                "Inside <think>...</think>, execute these four cognitive stages:\n"
-                "1. PROBLEM DECONSTRUCTION & CORE PREMISES:\n"
-                "   - Break down the inquiry into its irreducible logical, mathematical, or structural components.\n"
-                "   - Explicitly identify, state, and question all implicit assumptions or constraints.\n"
-                "2. DIVERGENT HYPOTHESES & ALTERNATIVE PATHS:\n"
-                "   - Formulate and compare at least two distinct approaches or solution candidates (Approach A vs. Approach B).\n"
-                "   - Trace the causal chain, state mutations, and intermediate steps of each candidate.\n"
-                "3. COUNTER-EXAMPLE & FALSIFICATION ANALYSIS:\n"
-                "   - Identify the exact conditions under which an approach or premise fails.\n"
-                "   - Stress-test boundary conditions, edge cases, and arithmetic/logical invariants.\n"
-                "4. PROVISIONAL SYNTHESIS:\n"
-                "   - Formulate the initial end-to-end solution with explicit justifications before closing </think>.\n"
-                "After closing </think>, present your comprehensive analytical reasoning and provisional solution."
-            ),
-        })
+        ollama_messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "[SYSTEM 2: DIVERGENT COGNITIVE EXPLORATION & DECONSTRUCTION]\n"
+                    "You are operating in SYSTEM 2 DEEP REASONING mode.\n"
+                    "Do NOT provide a superficial, hasty, or intuitive answer. You MUST systematically think and deconstruct the problem inside <think> and </think> tags.\n"
+                    "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'.\n"
+                    "Inside <think>...</think>, execute these four cognitive stages:\n"
+                    "1. PROBLEM DECONSTRUCTION & CORE PREMISES:\n"
+                    "   - Break down the inquiry into its irreducible logical, mathematical, or structural components.\n"
+                    "   - Explicitly identify, state, and question all implicit assumptions or constraints.\n"
+                    "2. DIVERGENT HYPOTHESES & ALTERNATIVE PATHS:\n"
+                    "   - Formulate and compare at least two distinct approaches or solution candidates (Approach A vs. Approach B).\n"
+                    "   - Trace the causal chain, state mutations, and intermediate steps of each candidate.\n"
+                    "3. COUNTER-EXAMPLE & FALSIFICATION ANALYSIS:\n"
+                    "   - Identify the exact conditions under which an approach or premise fails.\n"
+                    "   - Stress-test boundary conditions, edge cases, and arithmetic/logical invariants.\n"
+                    "4. PROVISIONAL SYNTHESIS:\n"
+                    "   - Formulate the initial end-to-end solution with explicit justifications before closing </think>.\n"
+                    "After closing </think>, present your comprehensive analytical reasoning and provisional solution."
+                ),
+            }
+        )
     elif thinking_mode_flag and not is_synthesis_turn:
-        ollama_messages.append({
-            "role": "system",
-            "content": (
-                "[THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE]\n"
-                "You are operating in THINKING MODE. Think step-by-step inside <think> and </think> tags before providing your answer.\n"
-                "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'. "
-                "Only AFTER closing '</think>' provide your final response.\n"
-                "Inside <think>...</think>:\n"
-                "- Deconstruct the user's objective, implicit context, and constraints.\n"
-                "- Outline your response structure and determine the key facts, formulas, or code required.\n"
-                "- Anticipate common errors, logical traps, or edge cases.\n"
-                "Close </think> and immediately present your clear, direct, and well-structured answer."
-            ),
-        })
+        ollama_messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "[THINKING SCRATCHPAD: CHAIN-OF-THOUGHT DIRECTIVE]\n"
+                    "You are operating in THINKING MODE. Think step-by-step inside <think> and </think> tags before providing your answer.\n"
+                    "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'. "
+                    "Only AFTER closing '</think>' provide your final response.\n"
+                    "Inside <think>...</think>:\n"
+                    "- Deconstruct the user's objective, implicit context, and constraints.\n"
+                    "- Outline your response structure and determine the key facts, formulas, or code required.\n"
+                    "- Anticipate common errors, logical traps, or edge cases.\n"
+                    "Close </think> and immediately present your clear, direct, and well-structured answer."
+                ),
+            }
+        )
     elif is_thinking_turn and not is_synthesis_turn:
-        ollama_messages.append({
-            "role": "system",
-            "content": (
-                "[MANDATORY STEP-BY-STEP REASONING DIRECTIVE]\n"
-                "You are operating in REASONING mode. Before providing your answer or making decisions, "
-                "you MUST think and reason step-by-step inside <think> and </think> tags.\n"
-                "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'. "
-                "Only AFTER closing '</think>' provide your final response.\n"
-                "Inside <think>...</think>:\n"
-                "- Dissect the user's problem, constraints, and implicit assumptions.\n"
-                "- Track state mutations and intermediate calculations explicitly.\n"
-                "- Check for logical fallacies, edge cases, and temporal accuracy.\n"
-                "Do NOT jump directly to the answer. Think thoroughly inside <think>...</think>."
-            ),
-        })
-
-
+        ollama_messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "[MANDATORY STEP-BY-STEP REASONING DIRECTIVE]\n"
+                    "You are operating in REASONING mode. Before providing your answer or making decisions, "
+                    "you MUST think and reason step-by-step inside <think> and </think> tags.\n"
+                    "CRITICAL FORMAT REQUIREMENT: You MUST start your output with '<think>' and end your reasoning with '</think>'. "
+                    "Only AFTER closing '</think>' provide your final response.\n"
+                    "Inside <think>...</think>:\n"
+                    "- Dissect the user's problem, constraints, and implicit assumptions.\n"
+                    "- Track state mutations and intermediate calculations explicitly.\n"
+                    "- Check for logical fallacies, edge cases, and temporal accuracy.\n"
+                    "Do NOT jump directly to the answer. Think thoroughly inside <think>...</think>."
+                ),
+            }
+        )
 
     if is_synthesis_turn:
-        ollama_messages.append({
-            "role": "user",
-            "content": (
-                f"[SYNTHESIS & CITATION MANDATE]\n"
-                f"All requested research and tool actions have completed. Synthesize your final comprehensive, high-quality analytical report based on the findings above.\n"
-                f"1. CRITICAL INLINE INDEX CITATION DIRECTIVE:\n"
-                f"   - CRITICAL: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2' for citations.\n"
-                f"   - You MUST cite sources using bracketed integers inline with the text (e.g., 'The model achieved 95% accuracy [1] on the benchmark [2].').\n"
-                f"   - FORBIDDEN: Do NOT generate a 'References', 'Bibliography', 'Works Cited', or numbered plain-text list of sources anywhere in your response body.\n"
-                f"   - FORBIDDEN: Do NOT write comma-separated URLs or plain unlinked URLs.\n"
-                f"   - FORBIDDEN: Do NOT write 'URL: [Title]' or bare titles without links.\n"
-                f"   - At the VERY END of your response, include exactly one '## Sources' block with each source on its own line formatted as:\n"
-                f"     [1] [Title](https://actual-url.com)\n"
-                f"     [2] [Title](https://actual-url.com)\n"
-                f"   - If you omit inline [1], [2] integers, use naked numbers like 1 or 2, or generate a bibliography section, you have failed.\n"
-                f"2. STRICT SOURCE-TO-CLAIM CORRESPONDENCE:\n"
-                f"   - Every inline citation [N] must directly support the specific claim it is attached to based on Source [N] in the evidence.\n"
-                f"   - FORBIDDEN: Do NOT guess citations, attribute claims to the wrong medium or platform (e.g. citing a Reddit thread for a YouTube video), or lazily slap the last citation index onto an unverified sentence.\n"
-                f"3. NO SURPRISE METRICS OR VARIABLES IN SUMMARIES:\n"
-                f"   - Every metric, statistic, number, or variable in a concluding summary table or list MUST be introduced, explained, and cited inline [N] in the main body text first.\n"
-                f"   - FORBIDDEN: Do NOT introduce novel statistics or surprise variables in the conclusion or summary that were never discussed in the body.\n"
-                f"4. STRUCTURE & DENSITY:\n"
-                f"   - Write flowing prose with markdown headers (##), analytical paragraphs, and comparison tables. Zero unformatted bullet dumps.\n"
-                f"5. EPISTEMIC GROUNDING (CANONICAL FACTS VS. SPECULATION):\n"
-                f"   - When discussing fictional characters, literary works, or historical events, you MUST prioritize canonical facts and primary source data.\n"
-                f"   - You are FORBIDDEN from treating fan theories, speculative blog posts, or forum discussions as factual canon unless the user explicitly requested theories.\n"
-                f"6. CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION:\n"
-                f"   - When summarizing historical events, biographies, or narrative developments, you must establish a strict chronological timeline.\n"
-                f"   - Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships (e.g., verify that Event A preceded Event B before asserting that B occurred 'following' or 'as a result of' A)."
-            ),
-        })
+        ollama_messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "[SYNTHESIS & CITATION MANDATE]\n"
+                    "All requested research and tool actions have completed. Synthesize your final comprehensive, high-quality analytical report based on the findings above.\n"
+                    "1. CRITICAL INLINE INDEX CITATION DIRECTIVE:\n"
+                    "   - CRITICAL: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2' for citations.\n"
+                    "   - You MUST cite sources using bracketed integers inline with the text (e.g., 'The model achieved 95% accuracy [1] on the benchmark [2].').\n"
+                    "   - FORBIDDEN: Do NOT generate a 'References', 'Bibliography', 'Works Cited', or numbered plain-text list of sources anywhere in your response body.\n"
+                    "   - FORBIDDEN: Do NOT write comma-separated URLs or plain unlinked URLs.\n"
+                    "   - FORBIDDEN: Do NOT write 'URL: [Title]' or bare titles without links.\n"
+                    "   - At the VERY END of your response, include exactly one '## Sources' block with each source on its own line formatted as:\n"
+                    "     [1] [Title](https://actual-url.com)\n"
+                    "     [2] [Title](https://actual-url.com)\n"
+                    "   - If you omit inline [1], [2] integers, use naked numbers like 1 or 2, or generate a bibliography section, you have failed.\n"
+                    "2. STRICT SOURCE-TO-CLAIM CORRESPONDENCE:\n"
+                    "   - Every inline citation [N] must directly support the specific claim it is attached to based on Source [N] in the evidence.\n"
+                    "   - FORBIDDEN: Do NOT guess citations, attribute claims to the wrong medium or platform (e.g. citing a Reddit thread for a YouTube video), or lazily slap the last citation index onto an unverified sentence.\n"
+                    "3. NO SURPRISE METRICS OR VARIABLES IN SUMMARIES:\n"
+                    "   - Every metric, statistic, number, or variable in a concluding summary table or list MUST be introduced, explained, and cited inline [N] in the main body text first.\n"
+                    "   - FORBIDDEN: Do NOT introduce novel statistics or surprise variables in the conclusion or summary that were never discussed in the body.\n"
+                    "4. STRUCTURE & DENSITY:\n"
+                    "   - Write flowing prose with markdown headers (##), analytical paragraphs, and comparison tables. Zero unformatted bullet dumps.\n"
+                    "5. EPISTEMIC GROUNDING (CANONICAL FACTS VS. SPECULATION):\n"
+                    "   - When discussing fictional characters, literary works, or historical events, you MUST prioritize canonical facts and primary source data.\n"
+                    "   - You are FORBIDDEN from treating fan theories, speculative blog posts, or forum discussions as factual canon unless the user explicitly requested theories.\n"
+                    "6. CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION:\n"
+                    "   - When summarizing historical events, biographies, or narrative developments, you must establish a strict chronological timeline.\n"
+                    "   - Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships (e.g., verify that Event A preceded Event B before asserting that B occurred 'following' or 'as a result of' A)."
+                ),
+            }
+        )
 
     # Call LLM for decision / response with real-time streaming support
     active_num_ctx = _resolve_num_ctx(state)
@@ -1133,7 +1331,15 @@ async def think_node(state: AgentState) -> dict:
             await callback(token_text)
 
     # Stream real-time tokens when no deliberation cycle is active
-    initial_on_token = _realtime_stream_token if (callback and not deep_reasoning_flag and not should_deliberate(state, latest_user_query, AIMessage(content=""))) else None
+    initial_on_token = (
+        _realtime_stream_token
+        if (
+            callback
+            and not deep_reasoning_flag
+            and not should_deliberate(state, latest_user_query, AIMessage(content=""))
+        )
+        else None
+    )
     chat_kwargs = {
         "tools": tools_schemas,
         "model": selected_model,
@@ -1191,17 +1397,18 @@ async def think_node(state: AgentState) -> dict:
         subtasks = extract_research_subtasks(ai_content, latest_user_query)
         target_subagent = "tech-hardware" if is_hardware_query(latest_user_query) else "researcher"
         for st in subtasks:
-            normalized_tool_calls.append({
-                "name": "Agent",
-                "args": {"subagent_type": target_subagent, "prompt": st, "task": st},
-                "id": str(uuid.uuid4()),
-            })
+            normalized_tool_calls.append(
+                {
+                    "name": "Agent",
+                    "args": {"subagent_type": target_subagent, "prompt": st, "task": st},
+                    "id": str(uuid.uuid4()),
+                }
+            )
         ai_content = ""
-
 
     # If tools were found, log any thoughts and clear narrative text so tool execution happens cleanly
     if normalized_tool_calls:
-        think_match = re.search(r'<think>([\s\S]*?)</think>', ai_content, re.IGNORECASE)
+        think_match = re.search(r"<think>([\s\S]*?)</think>", ai_content, re.IGNORECASE)
         if think_match:
             thought_snippet = think_match.group(1).strip().replace("\n", " ")
             if thought_snippet:
@@ -1224,7 +1431,7 @@ async def think_node(state: AgentState) -> dict:
                     state.get("thread_id"),
                     {
                         "type": "agent_log",
-                        "text": f"[SUBAGENT] Orchestrator planning Sub-Agent [{sub_type}]: \"{prompt[:90]}\"",
+                        "text": f'[SUBAGENT] Orchestrator planning Sub-Agent [{sub_type}]: "{prompt[:90]}"',
                         "level": "tool",
                     },
                 )
@@ -1257,10 +1464,10 @@ async def think_node(state: AgentState) -> dict:
             synthesis_prompt = {
                 "role": "user",
                 "content": (
-                    f"All requested research and tool actions have completed. "
-                    f"Synthesize and present your final comprehensive, high-quality analytical report based on the findings.\n"
-                    + thinking_addon +
-                    f"1. CRITICAL INLINE INDEX CITATION DIRECTIVE:\n"
+                    "All requested research and tool actions have completed. "
+                    "Synthesize and present your final comprehensive, high-quality analytical report based on the findings.\n"
+                    + thinking_addon
+                    + f"1. CRITICAL INLINE INDEX CITATION DIRECTIVE:\n"
                     f"CRITICAL: Every single citation MUST be wrapped in square brackets (e.g., [1], [2]). You are strictly FORBIDDEN from using naked numbers like '1' or '2' for citations.\n"
                     f"You MUST cite sources using bracketed integers inline with the text (e.g., 'The study found X [1] and Y [2].'). "
                     f"FORBIDDEN: Do NOT generate a 'References', 'Bibliography', 'Works Cited', or numbered plain-text list of sources in your response body. "
@@ -1302,9 +1509,8 @@ async def think_node(state: AgentState) -> dict:
         ai_content = restore_markdown_urls(ai_content, state.get("messages", []))
 
         # Check if Socratic deliberation will occur
-        will_deliberate = (
-            not normalized_tool_calls
-            and should_deliberate(state, latest_user_query, AIMessage(content=ai_content))
+        will_deliberate = not normalized_tool_calls and should_deliberate(
+            state, latest_user_query, AIMessage(content=ai_content)
         )
 
         if will_deliberate:
@@ -1321,7 +1527,7 @@ async def think_node(state: AgentState) -> dict:
                 # Stream content in smooth chunks (fallback if not streamed directly)
                 chunk_size = 20
                 for i in range(0, len(ai_content), chunk_size):
-                    await callback(ai_content[i:i + chunk_size])
+                    await callback(ai_content[i : i + chunk_size])
                     await asyncio.sleep(0.01)
             except Exception:
                 pass
@@ -1330,13 +1536,12 @@ async def think_node(state: AgentState) -> dict:
         "messages": [
             AIMessage(
                 content=ai_content,
-                tool_calls=normalized_tool_calls if normalized_tool_calls else [],
+                tool_calls=normalized_tool_calls or [],
             )
         ],
         "model": selected_model,
         "complexity": complexity,
     }
-
 
 
 MAX_TOOL_LOOPS = 10
@@ -1432,7 +1637,6 @@ async def act_node(state: AgentState) -> dict:
         result["has_delegated"] = True
 
     return result
-
 
 
 async def evaluate_node(state: AgentState) -> dict:
@@ -1554,7 +1758,6 @@ async def evaluate_node(state: AgentState) -> dict:
     return {"messages": [updated_tool_msg]}
 
 
-
 # ---------------------------------------------------------------------------
 # System 2 Cognitive Reasoning Nodes: Verify & Converge
 # ---------------------------------------------------------------------------
@@ -1587,7 +1790,11 @@ async def verify_node(state: AgentState) -> dict:
         if isinstance(msg, ToolMessage) and msg.content:
             tool_evidence.append(f"Tool {msg.name}: {str(msg.content)[:1000]}")
 
-    evidence_str = "\n---\n".join(tool_evidence) if tool_evidence else "Rely on first-principles deduction and mathematical proofs."
+    evidence_str = (
+        "\n---\n".join(tool_evidence)
+        if tool_evidence
+        else "Rely on first-principles deduction and mathematical proofs."
+    )
 
     selected_model = state.get("model") or settings.ollama_model
     if selected_model == "auto":
@@ -1662,7 +1869,9 @@ async def converge_node(state: AgentState) -> dict:
             break
 
     # If verification passed without issues, use the draft directly
-    if ("[PASS: VERIFIED]" in verification_text or "[PASS: AIRTIGHT]" in verification_text) and len(verification_text) < 200:
+    if ("[PASS: VERIFIED]" in verification_text or "[PASS: AIRTIGHT]" in verification_text) and len(
+        verification_text
+    ) < 200:
         await emit_agent_event(
             thread_id,
             {
@@ -1675,7 +1884,7 @@ async def converge_node(state: AgentState) -> dict:
         if callback and final_content:
             chunk_size = 20
             for i in range(0, len(final_content), chunk_size):
-                await callback(final_content[i:i + chunk_size])
+                await callback(final_content[i : i + chunk_size])
                 await asyncio.sleep(0.01)
         return {
             "messages": [AIMessage(content=final_content)],
@@ -1742,16 +1951,15 @@ async def converge_node(state: AgentState) -> dict:
 
     # Preserve the CoT thinking block from the initial deliberation turn
     if "<think>" in draft_content and "</think>" in draft_content and "<think>" not in final_content:
-        thought_block = draft_content[draft_content.find("<think>"):draft_content.find("</think>") + len("</think>")]
+        thought_block = draft_content[draft_content.find("<think>") : draft_content.find("</think>") + len("</think>")]
         final_content = f"{thought_block}\n\n{final_content}"
 
     # Stream to callback
     if callback and final_content:
         chunk_size = 20
         for i in range(0, len(final_content), chunk_size):
-            await callback(final_content[i:i + chunk_size])
+            await callback(final_content[i : i + chunk_size])
             await asyncio.sleep(0.01)
-
 
     await emit_agent_event(
         thread_id,
@@ -1802,7 +2010,6 @@ def should_continue(state: AgentState) -> str:
         return "verify"
 
     return END
-
 
 
 # ---------------------------------------------------------------------------
@@ -1865,5 +2072,3 @@ async def create_graph(db_path: str | None = None) -> tuple:
         nodes=["trim", "remember", "think", "act", "evaluate", "verify", "converge"],
     )
     return graph, checkpointer_ctx
-
-

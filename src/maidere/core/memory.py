@@ -51,7 +51,6 @@ async def init_memory_table(db: aiosqlite.Connection) -> None:
     await logger.ainfo("memory_table_initialized", dimensions=DIMENSIONS)
 
 
-
 async def is_duplicate_memory(
     db: aiosqlite.Connection,
     vector: list[float],
@@ -97,7 +96,7 @@ async def store_memory(
         await logger.ainfo("memory_deduplicated", session_id=session_id, length=len(sanitized_content))
         return False
 
-    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    now_iso = datetime.datetime.now(datetime.UTC).isoformat()
 
     await db.execute(
         """
@@ -111,7 +110,6 @@ async def store_memory(
     return True
 
 
-
 async def recall(
     db: aiosqlite.Connection,
     query: str,
@@ -123,6 +121,7 @@ async def recall(
         return []
 
     import time
+
     from maidere.core.metrics import MEMORY_RECALL_DURATION_SECONDS, MEMORY_RECALLS_TOTAL
 
     start_time = time.perf_counter()
@@ -157,7 +156,7 @@ async def recall(
 
         await logger.ainfo("memory_recalled", query_len=len(query), count=len(results), duration_s=round(duration, 3))
         return results
-    except Exception as e:
+    except Exception:
         duration = time.perf_counter() - start_time
         MEMORY_RECALL_DURATION_SECONDS.observe(duration)
         MEMORY_RECALLS_TOTAL.labels(status="error").inc()
@@ -183,10 +182,7 @@ async def list_all_memories(db: aiosqlite.Connection, limit: int = 50) -> list[d
             "SELECT rowid, content, timestamp, session_id FROM memories ORDER BY rowid DESC LIMIT ?",
             [limit],
         )
-        return [
-            {"id": r[0], "content": r[1], "timestamp": r[2], "session_id": r[3]}
-            for r in rows
-        ]
+        return [{"id": r[0], "content": r[1], "timestamp": r[2], "session_id": r[3]} for r in rows]
     except Exception as e:
         await logger.aerror("list_memories_failed", error=str(e))
         return []
@@ -201,4 +197,3 @@ def format_memories(memories: list[dict[str, Any]]) -> str:
     for m in memories:
         lines.append(f"- {m['content']} (saved at {m['timestamp'][:19]})")
     return "\n".join(lines)
-

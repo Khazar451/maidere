@@ -70,8 +70,7 @@ class DelegateTaskTool(BaseTool):
             "max_turns": {
                 "type": "integer",
                 "description": (
-                    "Maximum tool execution turns for this sub-agent (default: 6). "
-                    "Higher values allow deeper research."
+                    "Maximum tool execution turns for this sub-agent (default: 6). Higher values allow deeper research."
                 ),
             },
             "model": {
@@ -138,13 +137,12 @@ class DelegateTaskTool(BaseTool):
         result = await run_subagent(**subagent_kwargs)
 
         # Format the result for the orchestrator to consume
-        tools_summary = ", ".join(
-            f"{t['tool_name']}({'[OK]' if t['success'] else '[FAIL]'})"
-            for t in result.tools_used
-        ) or "none"
+        tools_summary = (
+            ", ".join(f"{t['tool_name']}({'[OK]' if t['success'] else '[FAIL]'})" for t in result.tools_used) or "none"
+        )
 
         artifact_line = f"Artifact: {result.artifact_path}\n" if result.artifact_path else ""
-        content_body = result.brief if result.brief else result.summary
+        content_body = result.brief or result.summary
 
         return (
             f"[SUB-AGENT RESEARCH RESULT]\n"
@@ -169,4 +167,3 @@ class AgentTool(DelegateTaskTool):
     """Claude Code canonical Agent tool alias."""
 
     name: str = "Agent"
-

@@ -11,10 +11,9 @@ Enables the agent to:
 import asyncio
 import datetime
 import os
-from pathlib import Path
-import re
 import subprocess
 import urllib.parse
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -125,7 +124,7 @@ class ObsidianTool(BaseTool):
                 return f"Error: Unknown Obsidian action '{action}'. Valid actions: write_note, read_note, list_notes, search_notes, open_note."
         except Exception as e:
             await logger.aerror("obsidian_action_failed", action=action, error=str(e))
-            return f"Error executing Obsidian action '{action}': {str(e)}"
+            return f"Error executing Obsidian action '{action}': {e!s}"
 
     async def _write_note(
         self,
@@ -144,7 +143,7 @@ class ObsidianTool(BaseTool):
 
         raw_title = title.strip()
         filename = raw_title if raw_title.endswith(".md") else f"{raw_title}.md"
-        
+
         # Resolve target directory
         target_dir = vault_path
         if folder and folder.strip():
@@ -159,7 +158,7 @@ class ObsidianTool(BaseTool):
 
         # If content doesn't already have YAML frontmatter, add it
         final_content = content.strip()
-        clean_title_display = raw_title[:-3] if raw_title.endswith(".md") else raw_title
+        clean_title_display = raw_title.removesuffix(".md")
         if not final_content.startswith("---"):
             fm = format_frontmatter(clean_title_display, tags=tags)
             final_content = f"{fm}\n{final_content}\n"
@@ -190,7 +189,7 @@ class ObsidianTool(BaseTool):
 
         raw_title = title.strip()
         filename = raw_title if raw_title.endswith(".md") else f"{raw_title}.md"
-        
+
         # Try direct relative path
         target_file = (vault_path / filename).resolve()
         if not target_file.exists() or not target_file.is_file():
@@ -274,7 +273,7 @@ class ObsidianTool(BaseTool):
         """Launch and open the note inside the Obsidian desktop application."""
         raw_title = (title or "").strip()
         filename = (raw_title if raw_title.endswith(".md") else f"{raw_title}.md") if raw_title else ""
-        
+
         rel_path = filename
         if filename:
             target_file = (vault_path / filename).resolve()
@@ -300,7 +299,7 @@ class ObsidianTool(BaseTool):
                         stderr=subprocess.DEVNULL,
                     )
                 except Exception as ex:
-                    logger.warn("obsidian_open_exec_failed", error=str(ex))
+                    logger.warning("obsidian_open_exec_failed", error=str(ex))
 
         await asyncio.to_thread(_launch)
         await logger.ainfo("obsidian_opened", uri=uri, note=rel_path)

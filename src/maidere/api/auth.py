@@ -48,7 +48,8 @@ TOKEN_HEADER = b"x-maidere-token"
 def _header(scope: Scope, name: bytes) -> str | None:
     for key, value in scope.get("headers") or []:
         if key == name:
-            return value.decode("latin-1")
+            raw = value if isinstance(value, bytes) else bytes(str(value), "latin-1")
+            return raw.decode("latin-1")
     return None
 
 
@@ -185,6 +186,6 @@ def require_token(request: Request) -> None:
     """
     if not settings.api_auth_enabled:
         return
-    token = extract_token_from_headers(request.scope)
+    token = extract_token_from_headers(dict(request.scope))
     if not (token and verify_token(token)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")

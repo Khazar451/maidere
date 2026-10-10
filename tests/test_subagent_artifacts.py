@@ -1,14 +1,12 @@
 """Tests for Phase 1: Subagent Artifact Bus & Handoff Isolation."""
 
-from datetime import datetime, timezone
-from pathlib import Path
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from maidere.core.subagent import (
-    SubAgentDefinition,
     SubAgentResult,
     generate_handoff_brief,
     load_subagent_definitions,
@@ -111,6 +109,7 @@ class TestSubagentArtifacts(unittest.IsolatedAsyncioTestCase):
         # Make 2 files look 20 days old (older than 14-day default)
         old_time = now - (20 * 86400)
         import os
+
         os.utime(created_paths[0], (old_time, old_time))
         os.utime(created_paths[1], (old_time, old_time))
 

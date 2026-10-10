@@ -5,15 +5,13 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END
 
 from maidere.core.agent import (
     create_graph,
     should_continue,
-    think_node,
     trim_messages_node,
-    SYSTEM_PROMPT,
 )
 from maidere.tools.filesystem import WORKSPACE
 
@@ -74,11 +72,7 @@ class TestAgentTrimmingAndRouting(unittest.TestCase):
 
     def test_should_continue_routes_to_end(self):
         """Test should_continue routes to END when no tool calls exist."""
-        state = {
-            "messages": [
-                AIMessage(content="Final answer for user.")
-            ]
-        }
+        state = {"messages": [AIMessage(content="Final answer for user.")]}
         self.assertEqual(should_continue(state), END)
 
 
@@ -87,8 +81,10 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
 
     @classmethod
     def setUpClass(cls):
-        import numpy as np
         from unittest.mock import MagicMock
+
+        import numpy as np
+
         cls.mock_emb_model = MagicMock()
         cls.mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
         cls.patcher1 = patch("maidere.core.embeddings._get_model", return_value=cls.mock_emb_model)
@@ -114,6 +110,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
         # Clean workspace hello.py if created
@@ -219,7 +216,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
 
             with patch("maidere.core.llm.chat", return_value=mock_response) as mock_chat:
                 config = {"configurable": {"thread_id": "thread-pref"}}
-                result = await graph.ainvoke(
+                await graph.ainvoke(
                     {
                         "messages": [HumanMessage(content="What is my favorite beverage?")],
                         "thread_id": "thread-pref",
@@ -268,6 +265,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
     def test_think_node_passes_custom_num_ctx(self):
         """Test that think_node forwards active num_ctx to llm.chat."""
         from unittest.mock import AsyncMock
+
         from maidere.core.agent import think_node
 
         state = {
@@ -282,8 +280,10 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
             captured_num_ctx.append(num_ctx)
             return {"message": {"role": "assistant", "content": "Context test ok"}}
 
-        with patch("maidere.core.llm.chat", side_effect=fake_chat), \
-             patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock):
+        with (
+            patch("maidere.core.llm.chat", side_effect=fake_chat),
+            patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+        ):
             asyncio.run(think_node(state))
 
         self.assertEqual(captured_num_ctx, [32768])
@@ -297,7 +297,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
             "The user needs research on DeepSeek R1.\n"
             "I should use the Agent tool to delegate this task.\n"
             "</think>\n"
-            "Agent(prompt=\"Research DeepSeek R1 Distill Qwen 7B\", subagent_type=\"researcher\")"
+            'Agent(prompt="Research DeepSeek R1 Distill Qwen 7B", subagent_type="researcher")'
         )
         calls = extract_text_tool_calls(ai_response, ["Agent", "delegate_task", "shell"])
         self.assertEqual(len(calls), 1)
@@ -308,6 +308,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
     def test_think_node_emits_think_logs_when_thinking_tags_present(self):
         """Test that think_node emits [THINK] agent logs when thinking tags are present."""
         from unittest.mock import AsyncMock
+
         from maidere.core.agent import think_node
 
         state = {
@@ -337,8 +338,10 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
         async def fake_emit(thread_id, event):
             emitted_events.append(event)
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_resp), \
-             patch("maidere.core.agent.emit_agent_event", side_effect=fake_emit):
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_resp),
+            patch("maidere.core.agent.emit_agent_event", side_effect=fake_emit),
+        ):
             asyncio.run(think_node(state))
 
         think_logs = [e for e in emitted_events if e.get("type") == "agent_log" and "[THINK]" in e.get("text", "")]
@@ -351,8 +354,10 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
 
     @classmethod
     def setUpClass(cls):
-        import numpy as np
         from unittest.mock import MagicMock
+
+        import numpy as np
+
         cls.mock_emb_model = MagicMock()
         cls.mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
         cls.patcher1 = patch("maidere.core.embeddings._get_model", return_value=cls.mock_emb_model)
@@ -374,6 +379,7 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
     def test_should_deliberate_greetings_return_false(self):
         """Test that simple greetings bypass deliberation."""
         from maidere.core.agent import should_deliberate
+
         state = {"deep_reasoning": False, "refinement_count": 0}
         self.assertFalse(should_deliberate(state, "hello", AIMessage(content="Hello!")))
         self.assertFalse(should_deliberate(state, "hi", AIMessage(content="Hi there!")))
@@ -381,14 +387,20 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
     def test_should_deliberate_deep_reasoning_returns_true(self):
         """Test that explicit deep reasoning flag triggers deliberation."""
         from maidere.core.agent import should_deliberate
+
         state = {"deep_reasoning": True, "refinement_count": 0}
-        self.assertTrue(should_deliberate(state, "What are the trade-offs of microservices?", AIMessage(content="Draft answer")))
+        self.assertTrue(
+            should_deliberate(state, "What are the trade-offs of microservices?", AIMessage(content="Draft answer"))
+        )
 
     def test_should_deliberate_already_refined_returns_false(self):
         """Test that already refined state avoids infinite deliberation loops."""
         from maidere.core.agent import should_deliberate
+
         state = {"deep_reasoning": True, "refinement_count": 1}
-        self.assertFalse(should_deliberate(state, "What are the trade-offs of microservices?", AIMessage(content="Refined answer")))
+        self.assertFalse(
+            should_deliberate(state, "What are the trade-offs of microservices?", AIMessage(content="Refined answer"))
+        )
 
     def test_should_continue_routes_to_critique_when_deep_reasoning(self):
         """Test should_continue routes to verify/critique when deep reasoning is active."""
@@ -507,6 +519,7 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
                 await checkpointer_ctx.__aexit__(None, None, None)
         finally:
             import os
+
             if os.path.exists(temp_db_path):
                 os.remove(temp_db_path)
 
@@ -517,6 +530,7 @@ class TestTopicChangeDetection(unittest.TestCase):
     def test_detect_topic_change_same_topic(self):
         """Same topic should NOT trigger topic change."""
         from maidere.core.agent import detect_topic_change
+
         query = "Explain the tie-breaker rule in the inventory system"
         context = "The inventory system has three containers X, Y, Z. Tie-breaker rules apply when containers have equal items."
         self.assertFalse(detect_topic_change(query, context))
@@ -524,6 +538,7 @@ class TestTopicChangeDetection(unittest.TestCase):
     def test_detect_topic_change_different_topic(self):
         """Completely unrelated topics should trigger topic change."""
         from maidere.core.agent import detect_topic_change
+
         query = "Who was the first president of the United States?"
         context = "The inventory system has three containers X, Y, Z with 10 items each. Apply the tie-breaker rule."
         self.assertTrue(detect_topic_change(query, context))
@@ -531,6 +546,7 @@ class TestTopicChangeDetection(unittest.TestCase):
     def test_detect_topic_change_empty_inputs(self):
         """Empty inputs should not trigger topic change."""
         from maidere.core.agent import detect_topic_change
+
         self.assertFalse(detect_topic_change("", "some context"))
         self.assertFalse(detect_topic_change("some query", ""))
         self.assertFalse(detect_topic_change("", ""))
@@ -538,6 +554,7 @@ class TestTopicChangeDetection(unittest.TestCase):
     def test_detect_topic_change_short_words_only(self):
         """Queries with only stop words should not trigger topic change."""
         from maidere.core.agent import detect_topic_change
+
         self.assertFalse(detect_topic_change("is it", "the"))
 
     def test_trim_messages_prunes_on_topic_change(self):
@@ -545,8 +562,12 @@ class TestTopicChangeDetection(unittest.TestCase):
         state = {
             "messages": [
                 SystemMessage(content="System prompt", id="sys-1"),
-                HumanMessage(content="Simulate the inventory system with containers X Y Z and tie-breaker rules", id="h1"),
-                AIMessage(content="The inventory system simulation shows container X=10 Y=10 Z=10 with tie-breaker", id="a1"),
+                HumanMessage(
+                    content="Simulate the inventory system with containers X Y Z and tie-breaker rules", id="h1"
+                ),
+                AIMessage(
+                    content="The inventory system simulation shows container X=10 Y=10 Z=10 with tie-breaker", id="a1"
+                ),
                 HumanMessage(content="Now apply the decay phase to container X with 5 tokens removed", id="h2"),
                 AIMessage(content="After decay phase container X has 5 tokens remaining in the inventory", id="a2"),
                 HumanMessage(content="Who was Napoleon Bonaparte and what battles did he fight?", id="h3"),
@@ -609,12 +630,14 @@ class TestRouterWarningLogging(unittest.TestCase):
         from maidere.core.router import select_model
 
         async def run():
-            with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-                 patch("maidere.core.router.logger") as mock_logger:
+            with (
+                patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models,
+                patch("maidere.core.router.logger") as mock_logger,
+            ):
                 mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
                 mock_logger.awarn = AsyncMock()
 
-                model, reason, _ = await select_model(
+                _model, reason, _ = await select_model(
                     requested_model="auto",
                     query="solve this logic puzzle",
                     thinking_mode=True,
@@ -633,12 +656,14 @@ class TestRouterWarningLogging(unittest.TestCase):
         from maidere.core.router import select_model
 
         async def run():
-            with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-                 patch("maidere.core.router.logger") as mock_logger:
+            with (
+                patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models,
+                patch("maidere.core.router.logger") as mock_logger,
+            ):
                 mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
                 mock_logger.awarn = AsyncMock()
 
-                model, reason, _ = await select_model(
+                _model, reason, _ = await select_model(
                     requested_model=None,
                     query="prove the theorem step-by-step using formal logic",
                     thinking_mode=False,
@@ -647,6 +672,7 @@ class TestRouterWarningLogging(unittest.TestCase):
                 mock_logger.awarn.assert_called_once()
                 call_args = mock_logger.awarn.call_args
                 self.assertEqual(call_args[0][0], "deepseek_not_available")
+
 
 class TestActNodeConcurrencyPartitioning(unittest.IsolatedAsyncioTestCase):
     """Test per-call concurrency classification and act_node execution partitioning."""
@@ -744,6 +770,7 @@ class TestThinkNodeStreaming(unittest.IsolatedAsyncioTestCase):
     async def test_think_node_streams_tokens_to_callback(self):
         """Verify think_node passes on_token callback to llm.chat when direct answer is produced."""
         from langchain_core.messages import HumanMessage
+
         from maidere.core.agent import think_node
 
         streamed_tokens = []
@@ -765,8 +792,10 @@ class TestThinkNodeStreaming(unittest.IsolatedAsyncioTestCase):
             "skip_tools": True,  # Ensures tools_schemas is empty
         }
 
-        with patch("maidere.core.llm.chat", side_effect=fake_streaming_chat), \
-             patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock):
+        with (
+            patch("maidere.core.llm.chat", side_effect=fake_streaming_chat),
+            patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+        ):
             result = await think_node(state)
 
         self.assertEqual(streamed_tokens, ["Hello ", "from ", "stream!"])
@@ -775,5 +804,3 @@ class TestThinkNodeStreaming(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

@@ -80,7 +80,7 @@ class CodeRunnerTool(BaseTool):
                     output_parts.append(f"[Exit code: {result.returncode}]")
                 return "\n".join(output_parts) if output_parts else "Code executed successfully (no output)."
             except Exception as e:
-                return f"Error executing Python snippet: {str(e)}"
+                return f"Error executing Python snippet: {e!s}"
             finally:
                 try:
                     script_file.unlink(missing_ok=True)

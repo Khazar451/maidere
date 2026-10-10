@@ -13,9 +13,9 @@ Isolation layer (``maidere.tools.sandbox``):
 """
 
 import asyncio
+import shlex
 import shutil
 from pathlib import Path
-import shlex
 from typing import Any
 
 from maidere.core.config import settings
@@ -28,6 +28,7 @@ def __getattr__(name: str) -> Any:
     if name == "WORKSPACE":
         return get_workspace()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # Strict allowlist of permitted Linux binaries
 ALLOWED_COMMANDS: set[str] = {
@@ -108,7 +109,7 @@ class ShellTool(BaseTool):
         try:
             args = shlex.split(command.strip())
         except ValueError as e:
-            return f"Error parsing command syntax: {str(e)}"
+            return f"Error parsing command syntax: {e!s}"
 
         if not args:
             return "Error: No command arguments parsed."
@@ -128,7 +129,9 @@ class ShellTool(BaseTool):
         if binary_name == "git":
             for arg in args[1:]:
                 arg_lower = arg.lower()
-                if arg_lower in DISALLOWED_GIT_FLAGS or any(arg_lower.startswith(f"{f}=") for f in DISALLOWED_GIT_FLAGS):
+                if arg_lower in DISALLOWED_GIT_FLAGS or any(
+                    arg_lower.startswith(f"{f}=") for f in DISALLOWED_GIT_FLAGS
+                ):
                     return f"Error: Git flag '{arg}' is blocked by security policy to prevent workspace escaping."
 
             subcmd = None
@@ -168,7 +171,7 @@ class ShellTool(BaseTool):
             except SandboxError as e:
                 return str(e)
             except Exception as e:
-                return f"Error executing command: {str(e)}"
+                return f"Error executing command: {e!s}"
             if result.timed_out:
                 return f"Error: Command execution timed out after {timeout:g} seconds."
             return result.format()

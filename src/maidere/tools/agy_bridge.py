@@ -18,18 +18,14 @@ Security & Resilience Guarantees:
 """
 
 import asyncio
-from datetime import datetime, timezone
 import os
-from pathlib import Path
-import re
 import shutil
 import time
+from pathlib import Path
 from typing import Any
-import uuid
 
 import structlog
 
-from maidere.core.config import settings
 from maidere.core.subagent import (
     generate_handoff_brief,
     prune_artifacts,
@@ -241,11 +237,7 @@ class AgyStafferTool(BaseTool):
                 f"Leave your modifications as an uncommitted working tree diff."
             )
 
-        full_prompt = (
-            f"{persona_directive}\n"
-            f"{dirty_notice}\n\n"
-            f"Assigned Task:\n{actual_task}"
-        )
+        full_prompt = f"{persona_directive}\n{dirty_notice}\n\nAssigned Task:\n{actual_task}"
 
         # Assemble safe argument array (shell=False)
         cmd = [agy_binary, "-p", full_prompt]
@@ -282,7 +274,11 @@ class AgyStafferTool(BaseTool):
             # Check for non-zero exit or rate-limit
             combined_output = f"{stdout}\n{stderr}"
             if process.returncode != 0 or is_rate_limited(combined_output):
-                reason = "Rate-limited / quota exhausted" if is_rate_limited(combined_output) else f"Process exited with code {process.returncode}: {stderr[:200]}"
+                reason = (
+                    "Rate-limited / quota exhausted"
+                    if is_rate_limited(combined_output)
+                    else f"Process exited with code {process.returncode}: {stderr[:200]}"
+                )
                 await logger.awarn(
                     "agy_staffer_rate_limited_or_error",
                     exit_code=process.returncode,
@@ -329,7 +325,7 @@ class AgyStafferTool(BaseTool):
                 f"[END AGY STAFFER RESULT]"
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await logger.awarn("agy_staffer_timeout", task=actual_task[:100])
             return await self._fallback_local_subagent(
                 actual_task,
@@ -341,7 +337,7 @@ class AgyStafferTool(BaseTool):
             return await self._fallback_local_subagent(
                 actual_task,
                 resolved_persona,
-                reason=f"Subprocess error: {str(e)}. Fallback to local subagent.",
+                reason=f"Subprocess error: {e!s}. Fallback to local subagent.",
             )
 
     async def _fallback_local_subagent(self, task: str, persona: str, reason: str) -> str:
@@ -366,10 +362,9 @@ class AgyStafferTool(BaseTool):
             max_turns=6,
         )
 
-        tools_summary = ", ".join(
-            f"{t['tool_name']}({'OK' if t['success'] else 'FAIL'})"
-            for t in res.tools_used
-        ) or "none"
+        tools_summary = (
+            ", ".join(f"{t['tool_name']}({'OK' if t['success'] else 'FAIL'})" for t in res.tools_used) or "none"
+        )
 
         return (
             f"[AGY STAFFER FALLBACK -> LOCAL {target_local_type.upper()}]\n"

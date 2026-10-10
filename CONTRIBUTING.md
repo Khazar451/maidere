@@ -143,16 +143,22 @@ Contributors should familiarize themselves with the modular layout before making
 ## 6. Testing Requirements
 
 ### Running Tests
-The test suite consists of unit and integration tests with mocked LLM calls. Tests must run completely offline without accessing Hugging Face Hub or Ollama:
+The suite is `unittest`, collected by pytest so coverage is measured. It runs offline: Hugging Face Hub stays disabled, and the one end-to-end turn talks to an in-process Ollama stub (`tests/test_ollama_roundtrip.py`), not a real model server.
 
 ```bash
-HF_HUB_OFFLINE=1 .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+uv sync --group dev
+HF_HUB_OFFLINE=1 .venv/bin/ruff check src tests
+HF_HUB_OFFLINE=1 .venv/bin/ruff format --check src tests
+HF_HUB_OFFLINE=1 .venv/bin/mypy
+HF_HUB_OFFLINE=1 .venv/bin/pytest
 ```
+
+`mypy` currently type-checks the security boundary (`paths`, `api.auth`, `core.tokens`, `tools.sandbox`). The rest of the package is still untyped; do not silence new errors in those four modules.
 
 ### Writing New Tests
 - Place tests in the [`tests/`](file:///home/khazar/maidere/tests/) directory following the `test_<module>.py` naming convention.
 - Use `unittest.mock.AsyncMock` or `patch` to mock `maidere.core.llm.chat` and `maidere.core.llm.chat_stream`.
-- Do not rely on an active Ollama instance running during tests.
+- Do not rely on an active Ollama instance running during tests. A local stub is fine.
 - When creating asynchronous test cases, use standard `unittest.IsolatedAsyncioTestCase` or `asyncio.run(coroutine)` within test methods.
 - Ensure 100% of tests pass before opening a pull request.
 

@@ -1,14 +1,12 @@
 """Multimodal attachment processor for images, PDFs, code, and text documents."""
 
 import base64
-import io
 import mimetypes
-import os
-from pathlib import Path
 import re
 import subprocess
-from typing import Any
 import zlib
+from pathlib import Path
+from typing import Any
 
 import structlog
 
@@ -16,15 +14,57 @@ logger = structlog.get_logger()
 
 # Common code & text file extensions
 TEXT_EXTENSIONS = {
-    ".txt", ".md", ".markdown", ".py", ".js", ".jsx", ".ts", ".tsx",
-    ".json", ".csv", ".tsv", ".yaml", ".yml", ".toml", ".ini", ".cfg",
-    ".html", ".htm", ".css", ".scss", ".sass", ".sh", ".bash", ".zsh",
-    ".sql", ".xml", ".svg", ".log", ".env", ".dockerfile", ".r", ".c",
-    ".cpp", ".h", ".hpp", ".rs", ".go", ".java", ".kt", ".swift",
+    ".txt",
+    ".md",
+    ".markdown",
+    ".py",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".json",
+    ".csv",
+    ".tsv",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".html",
+    ".htm",
+    ".css",
+    ".scss",
+    ".sass",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".sql",
+    ".xml",
+    ".svg",
+    ".log",
+    ".env",
+    ".dockerfile",
+    ".r",
+    ".c",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".rs",
+    ".go",
+    ".java",
+    ".kt",
+    ".swift",
 }
 
 IMAGE_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".ico", ".tiff",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".ico",
+    ".tiff",
 }
 
 
@@ -126,7 +166,7 @@ def process_attachment(item: dict[str, Any]) -> dict[str, Any]:
             pdf_bytes = base64.b64decode(b64_content)
             extracted_text = extract_pdf_text(pdf_bytes)
         except Exception as e:
-            extracted_text = f"[Failed to decode PDF: {str(e)}]"
+            extracted_text = f"[Failed to decode PDF: {e!s}]"
 
         return {
             "kind": "pdf",
@@ -195,23 +235,14 @@ def compose_turn_prompt_with_attachments(
                 image_base64_list.append(b64)
         elif kind == "pdf":
             text = item.get("text", "").strip()
-            doc_sections.append(
-                f"### [Attached Document: {name} (PDF)]\n"
-                f"```text\n{text}\n```\n"
-            )
+            doc_sections.append(f"### [Attached Document: {name} (PDF)]\n```text\n{text}\n```\n")
         elif kind == "text":
             text = item.get("text", "").strip()
             ext = Path(name).suffix.lstrip(".").lower() or "text"
-            doc_sections.append(
-                f"### [Attached File: {name}]\n"
-                f"```{ext}\n{text}\n```\n"
-            )
+            doc_sections.append(f"### [Attached File: {name}]\n```{ext}\n{text}\n```\n")
         elif kind == "binary":
             size_kb = max(1, item.get("size", 0) // 1024)
-            doc_sections.append(
-                f"### [Attached Binary File: {name} ({size_kb} KB)]\n"
-                f"(Binary file attached by user)\n"
-            )
+            doc_sections.append(f"### [Attached Binary File: {name} ({size_kb} KB)]\n(Binary file attached by user)\n")
 
     composed_query = user_query.strip()
     if doc_sections:

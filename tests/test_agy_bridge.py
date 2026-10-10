@@ -1,15 +1,14 @@
 """Tests for Phase 2: External AGY Staffer Bridge (tools/agy_bridge.py)."""
 
 import asyncio
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from maidere.core.subagent import SubAgentResult
 from maidere.tools.agy_bridge import (
     AgyStafferTool,
-    find_agy_executable,
     get_workspace_dirty_files,
     is_rate_limited,
 )
@@ -101,7 +100,7 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
         )
         mock_exec.return_value = mock_proc
 
-        with patch("maidere.tools.agy_bridge.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.config.settings.agent_workspace", self.temp_dir.name):
             res = await self.tool.execute(
                 task="Refactor async session context",
                 persona="implementer",
@@ -109,7 +108,7 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
 
         # Ensure create_subprocess_exec called with argument list
         self.assertTrue(mock_exec.called)
-        args, kwargs = mock_exec.call_args
+        args, _kwargs = mock_exec.call_args
         self.assertEqual(args[0], "/usr/local/bin/agy")
         self.assertEqual(args[1], "-p")
         # Ensure prompt contains dirty state notice and directives
@@ -147,7 +146,7 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
             brief="• Local researcher finished.",
         )
 
-        with patch("maidere.tools.agy_bridge.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.config.settings.agent_workspace", self.temp_dir.name):
             res = await self.tool.execute(task="Heavy code scan", persona="researcher")
 
         self.assertIn("[AGY STAFFER FALLBACK -> LOCAL RESEARCHER]", res)

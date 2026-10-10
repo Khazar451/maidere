@@ -2,7 +2,8 @@
 
 import json
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
+
 import httpx
 
 from maidere.core import llm
@@ -29,9 +30,11 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     async def test_chat_cloud_missing_key_raises_error(self):
         """Verify clear ValueError when attempting cloud dispatch without API key."""
-        with patch.object(settings, "cloud_api_key", ""), \
-             patch.object(settings, "nvidia_api_key", ""), \
-             patch.object(settings, "openai_api_key", ""):
+        with (
+            patch.object(settings, "cloud_api_key", ""),
+            patch.object(settings, "nvidia_api_key", ""),
+            patch.object(settings, "openai_api_key", ""),
+        ):
             with self.assertRaises(ValueError) as ctx:
                 await llm.chat(
                     messages=[{"role": "user", "content": "Hi"}],
@@ -62,8 +65,10 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
         )
         mock_post.return_value = mock_response
 
-        with patch.object(settings, "nvidia_api_key", "nvapi-dummy-test-key"), \
-             patch.object(settings, "nvidia_base_url", "https://integrate.api.nvidia.com/v1"):
+        with (
+            patch.object(settings, "nvidia_api_key", "nvapi-dummy-test-key"),
+            patch.object(settings, "nvidia_base_url", "https://integrate.api.nvidia.com/v1"),
+        ):
             result = await llm.chat(
                 messages=[{"role": "user", "content": "Tell me about GPUs"}],
                 model="nvidia/nemotron-3-ultra-550b-a55b",
@@ -87,6 +92,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
     @patch("httpx.AsyncClient.stream")
     async def test_chat_cloud_streaming_with_reasoning_and_content(self, mock_stream):
         """Test streaming cloud chat emits reasoning tokens in <think> tags and content in real-time."""
+
         class MockCloudStream:
             async def __aenter__(self):
                 return self
@@ -108,6 +114,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
         mock_stream.return_value = MockCloudStream()
 
         streamed_tokens = []
+
         async def on_token_cb(token: str):
             streamed_tokens.append(token)
 
@@ -133,6 +140,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
     @patch("httpx.AsyncClient.stream")
     async def test_chat_cloud_streaming_tool_call_assembly(self, mock_stream):
         """Test streaming cloud chat accumulates fragmented delta tool calls."""
+
         class MockToolStream:
             async def __aenter__(self):
                 return self
@@ -151,6 +159,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
         mock_stream.return_value = MockToolStream()
 
         dummy_tokens = []
+
         async def on_tok(t):
             dummy_tokens.append(t)
 
@@ -176,11 +185,12 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     async def test_is_available_returns_true_for_configured_cloud(self):
         """Test llm.is_available returns True if cloud model is configured with an active key."""
-        with patch.object(settings, "ollama_model", "nvidia/nemotron-3-ultra-550b-a55b"), \
-             patch.object(settings, "nvidia_api_key", "nvapi-test-active"):
+        with (
+            patch.object(settings, "ollama_model", "nvidia/nemotron-3-ultra-550b-a55b"),
+            patch.object(settings, "nvidia_api_key", "nvapi-test-active"),
+        ):
             available = await llm.is_available()
             self.assertTrue(available)
-
 
     def test_context_window_resolution(self):
         """Verify dynamic context resolution: local defaults to 8K, cloud to 64K, explicit 128K respected."""
@@ -208,8 +218,9 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     def test_trim_messages_respects_massive_cloud_context(self):
         """Verify that 64K/128K context retains long context that would otherwise be trimmed under 8K."""
-        from maidere.core.agent import trim_messages_node
         from langchain_core.messages import AIMessage, HumanMessage
+
+        from maidere.core.agent import trim_messages_node
 
         # Create message history with ~50,000 characters (~12,500 tokens)
         # In 8K context (limit: 8192 * 0.75 * 4 = 24,576 chars), this would be pruned.
@@ -247,7 +258,6 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
         }
         res_128k = trim_messages_node(state_128k)
         self.assertEqual(res_128k, {}, "128K context should retain all messages without pruning")
-
 
     def test_normalize_messages_for_cloud_tool_compliance(self):
         """Verify _normalize_messages_for_cloud formats tool calls with id, type, and tool_call_id."""
@@ -296,13 +306,18 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     async def test_router_selects_nemotron_for_thinking_when_configured(self):
         """Verify router selects Nemotron for thinking/deep reasoning when configured."""
-        from maidere.core.router import select_model, TaskComplexity
+        from maidere.core.router import TaskComplexity, select_model
 
-        with patch.object(settings, "nvidia_api_key", "nvapi-test-key"), \
-             patch.object(settings, "cloud_model", "nvidia/nemotron-3-ultra-550b-a55b"):
+        with (
+            patch.object(settings, "nvidia_api_key", "nvapi-test-key"),
+            patch.object(settings, "cloud_model", "nvidia/nemotron-3-ultra-550b-a55b"),
+        ):
             # When requested_model is "auto" and thinking_mode is True, and no local deepseek exists:
-            with patch("maidere.core.router.get_available_models", return_value=["nvidia/nemotron-3-ultra-550b-a55b", "qwen2.5:7b-instruct"]):
-                model, reason, complexity = await select_model(
+            with patch(
+                "maidere.core.router.get_available_models",
+                return_value=["nvidia/nemotron-3-ultra-550b-a55b", "qwen2.5:7b-instruct"],
+            ):
+                model, _reason, complexity = await select_model(
                     requested_model="auto",
                     query="Prove Pythagorean theorem",
                     thinking_mode=True,
@@ -311,7 +326,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(complexity, TaskComplexity.REASONING)
 
                 # And for deep reasoning
-                model2, reason2, complexity2 = await select_model(
+                model2, _reason2, complexity2 = await select_model(
                     requested_model="auto",
                     query="Analyze logic paradox",
                     deep_reasoning=True,
@@ -322,5 +337,3 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

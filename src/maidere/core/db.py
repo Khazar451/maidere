@@ -7,6 +7,9 @@ Every connection from this module has:
 - sqlite-vec loaded for vector similarity search
 """
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 import aiosqlite
 import sqlite_vec
 import structlog
@@ -56,11 +59,6 @@ INIT_TABLES_SQL = [
 ]
 
 
-
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-
-
 @asynccontextmanager
 async def get_db_context(db_path: str = "db/maidere.db") -> AsyncGenerator[aiosqlite.Connection, None]:
     """Async context manager that acquires and safely closes an SQLite connection."""
@@ -101,7 +99,6 @@ async def get_db(db_path: str = "db/maidere.db") -> aiosqlite.Connection:
     return db
 
 
-
 async def init_tables(db: aiosqlite.Connection) -> None:
     """Create application tables if they don't exist."""
     for sql in INIT_TABLES_SQL:
@@ -113,4 +110,3 @@ async def init_tables(db: aiosqlite.Connection) -> None:
 
     await init_memory_table(db)
     await logger.ainfo("tables_initialized")
-

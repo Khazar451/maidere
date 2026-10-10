@@ -1,4 +1,3 @@
-import asyncio
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import numpy as np
 from httpx import ASGITransport
-from langchain_core.messages import AIMessage, HumanMessage
 
 from maidere.api.app import create_app
 from maidere.api.routes import set_graph
@@ -58,6 +56,7 @@ class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         await self.client.aclose()
         self.token_patcher.stop()
         await self.checkpointer_ctx.__aexit__(None, None, None)
@@ -85,9 +84,10 @@ class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
-             patch("maidere.core.config.settings.db_path", self.temp_db_path):
-
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response),
+            patch("maidere.core.config.settings.db_path", self.temp_db_path),
+        ):
             # Create 2 threads via chat
             r1 = await self.client.post("/chat", json={"message": "First thread message", "thread_id": "thread-alpha"})
             self.assertEqual(r1.status_code, 200)
@@ -129,20 +129,22 @@ class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
                 "tool_calls": [],
             }
         }
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat, \
-             patch("maidere.core.config.settings.db_path", self.temp_db_path):
-            r = await self.client.post("/chat", json={
-                "message": "Hello with specific model",
-                "thread_id": "thread-model-test",
-                "model": "qwen2.5:7b-instruct",
-            })
+        with (
+            patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat,
+            patch("maidere.core.config.settings.db_path", self.temp_db_path),
+        ):
+            r = await self.client.post(
+                "/chat",
+                json={
+                    "message": "Hello with specific model",
+                    "thread_id": "thread-model-test",
+                    "model": "qwen2.5:7b-instruct",
+                },
+            )
             self.assertEqual(r.status_code, 200)
             passed_models = [call[1].get("model") for call in mock_chat.call_args_list if "model" in call[1]]
             self.assertIn("qwen2.5:7b-instruct", passed_models)
 
 
-
 if __name__ == "__main__":
     unittest.main()
-
-

@@ -1,7 +1,5 @@
 """Tests for Phase 4 components: code_runner, browser, and scheduler."""
 
-import asyncio
-from datetime import datetime
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -13,9 +11,9 @@ from maidere.core.scheduler import (
     shutdown_scheduler,
     start_scheduler,
 )
-from maidere.tools.browser import BrowserTool, browse_url
+from maidere.tools.browser import BrowserTool
 from maidere.tools.code_runner import CodeRunnerTool
-from maidere.tools.registry import execute_tool, get_all_tools, get_tool
+from maidere.tools.registry import get_all_tools
 from maidere.tools.scheduler import SchedulerTool
 
 
@@ -99,6 +97,7 @@ class TestSchedulerSystem(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         shutdown_scheduler()
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)

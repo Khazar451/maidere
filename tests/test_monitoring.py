@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from httpx import ASGITransport
-from prometheus_client import REGISTRY
 
 from maidere.api.app import create_app
 from maidere.api.routes import set_graph
@@ -15,16 +14,13 @@ from maidere.core.db import get_db, init_tables
 from maidere.core.llm import chat as llm_chat
 from maidere.core.memory import recall, store_memory
 from maidere.core.metrics import (
-    ACTIVE_SESSIONS,
-    LLM_DURATION_SECONDS,
     LLM_REQUESTS_TOTAL,
     LLM_TOKENS_TOTAL,
     MEMORY_RECALLS_TOTAL,
     TOOL_CALLS_TOTAL,
-    TOOL_DURATION_SECONDS,
 )
-from tests.authhelpers import AUTH_HEADERS, patch_api_token
 from maidere.tools.registry import execute_tool
+from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
 class TestPrometheusMetrics(unittest.IsolatedAsyncioTestCase):
@@ -50,6 +46,7 @@ class TestPrometheusMetrics(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         await self.client.aclose()
         self.token_patcher.stop()
         await self.checkpointer_ctx.__aexit__(None, None, None)
@@ -60,7 +57,7 @@ class TestPrometheusMetrics(unittest.IsolatedAsyncioTestCase):
         """Test GET /metrics returns valid Prometheus exposition text."""
         # Hit a route first
         await self.client.get("/health")
-        
+
         response = await self.client.get("/metrics")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/plain", response.headers.get("content-type", ""))
@@ -100,10 +97,14 @@ class TestPrometheusMetrics(unittest.IsolatedAsyncioTestCase):
             mock_post.return_value = mock_resp
 
             initial_reqs = LLM_REQUESTS_TOTAL.labels(model="qwen2.5:7b-instruct", status="success")._value.get()
-            initial_prompt_tokens = LLM_TOKENS_TOTAL.labels(model="qwen2.5:7b-instruct", token_type="prompt")._value.get()
-            initial_eval_tokens = LLM_TOKENS_TOTAL.labels(model="qwen2.5:7b-instruct", token_type="completion")._value.get()
+            initial_prompt_tokens = LLM_TOKENS_TOTAL.labels(
+                model="qwen2.5:7b-instruct", token_type="prompt"
+            )._value.get()
+            initial_eval_tokens = LLM_TOKENS_TOTAL.labels(
+                model="qwen2.5:7b-instruct", token_type="completion"
+            )._value.get()
 
-            res = await llm_chat([{"role": "user", "content": "Ping"}], model="qwen2.5:7b-instruct")
+            await llm_chat([{"role": "user", "content": "Ping"}], model="qwen2.5:7b-instruct")
 
             new_reqs = LLM_REQUESTS_TOTAL.labels(model="qwen2.5:7b-instruct", status="success")._value.get()
             new_prompt_tokens = LLM_TOKENS_TOTAL.labels(model="qwen2.5:7b-instruct", token_type="prompt")._value.get()

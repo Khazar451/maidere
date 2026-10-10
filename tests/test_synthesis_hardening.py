@@ -1,17 +1,14 @@
-import re
 import unittest
 from datetime import datetime
-
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from unittest.mock import AsyncMock, patch
+
+from langchain_core.messages import AIMessage, HumanMessage
 
 from maidere.core.agent import (
     get_system_prompt,
     normalize_citations_and_sources,
-    strip_critic_fourth_wall_leaks,
-    restore_markdown_urls,
     refine_node,
-    critique_node,
+    strip_critic_fourth_wall_leaks,
 )
 
 
@@ -106,7 +103,10 @@ class TestSynthesisHardening(unittest.IsolatedAsyncioTestCase):
         # Breakdown 4: Surprise variable prohibition
         self.assertIn("No Surprise Variables or Metrics in Summaries", formatted)
         self.assertIn("Every metric, statistic, number, or variable included in a summary table", formatted)
-        self.assertIn("FORBIDDEN from introducing novel statistics or surprise variables in concluding summary sections", formatted)
+        self.assertIn(
+            "FORBIDDEN from introducing novel statistics or surprise variables in concluding summary sections",
+            formatted,
+        )
 
     async def test_refine_node_strips_fourth_wall_and_enforces_hardening(self):
         """Verify refine_node strips fourth-wall leaks even if LLM includes them in response."""

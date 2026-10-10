@@ -1,7 +1,6 @@
 """Tests for multimodal vision, attachment processing, and vision routing."""
 
 import base64
-import io
 import unittest
 import zlib
 from unittest.mock import AsyncMock, patch
@@ -10,7 +9,6 @@ from maidere.api.schemas import ChatRequest
 from maidere.core.attachments import (
     clean_base64,
     compose_turn_prompt_with_attachments,
-    extract_pdf_text,
     process_attachment,
 )
 from maidere.core.llm import _normalize_messages_for_cloud
@@ -127,7 +125,9 @@ class TestRouterVisionSelection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(comp, TaskComplexity.VISION)
 
     async def test_select_model_auto_routes_to_vision(self):
-        with patch("maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5-vl:7b"])):
+        with patch(
+            "maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5-vl:7b"])
+        ):
             model, reason, complexity = await select_model(
                 requested_model="auto",
                 query="What is in this UI screenshot?",
@@ -138,7 +138,9 @@ class TestRouterVisionSelection(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(reason, "multimodal_vision")
 
     async def test_select_model_respects_explicit_user_override_with_images(self):
-        with patch("maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5-vl:7b"])):
+        with patch(
+            "maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5-vl:7b"])
+        ):
             model, reason, complexity = await select_model(
                 requested_model="my-custom-vision:latest",
                 query="Check this",
@@ -157,7 +159,9 @@ class TestCloudMultimodalNormalization(unittest.TestCase):
             {
                 "role": "user",
                 "content": "Describe this image",
-                "images": ["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                "images": [
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                ],
             }
         ]
         normalized = _normalize_messages_for_cloud(messages)

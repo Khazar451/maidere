@@ -96,6 +96,7 @@ class TestDatabaseRedaction(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
 
@@ -179,20 +180,14 @@ class TestEvaluationNodeAndSelfCorrection(unittest.IsolatedAsyncioTestCase):
     async def test_evaluate_node_no_error(self):
         """When tool succeeds, evaluate_node returns empty dict."""
         state = {
-            "messages": [
-                ToolMessage(content="File created successfully.", tool_call_id="call-1", name="write_file")
-            ]
+            "messages": [ToolMessage(content="File created successfully.", tool_call_id="call-1", name="write_file")]
         }
         res = await evaluate_node(state)
         self.assertEqual(res, {})
 
     async def test_evaluate_node_first_error_injects_guidance(self):
         """On first tool failure, evaluate_node appends self-correction guidance."""
-        state = {
-            "messages": [
-                ToolMessage(content="Error: File not found", tool_call_id="call-1", name="read_file")
-            ]
-        }
+        state = {"messages": [ToolMessage(content="Error: File not found", tool_call_id="call-1", name="read_file")]}
         res = await evaluate_node(state)
         self.assertIn("messages", res)
         updated_msg = res["messages"][0]
@@ -292,6 +287,7 @@ class TestAgentLoopWithEvaluation(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         await self.checkpointer_ctx.__aexit__(None, None, None)
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)
@@ -320,7 +316,9 @@ class TestAgentLoopWithEvaluation(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=[mock_tool_call_response, mock_final_response]):
+        with patch(
+            "maidere.core.llm.chat", new_callable=AsyncMock, side_effect=[mock_tool_call_response, mock_final_response]
+        ):
             config = {"configurable": {"thread_id": "test-eval-loop"}}
             result = await self.graph.ainvoke(
                 {
@@ -348,7 +346,7 @@ class TestBrowserSanitizationAndCap(unittest.IsolatedAsyncioTestCase):
         mock_browser = AsyncMock()
         mock_page = AsyncMock()
         mock_element = AsyncMock()
-        
+
         huge_raw_text = "Headline\n\n\n\n\n   Lots   of   spaces   \n\n" + ("Technical content details. " * 300)
         mock_element.inner_text.return_value = huge_raw_text
         mock_page.query_selector.return_value = mock_element
@@ -361,7 +359,6 @@ class TestBrowserSanitizationAndCap(unittest.IsolatedAsyncioTestCase):
         mock_cm = AsyncMock()
         mock_cm.__aenter__.return_value = mock_p_instance
         mock_playwright.return_value = mock_cm
-
 
         result = await browse_url("https://example.com/huge-spec")
         self.assertLessEqual(len(result), 2500)
@@ -382,4 +379,3 @@ class TestOllamaTimeoutConfiguration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

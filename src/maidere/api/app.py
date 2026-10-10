@@ -67,7 +67,9 @@ def setup_logging() -> None:
         )
 
     root = logging.getLogger()
-    root.handlers.clear()
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+        handler.close()
     root.setLevel(level)
 
     file_handler = logging.handlers.RotatingFileHandler(
@@ -104,6 +106,7 @@ async def lifespan(app: FastAPI):
 
     # Reconcile Tier 2 Auto-Memory index and initialize Tier 1 rules
     from maidere.core.memory_tiers import load_instruction_memory, reconcile_memory_index
+
     load_instruction_memory()
     reconcile_memory_index()
 
@@ -224,6 +227,4 @@ def create_app() -> FastAPI:
     return app
 
 
-
 app = create_app()
-

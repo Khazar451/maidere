@@ -2,7 +2,7 @@
 
 import re
 import time
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import httpx
@@ -13,7 +13,7 @@ from maidere.core.config import settings
 logger = structlog.get_logger()
 
 
-class TaskComplexity(str, Enum):
+class TaskComplexity(StrEnum):
     """Task complexity levels for model routing."""
 
     SIMPLE = "simple"
@@ -50,9 +50,23 @@ _COMPLEX_PATTERNS = [
 ]
 
 _SIMPLE_GREETINGS = {
-    "hello", "hi", "hey", "good morning", "good evening", "good afternoon",
-    "how are you", "who are you", "what can you do", "what is your name",
-    "thanks", "thank you", "bye", "goodbye", "help", "ping", "test",
+    "hello",
+    "hi",
+    "hey",
+    "good morning",
+    "good evening",
+    "good afternoon",
+    "how are you",
+    "who are you",
+    "what can you do",
+    "what is your name",
+    "thanks",
+    "thank you",
+    "bye",
+    "goodbye",
+    "help",
+    "ping",
+    "test",
 }
 
 # Cache for available Ollama models
@@ -224,13 +238,11 @@ async def select_model(
         await logger.awarn(
             "deepseek_not_available",
             message=f"thinking_mode requested but '{thinking_model}' is not installed in Ollama. "
-                    f"Falling back to '{primary}'. Run 'ollama pull {thinking_model}' to enable native thinking.",
+            f"Falling back to '{primary}'. Run 'ollama pull {thinking_model}' to enable native thinking.",
             thinking_model=thinking_model,
             fallback_model=primary,
         )
         return primary, "thinking_mode_primary", TaskComplexity.REASONING
-
-
 
     # 2. User manual override
     if requested_model and requested_model.lower() not in ("auto", "none", ""):
@@ -250,7 +262,7 @@ async def select_model(
             await logger.awarn(
                 "deepseek_not_available",
                 message=f"REASONING query detected but '{thinking_model}' is not installed in Ollama. "
-                        f"Falling back to '{settings.ollama_model}'. Run 'ollama pull {thinking_model}' to enable deep reasoning.",
+                f"Falling back to '{settings.ollama_model}'. Run 'ollama pull {thinking_model}' to enable deep reasoning.",
                 thinking_model=thinking_model,
                 fallback_model=settings.ollama_model,
             )
@@ -265,4 +277,3 @@ async def select_model(
 
     # Complex tasks route to primary 7B model
     return settings.ollama_model, "auto_complex", complexity
-

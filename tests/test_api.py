@@ -6,7 +6,6 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage, HumanMessage
 
 from maidere.api.app import create_app
 from maidere.api.routes import set_graph
@@ -22,8 +21,10 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
 
     @classmethod
     def setUpClass(cls):
-        import numpy as np
         from unittest.mock import MagicMock
+
+        import numpy as np
+
         cls.mock_emb_model = MagicMock()
         cls.mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
         cls.patcher1 = patch("maidere.core.embeddings._get_model", return_value=cls.mock_emb_model)
@@ -65,6 +66,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         import os
+
         self.token_patcher.stop()
         self.db_patcher.stop()
         await self.checkpointer_ctx.__aexit__(None, None, None)
@@ -112,6 +114,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
 
     def test_memories_endpoint(self):
         """Test GET /memories semantic search endpoint."""
+
         # Insert a memory directly
         async def _insert():
             db = await get_db(self.temp_db_path)
@@ -129,7 +132,6 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
             self.assertIn("memories", data)
             self.assertGreaterEqual(len(data["memories"]), 1)
             self.assertIn("Antigravity", data["memories"][0]["content"])
-
 
     def test_chat_endpoint_with_deep_reasoning(self):
         """Test POST /chat with deep_reasoning=True triggers deliberation."""

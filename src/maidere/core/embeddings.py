@@ -5,6 +5,7 @@ Zero VRAM usage — keeps Qwen pinned in GPU memory 24/7.
 """
 
 import os
+
 import structlog
 from fastembed import TextEmbedding
 
@@ -19,16 +20,36 @@ class FallbackEmbedding:
     """Deterministic fallback embedding generator when offline or model is unavailable."""
 
     _STOP_WORDS = {
-        "what", "which", "is", "are", "the", "and", "does", "in", "a", "an",
-        "to", "for", "of", "with", "this", "that", "it", "on", "at", "by"
+        "what",
+        "which",
+        "is",
+        "are",
+        "the",
+        "and",
+        "does",
+        "in",
+        "a",
+        "an",
+        "to",
+        "for",
+        "of",
+        "with",
+        "this",
+        "that",
+        "it",
+        "on",
+        "at",
+        "by",
     }
 
     def embed(self, texts: list[str]):
         import zlib
+
         import numpy as np
+
         for t in texts:
             vec = np.zeros(384, dtype=np.float32)
-            words = [w.strip('.,?!\'\"') for w in t.lower().split()]
+            words = [w.strip(".,?!'\"") for w in t.lower().split()]
             for w in words:
                 if len(w) > 1 and w not in self._STOP_WORDS:
                     idx = zlib.crc32(w.encode("utf-8")) % 384

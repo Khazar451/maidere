@@ -71,13 +71,12 @@ class ReadFileTool(BaseTool):
             if not target.is_file():
                 return f"Error: Path '{clean_path}' is not a file."
 
-
             content = await asyncio.to_thread(target.read_text, encoding="utf-8")
             return content
         except ValueError as e:
             return f"Error: {e}"
         except Exception as e:
-            return f"Error reading file '{path}': {str(e)}"
+            return f"Error reading file '{path}': {e!s}"
 
 
 class WriteFileTool(BaseTool):
@@ -118,7 +117,7 @@ class WriteFileTool(BaseTool):
         except ValueError as e:
             return f"Error: {e}"
         except Exception as e:
-            return f"Error writing file '{path}': {str(e)}"
+            return f"Error writing file '{path}': {e!s}"
 
 
 class ReplaceFileContentTool(BaseTool):
@@ -208,7 +207,7 @@ class ReplaceFileContentTool(BaseTool):
         except ValueError as e:
             return f"Error: {e}"
         except Exception as e:
-            return f"Error editing file '{path}': {str(e)}"
+            return f"Error editing file '{path}': {e!s}"
 
 
 class RollbackFileTool(BaseTool):
@@ -244,8 +243,7 @@ class RollbackFileTool(BaseTool):
         except ValueError as e:
             return f"Error: {e}"
         except Exception as e:
-            return f"Error rolling back file '{path}': {str(e)}"
-
+            return f"Error rolling back file '{path}': {e!s}"
 
 
 class ListDirTool(BaseTool):
@@ -288,4 +286,4 @@ class ListDirTool(BaseTool):
         except ValueError as e:
             return f"Error: {e}"
         except Exception as e:
-            return f"Error listing directory '{path}': {str(e)}"
+            return f"Error listing directory '{path}': {e!s}"

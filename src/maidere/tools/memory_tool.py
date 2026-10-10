@@ -89,7 +89,9 @@ class ManageMemoryTool(BaseTool):
                 return "No persistent memory topics currently indexed."
             lines = ["[INDEXED AUTO-MEMORY TOPICS]"]
             for t in topics:
-                lines.append(f"- **{t.get('topic')}** ({t.get('category')}): {t.get('summary')} (file: {t.get('file')})")
+                lines.append(
+                    f"- **{t.get('topic')}** ({t.get('category')}): {t.get('summary')} (file: {t.get('file')})"
+                )
             return "\n".join(lines)
 
         elif clean_action == "view_rules":

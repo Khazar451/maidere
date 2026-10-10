@@ -8,7 +8,6 @@ Enables the agent to:
 """
 
 import base64
-import json
 from typing import Any
 
 import httpx
@@ -176,10 +175,10 @@ class GitHubTool(BaseTool):
                 return f"Error: Validation failed (422 Unprocessable Entity): {msg}"
             return f"Error: GitHub API request failed with status {status}: {e.response.text[:300]}"
         except httpx.RequestError as e:
-            return f"Error: Failed to connect to GitHub API: {str(e)}"
+            return f"Error: Failed to connect to GitHub API: {e!s}"
         except Exception as e:
             await logger.aerror("github_tool_failed", action=action, repo=repo, error=str(e))
-            return f"Error executing GitHub action '{action}': {str(e)}"
+            return f"Error executing GitHub action '{action}': {e!s}"
 
     async def _get_workflow_runs(self, repo: str) -> str:
         """Fetch recent workflow runs."""
@@ -204,7 +203,7 @@ class GitHubTool(BaseTool):
             created = r.get("created_at", "")[:19]
             lines.append(
                 f"- Run ID {run_id} | Name: '{name}' | Status: {status} | "
-                f"Conclusion: {conclusion} | Branch: {branch} | Commit: \"{commit_msg}\" | Created: {created}"
+                f'Conclusion: {conclusion} | Branch: {branch} | Commit: "{commit_msg}" | Created: {created}'
             )
         return "\n".join(lines)
 
@@ -271,7 +270,7 @@ class GitHubTool(BaseTool):
                             output_lines.extend(f"  {line}" for line in tail_lines)
                             output_lines.append("  ----------------------------------------")
                     except Exception as ex:
-                        output_lines.append(f"  (Could not fetch log text: {str(ex)})")
+                        output_lines.append(f"  (Could not fetch log text: {ex!s})")
 
             if not found_failure:
                 output_lines.append("\nAll jobs in this run passed or are currently in progress.")
@@ -315,7 +314,7 @@ class GitHubTool(BaseTool):
         user = (iss.get("user") or {}).get("login", "unknown")
         body = iss.get("body") or "No description provided."
         created = iss.get("created_at", "")[:19]
-        labels = [l.get("name", "") for l in iss.get("labels", []) if l.get("name")]
+        labels = [label.get("name", "") for label in iss.get("labels", []) if label.get("name")]
 
         res = [
             f"Issue #{issue_number} ({repo}): {title}",
