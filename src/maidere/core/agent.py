@@ -28,7 +28,6 @@ from langgraph.graph import END, StateGraph
 
 from maidere.core import llm
 from maidere.core.config import settings
-from maidere.core.db import get_db
 from maidere.core.memory import format_memories, recall
 from maidere.core.state import AgentState
 from maidere.tools.registry import (
@@ -268,8 +267,9 @@ async def remember_node(state: AgentState) -> dict:
     # 2. Semantic Memory Retrieval from sqlite-vec
     if latest_user_query:
         try:
-            db = await get_db(settings.db_path)
-            try:
+            from maidere.core.db import get_db_context
+
+            async with get_db_context(settings.db_path) as db:
                 memories = await recall(db, query=latest_user_query, top_k=5)
                 if memories:
                     mem_formatted = format_memories(memories)
@@ -283,8 +283,6 @@ async def remember_node(state: AgentState) -> dict:
                                 "level": "info",
                             },
                         )
-            finally:
-                await db.close()
         except Exception as e:
             await logger.aerror("remember_failed", error=str(e))
 

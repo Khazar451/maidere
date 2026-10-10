@@ -1,8 +1,10 @@
 """FastAPI routes for Maidere API."""
 
 import asyncio
+import json
 import re
 import uuid
+from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 import structlog
@@ -50,6 +52,52 @@ _graph = None
 _active_generation_tasks: dict[str, asyncio.Task] = {}
 # Fire-and-forget tasks (session extraction). Held so the loop does not drop them.
 _background_tasks: set[asyncio.Task] = set()
+_generation_slots = 0
+
+
+class GenerationBusy(Exception):
+    """Raised when too many generations are already running."""
+
+
+@asynccontextmanager
+async def generation_slot():
+    """Limit how many agent turns run at once."""
+    global _generation_slots
+    if _generation_slots >= settings.max_concurrent_generations:
+        raise GenerationBusy()
+    _generation_slots += 1
+    try:
+        yield
+    finally:
+        _generation_slots = max(0, _generation_slots - 1)
+
+
+def agent_http_error(exc: Exception) -> HTTPException:
+    """Map an agent failure to a status that says what actually failed."""
+    import httpx
+
+    if isinstance(exc, httpx.TimeoutException):
+        return HTTPException(
+            status_code=504,
+            detail={"code": "llm_timeout", "message": "The model took too long to respond."},
+        )
+    if isinstance(exc, httpx.ConnectError):
+        return HTTPException(
+            status_code=503,
+            detail={"code": "llm_unavailable", "message": "The model server is not reachable."},
+        )
+    if isinstance(exc, httpx.HTTPStatusError):
+        return HTTPException(
+            status_code=502,
+            detail={
+                "code": "llm_http_error",
+                "message": f"The model server returned HTTP {exc.response.status_code}.",
+            },
+        )
+    return HTTPException(
+        status_code=500,
+        detail={"code": "agent_error", "message": "The agent failed before it could answer."},
+    )
 
 
 def set_graph(graph) -> None:
@@ -286,34 +334,37 @@ async def chat(request: ChatRequest) -> ChatResponse:
         resolved_num_ctx = request.num_ctx or (
             getattr(settings, "cloud_num_ctx", 65536) if llm.is_cloud_model(model_name) else settings.ollama_num_ctx
         )
-        result = await _graph.ainvoke(
-            {
-                "messages": [HumanMessage(content=composed_query)],
-                "memory_context": "No relevant memories found.",
-                "thread_id": thread_id,
-                "model": model_name,
-                "num_ctx": resolved_num_ctx,
-                "has_delegated": False,
-                "tool_loop_count": 0,
-                "subagent_results": [],
-                "thinking_mode": bool(request.thinking_mode),
-                "deep_reasoning": bool(request.deep_reasoning),
-                "critique": "",
-                "refinement_count": 0,
-                "reasoning_steps": [],
-                "username": (request.username or "").strip() or "User",
-                "images": extracted_images,
-                "attachments": incoming_attachments,
-            },
-            config=config,
-        )
+        async with generation_slot():
+            result = await _graph.ainvoke(
+                {
+                    "messages": [HumanMessage(content=composed_query)],
+                    "memory_context": "No relevant memories found.",
+                    "thread_id": thread_id,
+                    "model": model_name,
+                    "num_ctx": resolved_num_ctx,
+                    "has_delegated": False,
+                    "tool_loop_count": 0,
+                    "subagent_results": [],
+                    "thinking_mode": bool(request.thinking_mode),
+                    "deep_reasoning": bool(request.deep_reasoning),
+                    "critique": "",
+                    "refinement_count": 0,
+                    "reasoning_steps": [],
+                    "username": (request.username or "").strip() or "User",
+                    "images": extracted_images,
+                    "attachments": incoming_attachments,
+                },
+                config=config,
+            )
 
+    except GenerationBusy:
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "busy", "message": "Too many generations are already running."},
+        ) from None
     except Exception as e:
         await logger.aerror("chat_failed", thread_id=thread_id, error=str(e))
-        raise HTTPException(
-            status_code=503,
-            detail=f"LLM unavailable. Is Ollama running? Error: {type(e).__name__}",
-        ) from e
+        raise agent_http_error(e) from e
 
     # 2. Check for conversation summarization trigger & update AI thread title
     all_messages = result.get("messages", [])
@@ -490,6 +541,10 @@ async def websocket_chat(websocket: WebSocket) -> None:
                         await websocket.send_json({"type": "cancelled", "thread_id": cancel_tid})
                 continue
 
+            if len(json.dumps(data)) > settings.max_ws_message_bytes:
+                await websocket.send_json({"type": "error", "message": "Message is too large."})
+                continue
+
             message_text = data.get("message", "").strip()
             thread_id = data.get("thread_id") or str(uuid.uuid4())
 
@@ -538,10 +593,11 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             # Wire rich agent telemetry and sub-agent progress to WebSocket
             from maidere.core.agent import register_event_callback, unregister_event_callback
-            from maidere.core.subagent import clear_progress_callback, set_progress_callback
+            from maidere.core.subagent import register_progress_callback, unregister_progress_callback
 
             register_event_callback(thread_id, safe_ws_send)
-            set_progress_callback(safe_ws_send)
+            register_progress_callback(thread_id, safe_ws_send)
+            structlog.contextvars.bind_contextvars(thread_id=thread_id)
 
             async def token_stream_handler(token_text: str, tid: str = thread_id) -> None:
                 await safe_ws_send(
@@ -563,6 +619,21 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             register_stream_callback(thread_id, token_stream_handler)
             user_name = str(data.get("username") or "").strip() or "User"
+            if _generation_slots >= settings.max_concurrent_generations:
+                unregister_stream_callback(thread_id)
+                unregister_event_callback(thread_id)
+                unregister_progress_callback(thread_id)
+                await safe_ws_send(
+                    {
+                        "type": "error",
+                        "message": "Too many generations are already running.",
+                        "thread_id": thread_id,
+                    }
+                )
+                continue
+
+            slot = generation_slot()
+            await slot.__aenter__()
             generation_task = asyncio.create_task(
                 _graph.ainvoke(
                     {
@@ -617,8 +688,10 @@ async def websocket_chat(websocket: WebSocket) -> None:
             finally:
                 unregister_stream_callback(thread_id)
                 unregister_event_callback(thread_id)
-                clear_progress_callback()
+                unregister_progress_callback(thread_id)
+                structlog.contextvars.unbind_contextvars("thread_id")
                 _active_generation_tasks.pop(thread_id, None)
+                await slot.__aexit__(None, None, None)
 
     except WebSocketDisconnect:
         await logger.ainfo("ws_disconnected")
@@ -827,9 +900,14 @@ async def get_system_prompt_setting() -> dict[str, Any]:
 
 @router.put("/settings/system-prompt")
 async def update_system_prompt_setting(payload: dict[str, Any]) -> dict[str, Any]:
-    """Update custom system prompt."""
+    """Update the custom system prompt and store it in the database."""
+    from maidere.core.db import set_setting
+
     prompt = payload.get("system_prompt")
-    set_custom_system_prompt(prompt)
+    set_custom_system_prompt(prompt if isinstance(prompt, str) else None)
+    async with get_db_context(settings.db_path) as db:
+        stored = prompt.strip() if isinstance(prompt, str) and prompt.strip() else None
+        await set_setting(db, "system_prompt", stored)
     return {"status": "updated", "system_prompt": get_system_prompt()}
 
 
@@ -895,7 +973,7 @@ async def get_user_profile() -> UserProfileResponse:
     """Get active username and previously known local nicknames."""
     async with (
         get_db_context(settings.db_path) as db,
-        db.execute("SELECT display_name FROM users WHERE lower(display_name) != 'khazar' ORDER BY id DESC") as cursor,
+        db.execute("SELECT display_name FROM users ORDER BY id DESC") as cursor,
     ):
         rows = await cursor.fetchall()
         names = [r["display_name"] for r in rows if r["display_name"]]

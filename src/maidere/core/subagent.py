@@ -49,25 +49,43 @@ SUBAGENT_ALLOWED_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# --- Progress Callback ---
+# --- Progress Callbacks (one per conversation thread) ---
 
-_progress_callback: Callable[[dict], Coroutine] | None = None
+_LEGACY_PROGRESS_KEY = ""
+_progress_callbacks: dict[str, Callable[[dict], Coroutine]] = {}
+
+
+def register_progress_callback(thread_id: str, callback: Callable[[dict], Coroutine]) -> None:
+    """Route this thread's subagent events to `callback` only."""
+    _progress_callbacks[thread_id] = callback
+
+
+def unregister_progress_callback(thread_id: str) -> None:
+    """Drop the callback for one thread. Other threads are left alone."""
+    _progress_callbacks.pop(thread_id, None)
 
 
 def set_progress_callback(callback: Callable[[dict], Coroutine] | None) -> None:
-    """Set async callback for real-time sub-agent progress events.
+    """Register a callback for callers that do not have a thread id.
 
-    Called from the WebSocket route handler before graph invocation.
-    Cleared after invocation completes.
+    Kept so existing tests keep working. Concurrent chats must use
+    `register_progress_callback(thread_id, ...)` instead.
     """
-    global _progress_callback
-    _progress_callback = callback
+    if callback is None:
+        _progress_callbacks.pop(_LEGACY_PROGRESS_KEY, None)
+    else:
+        _progress_callbacks[_LEGACY_PROGRESS_KEY] = callback
 
 
 def clear_progress_callback() -> None:
-    """Clear the progress callback after query completes."""
-    global _progress_callback
-    _progress_callback = None
+    """Clear the legacy (no thread id) progress callback."""
+    _progress_callbacks.pop(_LEGACY_PROGRESS_KEY, None)
+
+
+def _callback_for(thread_id: str | None) -> Callable[[dict], Coroutine] | None:
+    if thread_id:
+        return _progress_callbacks.get(thread_id)
+    return _progress_callbacks.get(_LEGACY_PROGRESS_KEY)
 
 
 # --- Sub-Agent System Prompt ---
@@ -685,6 +703,7 @@ async def run_subagent(
     subagent_index: int = 1,
     total_subagents: int = 1,
     num_ctx: int | None = None,
+    thread_id: str | None = None,
 ) -> SubAgentResult:
     """Run a focused sub-agent with its own fresh context window.
 
@@ -754,11 +773,12 @@ async def run_subagent(
     ]
 
     final_content = ""
+    progress = _callback_for(thread_id)
 
     # Emit progress: started
-    if _progress_callback:
+    if progress:
         try:
-            await _progress_callback(
+            await progress(
                 {
                     "type": "subagent_started",
                     "task": task,
@@ -804,9 +824,9 @@ async def run_subagent(
                         tool_args = {"query": tool_args}
 
                 # Emit progress: tool started
-                if _progress_callback:
+                if progress:
                     try:
-                        await _progress_callback(
+                        await progress(
                             {
                                 "type": "subagent_tool_started",
                                 "tool_name": tool_name,
@@ -895,11 +915,11 @@ async def run_subagent(
                 messages.append({"role": "tool", "content": str(result)})
 
                 # Emit progress: tool executed
-                if _progress_callback:
+                if progress:
                     try:
                         res_str = str(result)
                         preview = res_str[:120].replace("\n", " ").strip()
-                        await _progress_callback(
+                        await progress(
                             {
                                 "type": "subagent_tool",
                                 "tool_name": tool_name,
@@ -973,9 +993,9 @@ async def run_subagent(
         # Store result in vector memory with strict tagging (user requirement)
         await _store_subagent_memory(task, final_content, subagent_type=agent_def.name)
 
-        if _progress_callback:
+        if progress:
             try:
-                await _progress_callback(
+                await progress(
                     {
                         "type": "agent_log",
                         "text": f"[MEMORY] Sub-Agent [{agent_def.name}] persisted research findings to vector database",
@@ -997,9 +1017,9 @@ async def run_subagent(
         )
 
         # Emit progress: completed
-        if _progress_callback:
+        if progress:
             try:
-                await _progress_callback(
+                await progress(
                     {
                         "type": "subagent_completed",
                         "index": subagent_index,

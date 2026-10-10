@@ -6,8 +6,6 @@ from typing import Any
 
 import structlog
 
-from maidere.core.db import get_db
-
 logger = structlog.get_logger()
 
 # ---------------------------------------------------------------------------
@@ -71,9 +69,9 @@ async def record_audit(
         from maidere.core.config import settings
 
         path = db_path or settings.db_path
-        db = await get_db(path)
-        try:
-            # Sanitize arguments and results before persisting
+        from maidere.core.db import get_db_context
+
+        async with get_db_context(path) as db:
             sanitized_args_str = sanitize_secrets(json.dumps(tool_args))
             sanitized_result = sanitize_secrets(tool_result)[:2000]
 
@@ -92,8 +90,6 @@ async def record_audit(
                 ),
             )
             await db.commit()
-        finally:
-            await db.close()
     except Exception as e:
         await logger.aerror("audit_log_failed", tool=tool_name, error=str(e))
 

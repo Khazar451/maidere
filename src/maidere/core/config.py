@@ -84,7 +84,12 @@ class Settings(BaseSettings):
 
     # GitHub Integration
     github_token: str = ""
-    github_default_repo: str = "Khazar451/maidere"
+    github_default_repo: str = ""
+
+    # How many chat generations may run at once, and how large one WebSocket
+    # frame may be (attachments included).
+    max_concurrent_generations: int = 2
+    max_ws_message_bytes: int = 2_000_000
 
     # Cloud AI Provider (NVIDIA NIM / OpenAI-compatible endpoints)
     cloud_api_key: str = ""

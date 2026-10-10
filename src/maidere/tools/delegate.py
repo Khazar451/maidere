@@ -133,6 +133,8 @@ class DelegateTaskTool(BaseTool):
         }
         if kwargs.get("num_ctx") is not None:
             subagent_kwargs["num_ctx"] = kwargs["num_ctx"]
+        if kwargs.get("thread_id"):
+            subagent_kwargs["thread_id"] = kwargs["thread_id"]
 
         result = await run_subagent(**subagent_kwargs)
 

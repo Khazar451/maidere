@@ -48,7 +48,7 @@ Maidere is an autonomous, self-hosted AI agent architecture built for local exec
    ```bash
    cp .env.example .env
    ```
-   Inspect [.env](file:///home/khazar/maidere/.env) to ensure default hostnames and ports match your local environment. Note that `.env` is ignored by git.
+   Inspect [.env](.env) to ensure default hostnames and ports match your local environment. Note that `.env` is ignored by git.
 
 ---
 
@@ -56,35 +56,35 @@ Maidere is an autonomous, self-hosted AI agent architecture built for local exec
 
 Contributors should familiarize themselves with the modular layout before making changes:
 
-- **[`core/`](file:///home/khazar/maidere/src/maidere/core/)**: Agent runtime engine
-  - [`agent.py`](file:///home/khazar/maidere/src/maidere/core/agent.py): LangGraph StateGraph definition, node pipelines (`trim`, `remember`, `think`, `act`, `evaluate`, `critique`, `refine`), anti-cheat guardrails, and citation formatting.
-  - [`state.py`](file:///home/khazar/maidere/src/maidere/core/state.py): LangGraph typed state dictionary schema.
-  - [`router.py`](file:///home/khazar/maidere/src/maidere/core/router.py): Dynamic model selector and task complexity classifier (SIMPLE, COMPLEX, REASONING).
-  - [`llm.py`](file:///home/khazar/maidere/src/maidere/core/llm.py): Asynchronous Ollama HTTP client and token streaming handler.
-  - [`memory.py`](file:///home/khazar/maidere/src/maidere/core/memory.py): Vector similarity store and recall backed by `sqlite-vec`.
-  - [`embeddings.py`](file:///home/khazar/maidere/src/maidere/core/embeddings.py): Local CPU embeddings via FastEmbed with deterministic offline fallback.
-  - [`subagent.py`](file:///home/khazar/maidere/src/maidere/core/subagent.py): Sub-agent orchestration, execution loops, and lifecycle tracking.
-  - [`audit.py`](file:///home/khazar/maidere/src/maidere/core/audit.py): Secret sanitization and audit log recording.
+- **[`core/`](src/maidere/core/)**: Agent runtime engine
+  - [`agent.py`](src/maidere/core/agent.py): LangGraph StateGraph definition, node pipelines (`trim`, `remember`, `think`, `act`, `evaluate`, `critique`, `refine`), anti-cheat guardrails, and citation formatting.
+  - [`state.py`](src/maidere/core/state.py): LangGraph typed state dictionary schema.
+  - [`router.py`](src/maidere/core/router.py): Dynamic model selector and task complexity classifier (SIMPLE, COMPLEX, REASONING).
+  - [`llm.py`](src/maidere/core/llm.py): Asynchronous Ollama HTTP client and token streaming handler.
+  - [`memory.py`](src/maidere/core/memory.py): Vector similarity store and recall backed by `sqlite-vec`.
+  - [`embeddings.py`](src/maidere/core/embeddings.py): Local CPU embeddings via FastEmbed with deterministic offline fallback.
+  - [`subagent.py`](src/maidere/core/subagent.py): Sub-agent orchestration, execution loops, and lifecycle tracking.
+  - [`audit.py`](src/maidere/core/audit.py): Secret sanitization and audit log recording.
 
-- **[`api/`](file:///home/khazar/maidere/src/maidere/api/)**: Web backend
-  - [`app.py`](file:///home/khazar/maidere/src/maidere/api/app.py): FastAPI application initialization, lifecycle hooks, and CORS setup.
-  - [`routes.py`](file:///home/khazar/maidere/src/maidere/api/routes.py): REST endpoints and real-time streaming WebSocket (`/ws/chat`).
-  - [`schemas.py`](file:///home/khazar/maidere/src/maidere/api/schemas.py): Pydantic request and response models.
+- **[`api/`](src/maidere/api/)**: Web backend
+  - [`app.py`](src/maidere/api/app.py): FastAPI application initialization, lifecycle hooks, and CORS setup.
+  - [`routes.py`](src/maidere/api/routes.py): REST endpoints and real-time streaming WebSocket (`/ws/chat`).
+  - [`schemas.py`](src/maidere/api/schemas.py): Pydantic request and response models.
 
-- **[`tools/`](file:///home/khazar/maidere/src/maidere/tools/)**: Agent capabilities
-  - [`filesystem.py`](file:///home/khazar/maidere/src/maidere/tools/filesystem.py): Sandboxed workspace read and write tools.
-  - [`shell.py`](file:///home/khazar/maidere/src/maidere/tools/shell.py): Safe command execution tool.
-  - [`web_search.py`](file:///home/khazar/maidere/src/maidere/tools/web_search.py): Local SearXNG meta-search integration.
-  - [`browser.py`](file:///home/khazar/maidere/src/maidere/tools/browser.py): Headless page content scraper and text extractor.
-  - [`obsidian.py`](file:///home/khazar/maidere/src/maidere/tools/obsidian.py): Local Obsidian Vault integration and note manager.
-  - [`delegate.py`](file:///home/khazar/maidere/src/maidere/tools/delegate.py): Multi-agent delegation tool for spawning specialized sub-agents.
-  - [`registry.py`](file:///home/khazar/maidere/src/maidere/tools/registry.py): Central tool registry and Ollama JSON function schema generation.
+- **[`tools/`](src/maidere/tools/)**: Agent capabilities
+  - [`filesystem.py`](src/maidere/tools/filesystem.py): Sandboxed workspace read and write tools.
+  - [`shell.py`](src/maidere/tools/shell.py): Safe command execution tool.
+  - [`web_search.py`](src/maidere/tools/web_search.py): Local SearXNG meta-search integration.
+  - [`browser.py`](src/maidere/tools/browser.py): Headless page content scraper and text extractor.
+  - [`obsidian.py`](src/maidere/tools/obsidian.py): Local Obsidian Vault integration and note manager.
+  - [`delegate.py`](src/maidere/tools/delegate.py): Multi-agent delegation tool for spawning specialized sub-agents.
+  - [`registry.py`](src/maidere/tools/registry.py): Central tool registry and Ollama JSON function schema generation.
 
-- **[`agents/`](file:///home/khazar/maidere/src/maidere/agents/)**: Markdown system prompt templates for sub-agent roles (`researcher.md`, `critic.md`, `plan.md`, `code-reviewer.md`, `tech-hardware.md`, `verification.md`, `validation.md`).
+- **[`agents/`](src/maidere/agents/)**: Markdown system prompt templates for sub-agent roles (`researcher.md`, `critic.md`, `plan.md`, `code-reviewer.md`, `tech-hardware.md`, `verification.md`, `validation.md`).
 
-- **[`skills/`](file:///home/khazar/maidere/src/maidere/skills/)**: Procedural step-by-step skill markdown guidelines loaded dynamically into memory.
+- **[`skills/`](src/maidere/skills/)**: Procedural step-by-step skill markdown guidelines loaded dynamically into memory.
 
-- **[`static/`](file:///home/khazar/maidere/src/maidere/static/)**: Browser interface (`index.html`, `style.css`, `app.js`).
+- **[`static/`](src/maidere/static/)**: Browser interface (`index.html`, `style.css`, `app.js`).
 
 ---
 
@@ -122,19 +122,19 @@ Contributors should familiarize themselves with the modular layout before making
 
 ## 5. Security & Data Hygiene
 
-1. **Ignored Files**: Never force-add files ignored by [.gitignore](file:///home/khazar/maidere/.gitignore). This includes:
+1. **Ignored Files**: Never force-add files ignored by [.gitignore](.gitignore). This includes:
    - Environment files (`.env`, `.env.*`)
    - SQLite databases (`db/*.db`, `*.sqlite3`)
    - Log files (`logs/`, `*.log`)
    - Test cache (`.pytest_cache/`)
    - Workspace directories (`workspace/`)
 2. **Secret Sanitization**:
-   - Any text stored into memories or audit tables must pass through `sanitize_secrets()` in [`core/audit.py`](file:///home/khazar/maidere/src/maidere/core/audit.py).
+   - Any text stored into memories or audit tables must pass through `sanitize_secrets()` in [`core/audit.py`](src/maidere/core/audit.py).
    - Test strings in unit tests must use standard mock placeholders (e.g., `AKIAIOSFODNN7EXAMPLE`) and never real keys.
 3. **Workspace Isolation**:
    - File read and write operations initiated by the agent must remain bounded to `settings.agent_workspace`.
 4. **API Authentication**:
-   - All routes are protected by the bearer-token middleware in [`api/auth.py`](file:///home/khazar/maidere/src/maidere/api/auth.py). Do not add routes to the public allowlist (`PUBLIC_EXACT_PATHS` / `PUBLIC_PREFIXES`) unless they expose nothing and are needed before the UI has a token (e.g. `/health`).
+   - All routes are protected by the bearer-token middleware in [`api/auth.py`](src/maidere/api/auth.py). Do not add routes to the public allowlist (`PUBLIC_EXACT_PATHS` / `PUBLIC_PREFIXES`) unless they expose nothing and are needed before the UI has a token (e.g. `/health`).
    - New frontend calls must go through `apiFetch()` in `static/app.js`, never raw `fetch()`, so the `Authorization` header is attached.
    - Tests that build the app must pin a token and send it: use `patch_api_token()` and `AUTH_HEADERS` from `tests/authhelpers.py` (see `tests/test_api.py`). WebSocket tests send `WS_AUTH_FRAME` first. Never let a test read or write `~/.config/maidere/token`.
 
@@ -156,7 +156,7 @@ HF_HUB_OFFLINE=1 .venv/bin/pytest
 `mypy` currently type-checks the security boundary (`paths`, `api.auth`, `core.tokens`, `tools.sandbox`). The rest of the package is still untyped; do not silence new errors in those four modules.
 
 ### Writing New Tests
-- Place tests in the [`tests/`](file:///home/khazar/maidere/tests/) directory following the `test_<module>.py` naming convention.
+- Place tests in the [`tests/`](tests/) directory following the `test_<module>.py` naming convention.
 - Use `unittest.mock.AsyncMock` or `patch` to mock `maidere.core.llm.chat` and `maidere.core.llm.chat_stream`.
 - Do not rely on an active Ollama instance running during tests. A local stub is fine.
 - When creating asynchronous test cases, use standard `unittest.IsolatedAsyncioTestCase` or `asyncio.run(coroutine)` within test methods.

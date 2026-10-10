@@ -27,15 +27,8 @@ def serialize_vector(vec: list[float]) -> bytes:
     return struct.pack(f"{len(vec)}f", *vec)
 
 
-async def init_memory_table(db: aiosqlite.Connection) -> None:
-    """Create the vector memory table if it does not exist, and ensure session_id column is present."""
-    rows = await db.execute_fetchall("SELECT sql FROM sqlite_master WHERE name='memories'")
-    if rows:
-        sql = rows[0]["sql"] or ""
-        if "+session_id" not in sql and "session_id" not in sql:
-            await db.execute("DROP TABLE memories")
-            await db.commit()
-
+async def create_memories_table(db: aiosqlite.Connection) -> None:
+    """Create the vector memory table if it is missing. Never drops an existing table."""
     await db.execute(
         f"""
         CREATE VIRTUAL TABLE IF NOT EXISTS memories
@@ -48,6 +41,45 @@ async def init_memory_table(db: aiosqlite.Connection) -> None:
         """
     )
     await db.commit()
+
+
+async def rebuild_memories_preserving_rows(db: aiosqlite.Connection, db_path: str) -> None:
+    """Rebuild memories when session_id is missing, after a backup, keeping every row."""
+    from maidere.core.db import backup_database
+
+    backed_up = await backup_database(db, db_path)
+    old_rows = await db.execute_fetchall("SELECT content, timestamp FROM memories")
+    await db.execute("DROP TABLE memories")
+    await create_memories_table(db)
+    restored = 0
+    for row in old_rows:
+        content = (row["content"] or "").strip()
+        if not content:
+            continue
+        timestamp = row["timestamp"] or datetime.datetime.now(datetime.UTC).isoformat()
+        vector = embed_one(content)
+        await db.execute(
+            "INSERT INTO memories(embedding, content, timestamp, session_id) VALUES (?, ?, ?, ?)",
+            [serialize_vector(vector), content, timestamp, ""],
+        )
+        restored += 1
+    await db.commit()
+    await logger.ainfo(
+        "memories_rebuilt",
+        restored=restored,
+        backup=str(backed_up) if backed_up else None,
+    )
+
+
+async def init_memory_table(db: aiosqlite.Connection, db_path: str = "") -> None:
+    """Ensure memories exists and has session_id, without discarding rows that already do."""
+    rows = await db.execute_fetchall("SELECT sql FROM sqlite_master WHERE name='memories'")
+    if rows:
+        sql = rows[0]["sql"] or ""
+        if "session_id" not in sql:
+            await rebuild_memories_preserving_rows(db, db_path or "")
+            return
+    await create_memories_table(db)
     await logger.ainfo("memory_table_initialized", dimensions=DIMENSIONS)
 
 

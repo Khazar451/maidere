@@ -51,7 +51,7 @@ class GitHubTool(BaseTool):
             "repo": {
                 "type": "string",
                 "description": (
-                    "Target repository in 'owner/repo' format (e.g., 'Khazar451/maidere'). "
+                    "Target repository in 'owner/repo' format (e.g., 'octocat/hello'). "
                     "Defaults to configured GITHUB_DEFAULT_REPO."
                 ),
             },
@@ -107,13 +107,28 @@ class GitHubTool(BaseTool):
         """Resolve repository name with fallback to default config."""
         if repo and repo.strip():
             return repo.strip()
-        default = getattr(settings, "github_default_repo", "Khazar451/maidere")
-        return default or "Khazar451/maidere"
+        default = (getattr(settings, "github_default_repo", "") or "").strip()
+        return default
 
     async def execute(self, **kwargs: Any) -> str:
         """Execute the specified GitHub action asynchronously."""
         action = kwargs.get("action", "")
         repo = self._resolve_repo(kwargs.get("repo"))
+        known = {
+            "get_workflow_runs",
+            "get_workflow_logs",
+            "list_issues",
+            "get_issue",
+            "create_issue",
+            "create_issue_comment",
+            "get_pull_request",
+            "create_pull_request",
+            "get_file_content",
+        }
+        if action not in known:
+            return f"Error: Unknown GitHub action '{action}'."
+        if not repo:
+            return "Error: No repository specified. Pass repo='owner/name' or set GITHUB_DEFAULT_REPO."
 
         try:
             if action == "get_workflow_runs":

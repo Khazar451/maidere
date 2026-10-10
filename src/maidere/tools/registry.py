@@ -146,7 +146,10 @@ async def execute_tool(
     await logger.ainfo("tool_executing", tool_name=name, thread_id=thread_id, args=args)
 
     try:
-        result = await tool.execute(**args)
+        call_kwargs = dict(args)
+        if thread_id and "thread_id" not in call_kwargs:
+            call_kwargs["thread_id"] = thread_id
+        result = await tool.execute(**call_kwargs)
         if result.startswith("Error:"):
             success = False
     except Exception as e:

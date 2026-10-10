@@ -48,12 +48,7 @@
     activeWs: null,
     attachedFiles: [],
     username: (function () {
-      const stored = localStorage.getItem('maidere_username');
-      if (!stored || stored.toLowerCase() === 'khazar') {
-        localStorage.setItem('maidere_username', 'User');
-        return 'User';
-      }
-      return stored;
+      return localStorage.getItem('maidere_username') || 'User';
     })(),
   };
 
@@ -1875,7 +1870,7 @@
     setupAddContextMenu();
     renderAttachmentsTray();
     updateModeUI();
-    if (!state.username || state.username.toLowerCase() === 'khazar') {
+    if (!state.username) {
       state.username = 'User';
       localStorage.setItem('maidere_username', 'User');
     }

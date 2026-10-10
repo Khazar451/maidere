@@ -219,6 +219,7 @@ class AgyStafferTool(BaseTool):
                     "Google Antigravity CLI ('agy') is not installed on this machine.\n"
                     "Install via: curl -fsSL https://antigravity.google/cli/install.sh | bash"
                 ),
+                thread_id=kwargs.get("thread_id"),
             )
 
         # Build persona directive
@@ -288,6 +289,7 @@ class AgyStafferTool(BaseTool):
                     actual_task,
                     resolved_persona,
                     reason=f"AGY run failed ({reason}). Fallback to local subagent runner.",
+                    thread_id=kwargs.get("thread_id"),
                 )
 
             # Execution succeeded! Write artifact
@@ -331,6 +333,7 @@ class AgyStafferTool(BaseTool):
                 actual_task,
                 resolved_persona,
                 reason="AGY execution timed out after 120s. Fallback to local subagent.",
+                thread_id=kwargs.get("thread_id"),
             )
         except Exception as e:
             await logger.aerror("agy_staffer_exception", error=str(e))
@@ -338,9 +341,10 @@ class AgyStafferTool(BaseTool):
                 actual_task,
                 resolved_persona,
                 reason=f"Subprocess error: {e!s}. Fallback to local subagent.",
+                thread_id=kwargs.get("thread_id"),
             )
 
-    async def _fallback_local_subagent(self, task: str, persona: str, reason: str) -> str:
+    async def _fallback_local_subagent(self, task: str, persona: str, reason: str, thread_id: str | None = None) -> str:
         """Transparently execute task using Maidere's internal subagent engine."""
         # Map agy persona to local subagent definition
         local_mapping = {
@@ -360,6 +364,7 @@ class AgyStafferTool(BaseTool):
             task=task,
             subagent_type=target_local_type,
             max_turns=6,
+            thread_id=thread_id,
         )
 
         tools_summary = (

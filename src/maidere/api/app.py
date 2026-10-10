@@ -10,6 +10,7 @@ Lifespan manages:
 import logging
 import logging.handlers
 import sys
+import uuid
 from contextlib import asynccontextmanager
 
 import structlog
@@ -101,7 +102,14 @@ async def lifespan(app: FastAPI):
 
     # Initialize database tables
     db = await get_db(db_path)
-    await init_tables(db)
+    await init_tables(db, db_path)
+    from maidere.core.db import get_setting
+
+    stored_prompt = await get_setting(db, "system_prompt")
+    if stored_prompt:
+        from maidere.core.agent import set_custom_system_prompt
+
+        set_custom_system_prompt(stored_prompt)
     await db.close()
 
     # Reconcile Tier 2 Auto-Memory index and initialize Tier 1 rules
@@ -169,7 +177,37 @@ async def lifespan(app: FastAPI):
     # Cleanup
     shutdown_scheduler()
     await checkpointer_ctx.__aexit__(None, None, None)
+    from maidere.core.db import close_shared_connections
+
+    await close_shared_connections()
     await log.ainfo("maidere_shutdown")
+
+
+class RequestContextMiddleware:
+    """Bind a request id into the logs and return it as X-Request-Id."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        request_id = uuid.uuid4().hex[:16]
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        async def send_with_id(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers") or [])
+                headers.append((b"x-request-id", request_id.encode("ascii")))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_id)
+        finally:
+            structlog.contextvars.clear_contextvars()
 
 
 def create_app() -> FastAPI:
@@ -188,6 +226,7 @@ def create_app() -> FastAPI:
     # middleware sits directly inside it, so no unauthenticated request ever
     # reaches the router.
     app.add_middleware(AuthMiddleware)
+    app.add_middleware(RequestContextMiddleware)
 
     # CORS: only the origins we serve the UI from (loopback for the configured
     # port) plus any explicitly configured extras. No wildcard, no credentials:
