@@ -1,4 +1,4 @@
-"""Tests for sandboxed filesystem and shell tools."""
+"""Tests for sandboxed filesystem and shell maidere.tools."""
 
 import asyncio
 import os
@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.filesystem import (
+from maidere.tools.filesystem import (
     ListDirTool,
     ReadFileTool,
     ReplaceFileContentTool,
@@ -16,8 +16,8 @@ from tools.filesystem import (
     secure_path,
     WORKSPACE,
 )
-from tools.shell import ShellTool, ALLOWED_COMMANDS
-from tools.registry import get_all_tools, get_tool, get_tools_ollama_schemas, execute_tool
+from maidere.tools.shell import ShellTool, ALLOWED_COMMANDS
+from maidere.tools.registry import get_all_tools, get_tool, get_tools_ollama_schemas, execute_tool
 
 
 class TestFilesystemTools(unittest.IsolatedAsyncioTestCase):
@@ -60,7 +60,7 @@ class TestFilesystemTools(unittest.IsolatedAsyncioTestCase):
                 secure_path(bad_path)
 
     async def test_write_and_read_file(self):
-        """Test write_file and read_file tools."""
+        """Test write_file and read_file maidere.tools."""
         write_tool = WriteFileTool()
         read_tool = ReadFileTool()
 
@@ -232,7 +232,7 @@ class TestShellTool(unittest.IsolatedAsyncioTestCase):
 
     async def test_python_execution(self):
         """Inline python runs under bwrap isolation; restricted mode refuses inline code."""
-        from tools.sandbox import SandboxMode, resolve_mode
+        from maidere.tools.sandbox import SandboxMode, resolve_mode
 
         result = await self.shell_tool.execute("python3 -c \"print(21 * 2)\"")
         if resolve_mode() is SandboxMode.RESTRICTED:
@@ -323,7 +323,7 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(fn["parameters"]["type"], "object")
 
     async def test_execute_tool_dispatcher(self):
-        """Test execute_tool dispatcher handles valid and invalid tools."""
+        """Test execute_tool dispatcher handles valid and invalid maidere.tools."""
         res = await execute_tool("read_file", {"path": "dummy_nonexistent.txt"})
         self.assertIn("Error:", res)
 

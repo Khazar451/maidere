@@ -8,13 +8,13 @@ import httpx
 from httpx import ASGITransport
 from prometheus_client import REGISTRY
 
-from api.app import create_app
-from api.routes import set_graph
-from core.agent import create_graph
-from core.db import get_db, init_tables
-from core.llm import chat as llm_chat
-from core.memory import recall, store_memory
-from core.metrics import (
+from maidere.api.app import create_app
+from maidere.api.routes import set_graph
+from maidere.core.agent import create_graph
+from maidere.core.db import get_db, init_tables
+from maidere.core.llm import chat as llm_chat
+from maidere.core.memory import recall, store_memory
+from maidere.core.metrics import (
     ACTIVE_SESSIONS,
     LLM_DURATION_SECONDS,
     LLM_REQUESTS_TOTAL,
@@ -24,7 +24,7 @@ from core.metrics import (
     TOOL_DURATION_SECONDS,
 )
 from tests.authhelpers import AUTH_HEADERS, patch_api_token
-from tools.registry import execute_tool
+from maidere.tools.registry import execute_tool
 
 
 class TestPrometheusMetrics(unittest.IsolatedAsyncioTestCase):

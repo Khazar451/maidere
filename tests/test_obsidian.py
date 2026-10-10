@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from api.app import app
-from core.config import get_obsidian_vault_info, settings
-from core.skills import load_all_skills, match_skills
+from maidere.api.app import app
+from maidere.core.config import get_obsidian_vault_info, settings
+from maidere.core.skills import load_all_skills, match_skills
 from tests.authhelpers import AUTH_HEADERS, TEST_TOKEN
-from tools.obsidian import ObsidianTool, format_frontmatter
+from maidere.tools.obsidian import ObsidianTool, format_frontmatter
 
 
 class TestObsidianTool(unittest.IsolatedAsyncioTestCase):
@@ -27,7 +27,7 @@ class TestObsidianTool(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.temp_dir.cleanup()
 
-    @patch("tools.obsidian.resolve_vault_path")
+    @patch("maidere.tools.obsidian.resolve_vault_path")
     async def test_write_and_read_note_with_frontmatter(self, mock_resolve):
         mock_resolve.return_value = (self.vault_path, "Test Vault")
 
@@ -58,7 +58,7 @@ class TestObsidianTool(unittest.IsolatedAsyncioTestCase):
         self.assertIn("=== OBSIDIAN NOTE: Hugging Face Architecture.md ===", read_res)
         self.assertIn("Comprehensive details on Transformers", read_res)
 
-    @patch("tools.obsidian.resolve_vault_path")
+    @patch("maidere.tools.obsidian.resolve_vault_path")
     async def test_write_note_in_subfolder(self, mock_resolve):
         mock_resolve.return_value = (self.vault_path, "Test Vault")
 
@@ -76,7 +76,7 @@ class TestObsidianTool(unittest.IsolatedAsyncioTestCase):
         text = sub_file.read_text(encoding="utf-8")
         self.assertIn("> [!NOTE] Model Specs", text)
 
-    @patch("tools.obsidian.resolve_vault_path")
+    @patch("maidere.tools.obsidian.resolve_vault_path")
     async def test_list_and_search_notes(self, mock_resolve):
         mock_resolve.return_value = (self.vault_path, "Test Vault")
 
@@ -96,7 +96,7 @@ class TestObsidianTool(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Note A.md", search_res)
         self.assertIn("PyTorch optimization", search_res)
 
-    @patch("tools.obsidian.resolve_vault_path")
+    @patch("maidere.tools.obsidian.resolve_vault_path")
     @patch("subprocess.Popen")
     async def test_open_note_action(self, mock_popen, mock_resolve):
         mock_resolve.return_value = (self.vault_path, "Test Vault")
@@ -130,7 +130,7 @@ class TestObsidianSkillsAndAPI(unittest.TestCase):
             self.assertIn("vault_path", data)
             self.assertIn("vault_name", data)
 
-            with patch("tools.obsidian.ObsidianTool.execute", new_callable=AsyncMock) as mock_exec:
+            with patch("maidere.tools.obsidian.ObsidianTool.execute", new_callable=AsyncMock) as mock_exec:
                 mock_exec.return_value = "Opened note in Obsidian"
                 open_res = client.post("/obsidian/open", json={"file": "Welcome.md"})
                 self.assertEqual(open_res.status_code, 200)

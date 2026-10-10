@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage
 
-from api.app import create_app
-from api.routes import set_graph
-from core.agent import create_graph
-from core.config import settings
-from core.db import get_db, init_tables
-from core.memory import store_memory
+from maidere.api.app import create_app
+from maidere.api.routes import set_graph
+from maidere.core.agent import create_graph
+from maidere.core.config import settings
+from maidere.core.db import get_db, init_tables
+from maidere.core.memory import store_memory
 from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
@@ -26,10 +26,10 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import MagicMock
         cls.mock_emb_model = MagicMock()
         cls.mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
-        cls.patcher1 = patch("core.embeddings._get_model", return_value=cls.mock_emb_model)
-        cls.patcher2 = patch("core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
-        cls.patcher3 = patch("core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
-        cls.patcher4 = patch("core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher1 = patch("maidere.core.embeddings._get_model", return_value=cls.mock_emb_model)
+        cls.patcher2 = patch("maidere.core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher3 = patch("maidere.core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
+        cls.patcher4 = patch("maidere.core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
         cls.patcher1.start()
         cls.patcher2.start()
         cls.patcher3.start()
@@ -73,7 +73,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
 
     def test_health_endpoint(self):
         """Test GET /health returns status and model info."""
-        with patch("core.llm.is_available", new_callable=AsyncMock, return_value=True):
+        with patch("maidere.core.llm.is_available", new_callable=AsyncMock, return_value=True):
             response = self.client.get("/health")
             self.assertEqual(response.status_code, 200)
             data = response.json()
@@ -90,7 +90,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response):
             # Send chat message
             thread_id = "test-history-thread"
             res = self.client.post("/chat", json={"message": "Hi Maidere!", "thread_id": thread_id})
@@ -122,7 +122,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
 
         asyncio.run(_insert())
 
-        with patch("core.config.settings.db_path", self.temp_db_path):
+        with patch("maidere.core.config.settings.db_path", self.temp_db_path):
             res = self.client.get("/memories", params={"query": "fastembed vector search"})
             self.assertEqual(res.status_code, 200)
             data = res.json()
@@ -155,7 +155,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        with patch("core.llm.chat", new_callable=AsyncMock, side_effect=mock_responses) as mock_chat:
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=mock_responses) as mock_chat:
             res = self.client.post(
                 "/chat",
                 json={
@@ -198,7 +198,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
                 "tool_calls": [],
             }
         }
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             res = self.client.post(
                 "/chat",
                 json={

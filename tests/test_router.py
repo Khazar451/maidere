@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from core.agent import create_graph
-from core.config import settings
-from core.router import (
+from maidere.core.agent import create_graph
+from maidere.core.config import settings
+from maidere.core.router import (
     TaskComplexity,
     classify_complexity,
     get_available_models,
@@ -63,7 +63,7 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_auto_simple_fast_available(self):
         """Test auto routing for simple task uses fast model when available."""
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -75,7 +75,7 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_auto_simple_fast_unavailable_fallback(self):
         """Test auto routing falls back to primary model if fast model not installed."""
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models:
             mock_models.return_value = ["qwen2.5:7b-instruct"]  # only 7b installed
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -101,7 +101,7 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_auto_reasoning_available(self):
         """Test auto routing for reasoning task routes to thinking model when available."""
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b", "deepseek-r1:7b"]
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -113,7 +113,7 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_auto_reasoning_fallback(self):
         """Test auto routing for reasoning falls back to primary 7B if thinking model not installed."""
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -125,7 +125,7 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_auto_complex(self):
         """Test auto routing for complex task uses primary 7B model."""
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -137,7 +137,7 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_forced_thinking_available(self):
         """Test thinking_mode=True routes to thinking model when available."""
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models:
             mock_models.return_value = ["qwen2.5:7b-instruct", "deepseek-r1:7b"]
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -150,7 +150,7 @@ class TestModelRouter(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_forced_thinking_fallback(self):
         """Test thinking_mode=True falls back to primary model if no thinking model installed."""
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -199,9 +199,9 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
+             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
 
             config = {"configurable": {"thread_id": "test-router-simple"}}
@@ -230,9 +230,9 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
+             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
 
             config = {"configurable": {"thread_id": "test-router-complex"}}
@@ -261,9 +261,9 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
+             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b", "deepseek-r1:7b"]
 
             config = {"configurable": {"thread_id": "test-router-reasoning"}}
@@ -292,9 +292,9 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
+             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             mock_models.return_value = ["qwen2.5:7b-instruct", "deepseek-r1:7b"]
 
             config = {"configurable": {"thread_id": "test-router-thinking-flag"}}
@@ -326,9 +326,9 @@ class TestAgentRouterIntegration(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-        with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-             patch("core.agent.recall", new_callable=AsyncMock, return_value=[]), \
-             patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+             patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]), \
+             patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             mock_models.return_value = ["qwen2.5:7b-instruct", "deepseek-r1:7b"]
 
             config = {"configurable": {"thread_id": "test-router-deep-reason-flag"}}

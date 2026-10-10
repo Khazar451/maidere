@@ -8,10 +8,10 @@ import httpx
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from core.agent import create_graph
-from core.config import settings
-from tools.registry import execute_tool, get_tool
-from tools.web_search import WebSearchTool, search_searxng
+from maidere.core.agent import create_graph
+from maidere.core.config import settings
+from maidere.tools.registry import execute_tool, get_tool
+from maidere.tools.web_search import WebSearchTool, search_searxng
 
 
 class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
@@ -151,9 +151,9 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
             request=httpx.Request("GET", f"{settings.searxng_url}/search"),
         )
 
-        with patch("core.llm.chat", side_effect=mock_responses) as mock_chat, \
+        with patch("maidere.core.llm.chat", side_effect=mock_responses) as mock_chat, \
              patch("httpx.AsyncClient.get", return_value=mock_searxng_res), \
-             patch("tools.browser.browse_url", new_callable=AsyncMock, return_value="Article Body: Autonomous agents operate 24/7 with zero VRAM thrashing using fastembed and sqlite-vec."):
+             patch("maidere.tools.browser.browse_url", new_callable=AsyncMock, return_value="Article Body: Autonomous agents operate 24/7 with zero VRAM thrashing using fastembed and sqlite-vec."):
 
             config = {"configurable": {"thread_id": "test-search-browse-thread"}}
             result = await graph.ainvoke(

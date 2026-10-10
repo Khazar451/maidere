@@ -18,8 +18,8 @@ from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from core.agent import act_node, think_node
-from core.subagent import (
+from maidere.core.agent import act_node, think_node
+from maidere.core.subagent import (
     MAX_SUBAGENTS_PER_QUERY,
     SUBAGENT_ALLOWED_TOOLS,
     SUBAGENT_SYSTEM_PROMPT,
@@ -28,14 +28,14 @@ from core.subagent import (
     set_progress_callback,
     clear_progress_callback,
 )
-from tools.delegate import DelegateTaskTool
+from maidere.tools.delegate import DelegateTaskTool
 
 
 class TestSubAgentEngine(unittest.TestCase):
     """Test core subagent execution logic and boundaries."""
 
     def test_subagent_allowed_tools_strictly_readonly(self):
-        """Ensure sub-agents only have read-only data-gathering tools."""
+        """Ensure sub-agents only have read-only data-gathering maidere.tools."""
         self.assertIn("web_search", SUBAGENT_ALLOWED_TOOLS)
         self.assertIn("browser", SUBAGENT_ALLOWED_TOOLS)
         self.assertIn("read_file", SUBAGENT_ALLOWED_TOOLS)
@@ -75,7 +75,9 @@ class TestSubAgentEngine(unittest.TestCase):
     def test_epistemic_grounding_in_researcher_markdown(self):
         """Verify agents/researcher.md contains Epistemic Grounding Directive."""
         from pathlib import Path
-        researcher_path = Path(__file__).resolve().parent.parent / "agents" / "researcher.md"
+        from maidere.paths import agents_dir
+
+        researcher_path = agents_dir() / "researcher.md"
         self.assertTrue(researcher_path.exists())
         content = researcher_path.read_text(encoding="utf-8")
         self.assertIn("EPISTEMIC GROUNDING (CANONICAL FACTS VS. SPECULATION)", content)
@@ -90,7 +92,7 @@ class TestSubAgentEngine(unittest.TestCase):
 
     def test_extract_research_subtasks_sanitizes_fan_theories_and_handles_temporal(self):
         """Verify extract_research_subtasks sanitizes theories and handles temporal anchoring."""
-        from core.agent import extract_research_subtasks
+        from maidere.core.agent import extract_research_subtasks
 
         # Case 1: Fictional query with candidate text containing fan theories -> must be sanitized, no 2026
         model_text = (
@@ -136,8 +138,8 @@ class TestSubAgentEngine(unittest.TestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
-             patch("core.subagent._store_subagent_memory", new_callable=AsyncMock) as mock_store:
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
+             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock) as mock_store:
 
             result = asyncio.run(run_subagent(task="Benchmark React vs Vue", max_turns=3))
 
@@ -148,7 +150,7 @@ class TestSubAgentEngine(unittest.TestCase):
             mock_store.assert_awaited_once()
 
     def test_run_subagent_executes_readonly_tool(self):
-        """Test subagent handles tool calls with allowed read-only tools."""
+        """Test subagent handles tool calls with allowed read-only maidere.tools."""
         responses = [
             # Turn 1: Call web_search
             {
@@ -176,9 +178,9 @@ class TestSubAgentEngine(unittest.TestCase):
             },
         ]
 
-        with patch("core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
-             patch("tools.registry.get_tool") as mock_get_tool, \
-             patch("core.subagent._store_subagent_memory", new_callable=AsyncMock):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
+             patch("maidere.tools.registry.get_tool") as mock_get_tool, \
+             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
 
             mock_search_tool = AsyncMock()
             mock_search_tool.execute = AsyncMock(return_value="1. Svelte 5 benchmarks: 650ms LCP")
@@ -216,14 +218,14 @@ class TestSubAgentEngine(unittest.TestCase):
             {
                 "message": {
                     "role": "assistant",
-                    "content": "Unable to execute shell commands. Researched using available tools.",
+                    "content": "Unable to execute shell commands. Researched using available maidere.tools.",
                     "tool_calls": [],
                 }
             },
         ]
 
-        with patch("core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
-             patch("core.subagent._store_subagent_memory", new_callable=AsyncMock):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
+             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
 
             result = asyncio.run(run_subagent(task="Try shell command", max_turns=3))
 
@@ -249,8 +251,8 @@ class TestSubAgentEngine(unittest.TestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
-             patch("core.subagent._store_subagent_memory", new_callable=AsyncMock):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
+             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
 
             asyncio.run(run_subagent(task="Test Progress", subagent_index=1, total_subagents=1))
 
@@ -286,7 +288,7 @@ class TestDelegateTaskTool(unittest.TestCase):
             turns_used=1,
         )
 
-        with patch("tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_subagent_result):
+        with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_subagent_result):
             for i in range(MAX_SUBAGENTS_PER_QUERY):
                 output = asyncio.run(self.tool.execute(task=f"Subtask {i+1}"))
                 self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
@@ -330,7 +332,7 @@ class TestPatch3InfiniteDelegationPrevention(unittest.TestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             asyncio.run(think_node(state))
 
             # Inspect the tools passed to llm.chat
@@ -356,7 +358,7 @@ class TestPatch3InfiniteDelegationPrevention(unittest.TestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat:
             asyncio.run(think_node(state))
 
             passed_tools = mock_chat.call_args.kwargs.get("tools") or mock_chat.call_args[0][1]
@@ -381,7 +383,7 @@ class TestPatch3InfiniteDelegationPrevention(unittest.TestCase):
             "thread_id": "test_thread",
         }
 
-        with patch("core.agent.execute_tool", new_callable=AsyncMock, return_value="[SUB-AGENT RESEARCH RESULT]"):
+        with patch("maidere.core.agent.execute_tool", new_callable=AsyncMock, return_value="[SUB-AGENT RESEARCH RESULT]"):
             result = asyncio.run(act_node(state))
             self.assertTrue(result.get("has_delegated"))
 
@@ -391,7 +393,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_load_subagent_definitions(self):
         """Verify discovery and loading of subagent files from agents/ directory."""
-        from core.subagent import load_subagent_definitions
+        from maidere.core.subagent import load_subagent_definitions
 
         defs = load_subagent_definitions()
         self.assertIn("researcher", defs)
@@ -431,7 +433,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_verification_and_validation_agent_tool_execution(self):
         """Verify Agent/delegate_task tool execution with verification and validation types."""
-        from tools.delegate import AgentTool
+        from maidere.tools.delegate import AgentTool
 
         tool = AgentTool()
         v_result = SubAgentResult(
@@ -444,7 +446,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             turns_used=2,
         )
 
-        with patch("tools.delegate.run_subagent", new_callable=AsyncMock, return_value=v_result) as mock_run:
+        with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=v_result) as mock_run:
             output = asyncio.run(tool.execute(prompt="Verify mathematical invariant in proof", subagent_type="verification"))
             self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
             self.assertIn("Agent Type: verification", output)
@@ -469,7 +471,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             turns_used=3,
         )
 
-        with patch("tools.delegate.run_subagent", new_callable=AsyncMock, return_value=val_result) as mock_run:
+        with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=val_result) as mock_run:
             output = asyncio.run(tool.execute(prompt="Validate PyTorch 2.6 CUDA 12.8 compatibility in 2026", subagent_type="validation"))
             self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
             self.assertIn("Agent Type: validation", output)
@@ -485,7 +487,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_agent_tool_execution_with_prompt_and_type(self):
         """Verify Agent tool execution with prompt and subagent_type parameters."""
-        from tools.delegate import AgentTool
+        from maidere.tools.delegate import AgentTool
 
         tool = AgentTool()
         mock_result = SubAgentResult(
@@ -498,7 +500,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             turns_used=1,
         )
 
-        with patch("tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_result) as mock_run:
+        with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_result) as mock_run:
             output = asyncio.run(tool.execute(prompt="Review python code", subagent_type="code-reviewer"))
             self.assertIn("[SUB-AGENT RESEARCH RESULT]", output)
             self.assertIn("Agent Type: code-reviewer", output)
@@ -513,7 +515,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_extract_text_tool_calls_with_agent_syntax(self):
         """Verify extract_text_tool_calls parses Agent(...) and delegate_task(...)."""
-        from core.agent import extract_text_tool_calls
+        from maidere.core.agent import extract_text_tool_calls
 
         text = 'Sure! I will run Agent(subagent_type="researcher", prompt="Deep research on Elon Musk") now.'
         calls = extract_text_tool_calls(text, ["Agent", "delegate_task"])
@@ -524,7 +526,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_agent_telemetry_event_callbacks(self):
         """Verify rich agent telemetry events are emitted to registered thread callback."""
-        from core.agent import emit_agent_event, register_event_callback, unregister_event_callback
+        from maidere.core.agent import emit_agent_event, register_event_callback, unregister_event_callback
 
         received = []
 
@@ -541,7 +543,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_subagent_tool_started_and_completed_telemetry(self):
         """Verify subagent emits tool started, tool completed with duration and preview, and memory log."""
-        from core.subagent import clear_progress_callback, run_subagent, set_progress_callback
+        from maidere.core.subagent import clear_progress_callback, run_subagent, set_progress_callback
 
         events = []
 
@@ -569,9 +571,9 @@ class TestClaudeCodeSubagents(unittest.TestCase):
                     "tool_calls": [],
                 }
             }
-            with patch("core.llm.chat", new_callable=AsyncMock, side_effect=[mock_turn1, mock_turn2]), \
-                 patch("tools.registry.get_tool") as mock_get_tool, \
-                 patch("core.subagent._store_subagent_memory", new_callable=AsyncMock):
+            with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=[mock_turn1, mock_turn2]), \
+                 patch("maidere.tools.registry.get_tool") as mock_get_tool, \
+                 patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
 
                 tool_inst = AsyncMock()
                 tool_inst.execute.return_value = "Zen 5 features 16 cores and +16% IPC"
@@ -596,7 +598,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_temporal_anchor_in_system_prompt(self):
         """Verify dynamic date and current year (2026) are anchored in the system prompt."""
         from datetime import datetime
-        from core.agent import get_system_prompt
+        from maidere.core.agent import get_system_prompt
 
         prompt = get_system_prompt()
         now = datetime.now()
@@ -612,7 +614,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_turn_scoping_prevents_prior_toolmessage_leak(self):
         """Verify prior turn's raw ToolMessages are stripped when building LLM context for a new turn."""
         from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-        from core.agent import think_node
+        from maidere.core.agent import think_node
 
         state = {
             "messages": [
@@ -633,8 +635,8 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             captured_messages.extend(messages)
             return {"message": {"role": "assistant", "content": "Here are 2026 internships."}}
 
-        with patch("core.llm.chat", side_effect=fake_chat), \
-             patch("core.agent.emit_agent_event", new_callable=AsyncMock):
+        with patch("maidere.core.llm.chat", side_effect=fake_chat), \
+             patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock):
             asyncio.run(think_node(state))
 
         # Check captured messages sent to Ollama
@@ -653,8 +655,8 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         """Verify Reality Check directive is isolated to tech-hardware subagent and stripped from root orchestrator."""
         from datetime import datetime
         from pathlib import Path
-        from core.agent import get_system_prompt, is_hardware_query
-        from core.subagent import TECH_HARDWARE_SYSTEM_PROMPT, SUBAGENT_SYSTEM_PROMPT
+        from maidere.core.agent import get_system_prompt, is_hardware_query
+        from maidere.core.subagent import TECH_HARDWARE_SYSTEM_PROMPT, SUBAGENT_SYSTEM_PROMPT
 
         # 1. Verify root Orchestrator prompt is clean of hardware directives (NO instruction bleed)
         prompt = get_system_prompt()
@@ -673,7 +675,9 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         self.assertNotIn("NAIRR", SUBAGENT_SYSTEM_PROMPT)
 
         # 3. Verify tech-hardware subagent prompt has the strict Reality Check & NAIRR directives
-        hardware_path = Path(__file__).resolve().parent.parent / "agents" / "tech-hardware.md"
+        from maidere.paths import agents_dir
+
+        hardware_path = agents_dir() / "tech-hardware.md"
         self.assertTrue(hardware_path.exists())
         hardware_content = hardware_path.read_text(encoding="utf-8")
 
@@ -692,7 +696,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_strict_url_citation_rules_in_prompt(self):
         """Verify strict inline index citation rules forbid bibliography sections and require [1]-style inline citations."""
         from datetime import datetime
-        from core.agent import get_system_prompt
+        from maidere.core.agent import get_system_prompt
 
         prompt = get_system_prompt()
         now = datetime.now()
@@ -708,7 +712,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_restore_markdown_urls_revives_stripped_urls(self):
         """Verify restore_markdown_urls revives stripped titles into clickable markdown links."""
         from langchain_core.messages import ToolMessage
-        from core.agent import restore_markdown_urls
+        from maidere.core.agent import restore_markdown_urls
 
         tool_msg = ToolMessage(
             content=(
@@ -751,7 +755,9 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         self.assertIn("Append the current year (2026) to search queries ONLY for financial data", prompt)
         self.assertIn("Do NOT append the current year to queries about historical events, historical figures, or established lore", prompt)
 
-        researcher_path = Path(__file__).resolve().parent.parent / "agents" / "researcher.md"
+        from maidere.paths import agents_dir
+
+        researcher_path = agents_dir() / "researcher.md"
         content = researcher_path.read_text(encoding="utf-8")
         self.assertIn("CONDITIONAL TEMPORAL CONSTRAINT", content)
         self.assertIn("Append the current year (2026) to search queries ONLY for financial data", content)
@@ -760,13 +766,15 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_chronological_timeline_directive_in_prompts(self):
         """Verify Chronological Timeline Directive in researcher.md, subagent prompt, and SYSTEM_PROMPT."""
         from pathlib import Path
-        from core.agent import SYSTEM_PROMPT
+        from maidere.core.agent import SYSTEM_PROMPT
 
         prompt = SUBAGENT_SYSTEM_PROMPT.format(task="Research WWII")
         self.assertIn("CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION", prompt)
         self.assertIn("Verify the exact month, day, and year of consecutive events before establishing cause-and-effect relationships", prompt)
 
-        researcher_path = Path(__file__).resolve().parent.parent / "agents" / "researcher.md"
+        from maidere.paths import agents_dir
+
+        researcher_path = agents_dir() / "researcher.md"
         content = researcher_path.read_text(encoding="utf-8")
         self.assertIn("CHRONOLOGICAL TIMELINE & CAUSALITY VERIFICATION", content)
 
@@ -780,14 +788,16 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         self.assertIn("SEARCH DIVERSITY & REDUNDANCY PREVENTION", prompt)
         self.assertIn("prevent retrieving the same source URL multiple times", prompt)
 
-        researcher_path = Path(__file__).resolve().parent.parent / "agents" / "researcher.md"
+        from maidere.paths import agents_dir
+
+        researcher_path = agents_dir() / "researcher.md"
         content = researcher_path.read_text(encoding="utf-8")
         self.assertIn("SEARCH DIVERSITY & REDUNDANCY PREVENTION", content)
         self.assertIn("prevent retrieving the same source URL multiple times", content)
 
     def test_is_historical_or_lore_and_temporal_sensitivity(self):
         """Verify is_historical_or_lore detects historical/lore queries and suppresses current year."""
-        from core.agent import is_historical_or_lore, is_temporally_sensitive
+        from maidere.core.agent import is_historical_or_lore, is_temporally_sensitive
 
         # Historical figures and events -> True for historical, False for temporally sensitive
         self.assertTrue(is_historical_or_lore("Adolf Hitler biography key events", "Adolf Hitler"))
@@ -815,7 +825,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_extract_research_subtasks_historical_no_2026(self):
         """Verify extract_research_subtasks produces historical decomposition without 2026."""
         from datetime import datetime
-        from core.agent import extract_research_subtasks
+        from maidere.core.agent import extract_research_subtasks
 
         current_year = str(datetime.now().year)
         query = "Adolf Hitler biography key events ideologies impacts 20th-century Europe"
@@ -843,7 +853,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
 
     def test_subagent_url_normalization_and_redundancy_helpers(self):
         """Verify URL normalization and search query redundancy detection."""
-        from core.subagent import normalize_subagent_url, is_search_query_redundant
+        from maidere.core.subagent import normalize_subagent_url, is_search_query_redundant
 
         # URL normalization
         url1 = "https://en.wikipedia.org/wiki/German_military_technology_during_World_War_II#Luftwaffe/"
@@ -861,7 +871,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
     def test_run_subagent_prevents_duplicate_browsing_and_flags_redundancy(self):
         """Verify subagent execution loop prevents duplicate URL browsing and flags redundant searches."""
         from unittest.mock import AsyncMock, patch
-        from core.subagent import run_subagent
+        from maidere.core.subagent import run_subagent
 
         wiki_url = "https://en.wikipedia.org/wiki/German_military_technology_during_World_War_II"
 
@@ -931,9 +941,9 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             },
         ]
 
-        with patch("core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
-             patch("tools.registry.get_tool") as mock_get_tool, \
-             patch("core.subagent._store_subagent_memory", new_callable=AsyncMock):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=responses), \
+             patch("maidere.tools.registry.get_tool") as mock_get_tool, \
+             patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock):
 
             mock_search = AsyncMock()
             mock_search.execute = AsyncMock(return_value=(

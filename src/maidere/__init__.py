@@ -1,2 +1,10 @@
-def main() -> None:
-    print("Hello from maidere!")
+"""Maidere: a self-hosted autonomous AI agent."""
+
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("maidere")
+except PackageNotFoundError:
+    __version__ = "0.1.0"
+
+__all__ = ["__version__"]

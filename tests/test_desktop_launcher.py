@@ -9,8 +9,8 @@ import unittest
 from unittest.mock import MagicMock, patch
 import urllib.error
 
-from core.config import settings
-from desktop.launcher import (
+from maidere.core.config import settings
+from maidere.desktop.launcher import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     build_ui_url,
@@ -56,13 +56,13 @@ class TestDesktopLauncher(unittest.TestCase):
         mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
         self.assertFalse(is_server_healthy("127.0.0.1", 8000))
 
-    @patch("desktop.launcher.is_server_healthy")
+    @patch("maidere.desktop.launcher.is_server_healthy")
     def test_wait_for_server_immediate_ready(self, mock_healthy):
         """Verify wait_for_server returns True when server responds."""
         mock_healthy.return_value = True
         self.assertTrue(wait_for_server("127.0.0.1", 8000, max_wait_sec=1.0))
 
-    @patch("desktop.launcher.is_server_healthy")
+    @patch("maidere.desktop.launcher.is_server_healthy")
     def test_wait_for_server_timeout(self, mock_healthy):
         """Verify wait_for_server returns False when server fails to respond."""
         mock_healthy.return_value = False
@@ -78,7 +78,7 @@ class TestDesktopLauncher(unittest.TestCase):
         cmd = mock_popen.call_args[0][0]
         self.assertIn("--reload", cmd)
         self.assertIn("--reload-dir", cmd)
-        self.assertIn("api.app:app", cmd)
+        self.assertIn("maidere.api.app:app", cmd)
 
         env = mock_popen.call_args[1]["env"]
         self.assertEqual(env.get("MAIDERE_DEV"), "1")
@@ -92,7 +92,7 @@ class TestDesktopLauncher(unittest.TestCase):
         mock_popen.assert_called_once()
         cmd = mock_popen.call_args[0][0]
         self.assertNotIn("--reload", cmd)
-        self.assertIn("api.app:app", cmd)
+        self.assertIn("maidere.api.app:app", cmd)
 
     def test_find_browser_engine_detects_or_safely_falls_back(self):
         """Verify browser detection returns valid tuple."""

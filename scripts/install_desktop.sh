@@ -26,9 +26,10 @@ fi
 
 echo "Using Python binary: $PYTHON_BIN"
 
-# Run installation through Python launcher
+# Run installation through the package entry point.
 cd "$PROJECT_ROOT"
-"$PYTHON_BIN" maidere.py install-desktop
+export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+"$PYTHON_BIN" -m maidere install-desktop
 
 echo ""
 echo "Installation complete!"

@@ -5,7 +5,7 @@ from datetime import datetime
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from unittest.mock import AsyncMock, patch
 
-from core.agent import (
+from maidere.core.agent import (
     get_system_prompt,
     normalize_citations_and_sources,
     strip_critic_fourth_wall_leaks,
@@ -135,7 +135,7 @@ class TestSynthesisHardening(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_leaky_llm_response):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_leaky_llm_response):
             result = await refine_node(state)
             messages = result["messages"]
             self.assertEqual(len(messages), 1)

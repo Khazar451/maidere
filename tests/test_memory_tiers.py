@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from core.memory_tiers import (
+from maidere.core.memory_tiers import (
     MAX_INDEX_ENTRIES,
     extract_session_facts_from_messages,
     format_auto_memory_context,
@@ -19,8 +19,8 @@ from core.memory_tiers import (
     save_auto_memory_fact,
     update_instruction_memory,
 )
-from tools.memory_tool import ManageMemoryTool
-from tools.registry import get_tool
+from maidere.tools.memory_tool import ManageMemoryTool
+from maidere.tools.registry import get_tool
 
 
 class TestMemoryTiers(unittest.IsolatedAsyncioTestCase):
@@ -39,7 +39,7 @@ class TestMemoryTiers(unittest.IsolatedAsyncioTestCase):
 
     def test_tier1_rules_lifecycle_and_backup(self):
         """Verify Tier 1 RULES.md initialization, update with .bak backup, and rollback."""
-        with patch("core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
             # 1. Load default
             rules = load_instruction_memory()
             self.assertIn("Maidere Instruction Memory & Operational Rules", rules)
@@ -63,7 +63,7 @@ class TestMemoryTiers(unittest.IsolatedAsyncioTestCase):
 
     def test_tier2_two_step_save_invariant(self):
         """Verify Step 1 writes the topic markdown file and Step 2 updates index.json."""
-        with patch("core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
             res = save_auto_memory_fact(
                 topic="user_preferences",
                 fact="User prefers dark mode UI and Geist Mono font.",
@@ -88,7 +88,7 @@ class TestMemoryTiers(unittest.IsolatedAsyncioTestCase):
 
     def test_tier2_startup_reconciliation(self):
         """Verify startup reconciliation heals orphaned topic files and prunes dangling pointers."""
-        with patch("core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
             # 1. Create an orphaned topic file on disk directly
             orphaned = self.memory_dir / "arch_decisions.md"
             orphaned.write_text("# Architecture Decisions\n- Used LangGraph for cyclic agent flow.\n", encoding="utf-8")
@@ -124,7 +124,7 @@ class TestMemoryTiers(unittest.IsolatedAsyncioTestCase):
 
     def test_tier2_lru_cap_enforcement(self):
         """Verify index caps entries at MAX_INDEX_ENTRIES (40) via LRU eviction."""
-        with patch("core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
             # Insert 45 distinct facts across different topics
             for i in range(45):
                 save_auto_memory_fact(
@@ -145,7 +145,7 @@ class TestMemoryTiers(unittest.IsolatedAsyncioTestCase):
 
     async def test_tier3_session_extraction_and_deduplication(self):
         """Verify extraction parses user preferences and deduplicates redundant facts."""
-        with patch("core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
             # First turn message
             messages_turn1 = [
                 {"role": "user", "content": "I prefer using Python 3.12 and uv for fast builds."},
@@ -174,7 +174,7 @@ class TestMemoryTiers(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(get_tool("manage_memory"))
         self.assertEqual(get_tool("memory"), get_tool("manage_memory"))
 
-        with patch("core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.memory_tiers.settings.agent_workspace", self.temp_dir.name):
             # 1. save_fact
             save_out = await tool.execute(
                 action="save_fact",

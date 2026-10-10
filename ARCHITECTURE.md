@@ -292,7 +292,9 @@ Ran 245 tests in 4.808s — OK (100% Passed, 0 Failures, 0 Errors)
 | `CLOUD_API_KEY` | `""` | API key for cloud model inference. |
 | `CLOUD_MODEL` | `nvidia/nemotron-3-ultra-550b-a55b` | Cloud model identifier. |
 | `CLOUD_NUM_CTX` | `65536` | Context window size for cloud inference (64K or 128K). |
-| `DB_PATH` | `db/maidere.db` | Local SQLite database file path. |
+| `DB_PATH` | `db/maidere.db` | SQLite database. Relative paths anchor at the repo (checkout) or `~/.local/share/maidere` (installed wheel), never the working directory. |
+| `MAIDERE_RUNTIME_ROOT` | *(checkout or XDG)* | Overrides the base for every relative path. |
+| `MAIDERE_DATA_DIR` | `~/.local/share/maidere` | Data directory used when the package is installed outside a checkout. |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | FastEmbed ONNX model for CPU embeddings. |
 | `AGENT_WORKSPACE` | `workspace` | Root sandbox directory for file read/write operations. |
 | `LOG_PATH` | `logs/maidere.jsonl` | Structured JSON log file destination. |

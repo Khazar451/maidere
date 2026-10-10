@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from core.db import get_db, init_tables
-from core.embeddings import embed_one
-from core.memory import (
+from maidere.core.db import get_db, init_tables
+from maidere.core.embeddings import embed_one
+from maidere.core.memory import (
     format_memories,
     init_memory_table,
     recall,

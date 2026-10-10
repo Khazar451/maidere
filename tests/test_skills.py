@@ -7,16 +7,16 @@ from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from core.agent import create_graph, remember_node
-from core.skills import (
+from maidere.core.agent import create_graph, remember_node
+from maidere.core.skills import (
     Skill,
     get_skills_overview,
     load_all_skills,
     match_skills,
     parse_skill_file,
 )
-from tools.registry import execute_tool, get_tool
-from tools.skills import ListSkillsTool, LoadSkillTool, list_available_skills, load_skill
+from maidere.tools.registry import execute_tool, get_tool
+from maidere.tools.skills import ListSkillsTool, LoadSkillTool, list_available_skills, load_skill
 
 
 class TestSkillDiscoveryAndParsing(unittest.TestCase):
@@ -126,7 +126,7 @@ triggers:
 
 
 class TestSkillTools(unittest.IsolatedAsyncioTestCase):
-    """Test list_available_skills and load_skill tools."""
+    """Test list_available_skills and load_skill maidere.tools."""
 
     async def asyncSetUp(self):
         self.list_tool = ListSkillsTool()
@@ -211,7 +211,7 @@ class TestSkillsAgentIntegration(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        with patch("core.llm.chat", side_effect=mock_responses) as mock_chat:
+        with patch("maidere.core.llm.chat", side_effect=mock_responses) as mock_chat:
             config = {"configurable": {"thread_id": "test-graph-skill-thread"}}
             result = await graph.ainvoke(
                 {

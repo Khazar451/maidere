@@ -5,9 +5,9 @@ import unittest
 from unittest.mock import AsyncMock, patch
 import httpx
 
-from core import llm
-from core.config import settings
-from core.router import get_available_models
+from maidere.core import llm
+from maidere.core.config import settings
+from maidere.core.router import get_available_models
 
 
 class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
@@ -184,7 +184,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     def test_context_window_resolution(self):
         """Verify dynamic context resolution: local defaults to 8K, cloud to 64K, explicit 128K respected."""
-        from core.agent import _resolve_num_ctx
+        from maidere.core.agent import _resolve_num_ctx
 
         # 1. Local model default
         state_local = {"model": "qwen2.5:7b-instruct"}
@@ -208,7 +208,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     def test_trim_messages_respects_massive_cloud_context(self):
         """Verify that 64K/128K context retains long context that would otherwise be trimmed under 8K."""
-        from core.agent import trim_messages_node
+        from maidere.core.agent import trim_messages_node
         from langchain_core.messages import AIMessage, HumanMessage
 
         # Create message history with ~50,000 characters (~12,500 tokens)
@@ -251,7 +251,7 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     def test_normalize_messages_for_cloud_tool_compliance(self):
         """Verify _normalize_messages_for_cloud formats tool calls with id, type, and tool_call_id."""
-        from core.llm import _normalize_messages_for_cloud
+        from maidere.core.llm import _normalize_messages_for_cloud
 
         raw_history = [
             {"role": "user", "content": "Run research"},
@@ -296,12 +296,12 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
 
     async def test_router_selects_nemotron_for_thinking_when_configured(self):
         """Verify router selects Nemotron for thinking/deep reasoning when configured."""
-        from core.router import select_model, TaskComplexity
+        from maidere.core.router import select_model, TaskComplexity
 
         with patch.object(settings, "nvidia_api_key", "nvapi-test-key"), \
              patch.object(settings, "cloud_model", "nvidia/nemotron-3-ultra-550b-a55b"):
             # When requested_model is "auto" and thinking_mode is True, and no local deepseek exists:
-            with patch("core.router.get_available_models", return_value=["nvidia/nemotron-3-ultra-550b-a55b", "qwen2.5:7b-instruct"]):
+            with patch("maidere.core.router.get_available_models", return_value=["nvidia/nemotron-3-ultra-550b-a55b", "qwen2.5:7b-instruct"]):
                 model, reason, complexity = await select_model(
                     requested_model="auto",
                     query="Prove Pythagorean theorem",

@@ -12,11 +12,11 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport
 from starlette.websockets import WebSocketDisconnect
 
-from api.app import create_app
-from api.routes import sanitize_upload_filename
-from core import tokens
-from core.audit import sanitize_secrets
-from core.config import settings
+from maidere.api.app import create_app
+from maidere.api.routes import sanitize_upload_filename
+from maidere.core import tokens
+from maidere.core.audit import sanitize_secrets
+from maidere.core.config import settings
 from tests.authhelpers import AUTH_HEADERS, TEST_TOKEN, WS_AUTH_FRAME, patch_api_token
 
 
@@ -69,7 +69,7 @@ class TestHTTPAuthentication(unittest.TestCase):
     def test_public_paths_need_no_token(self):
         self.assertEqual(self.client.get("/").status_code, 200)
         self.assertEqual(self.client.get("/static/app.js").status_code, 200)
-        with patch("core.llm.is_available", return_value=True):
+        with patch("maidere.core.llm.is_available", return_value=True):
             self.assertEqual(self.client.get("/health").status_code, 200)
 
     def test_auth_can_be_disabled_explicitly(self):

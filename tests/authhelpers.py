@@ -6,7 +6,7 @@ read from or written to the developer's home directory.
 
 from unittest.mock import patch
 
-from core.config import settings
+from maidere.core.config import settings
 
 TEST_TOKEN = "maidere-test-token-0123456789abcdef"
 AUTH_HEADERS = {"Authorization": f"Bearer {TEST_TOKEN}"}

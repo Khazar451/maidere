@@ -8,10 +8,10 @@ import numpy as np
 from httpx import ASGITransport
 from langchain_core.messages import AIMessage, HumanMessage
 
-from api.app import create_app
-from api.routes import set_graph
-from core.agent import create_graph
-from core.db import get_db, init_tables
+from maidere.api.app import create_app
+from maidere.api.routes import set_graph
+from maidere.core.agent import create_graph
+from maidere.core.db import get_db, init_tables
 from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
@@ -22,10 +22,10 @@ class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
     def setUpClass(cls):
         cls.mock_emb_model = MagicMock()
         cls.mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
-        cls.patcher1 = patch("core.embeddings._get_model", return_value=cls.mock_emb_model)
-        cls.patcher2 = patch("core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
-        cls.patcher3 = patch("core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
-        cls.patcher4 = patch("core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher1 = patch("maidere.core.embeddings._get_model", return_value=cls.mock_emb_model)
+        cls.patcher2 = patch("maidere.core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher3 = patch("maidere.core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
+        cls.patcher4 = patch("maidere.core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
         cls.patcher1.start()
         cls.patcher2.start()
         cls.patcher3.start()
@@ -85,8 +85,8 @@ class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
-             patch("core.config.settings.db_path", self.temp_db_path):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response), \
+             patch("maidere.core.config.settings.db_path", self.temp_db_path):
 
             # Create 2 threads via chat
             r1 = await self.client.post("/chat", json={"message": "First thread message", "thread_id": "thread-alpha"})
@@ -129,8 +129,8 @@ class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
                 "tool_calls": [],
             }
         }
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat, \
-             patch("core.config.settings.db_path", self.temp_db_path):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_response) as mock_chat, \
+             patch("maidere.core.config.settings.db_path", self.temp_db_path):
             r = await self.client.post("/chat", json={
                 "message": "Hello with specific model",
                 "thread_id": "thread-model-test",

@@ -6,17 +6,17 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from core.scheduler import (
+from maidere.core.scheduler import (
     add_scheduled_job,
     delete_scheduled_job,
     list_scheduled_jobs,
     shutdown_scheduler,
     start_scheduler,
 )
-from tools.browser import BrowserTool, browse_url
-from tools.code_runner import CodeRunnerTool
-from tools.registry import execute_tool, get_all_tools, get_tool
-from tools.scheduler import SchedulerTool
+from maidere.tools.browser import BrowserTool, browse_url
+from maidere.tools.code_runner import CodeRunnerTool
+from maidere.tools.registry import execute_tool, get_all_tools, get_tool
+from maidere.tools.scheduler import SchedulerTool
 
 
 class TestCodeRunner(unittest.IsolatedAsyncioTestCase):
@@ -65,7 +65,7 @@ class TestBrowserTool(unittest.IsolatedAsyncioTestCase):
         result = await self.browser_tool.execute(url="")
         self.assertIn("Error: Empty URL provided.", result)
 
-    @patch("tools.browser.async_playwright")
+    @patch("maidere.tools.browser.async_playwright")
     async def test_browser_guaranteed_cleanup(self, mock_playwright):
         """Verify that browser.close() is ALWAYS called even if page fails."""
         mock_browser = AsyncMock()
@@ -142,7 +142,7 @@ class TestSchedulerSystem(unittest.IsolatedAsyncioTestCase):
 
     async def test_scheduler_tool_actions(self):
         """Test scheduler tool execute dispatcher."""
-        with patch("core.config.settings.db_path", self.temp_db_path):
+        with patch("maidere.core.config.settings.db_path", self.temp_db_path):
             # Create
             res_create = await self.tool.execute(
                 action="create",

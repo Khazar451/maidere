@@ -9,13 +9,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from api.app import create_app
-from api.routes import set_graph
-from core.agent import MAX_TOOL_LOOPS, act_node, create_graph, get_system_prompt, set_custom_system_prompt, should_continue
-from core.db import get_db, get_db_context, init_tables
-from core.llm import chat_stream
-from core.memory import delete_memory, is_duplicate_memory, list_all_memories, recall, store_memory
-from core.state import AgentState
+from maidere.api.app import create_app
+from maidere.api.routes import set_graph
+from maidere.core.agent import MAX_TOOL_LOOPS, act_node, create_graph, get_system_prompt, set_custom_system_prompt, should_continue
+from maidere.core.db import get_db, get_db_context, init_tables
+from maidere.core.llm import chat_stream
+from maidere.core.memory import delete_memory, is_duplicate_memory, list_all_memories, recall, store_memory
+from maidere.core.state import AgentState
 from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
@@ -82,7 +82,7 @@ class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.05)
             return f"Result for {name}"
 
-        with patch("core.agent.execute_tool", side_effect=mock_exec_tool):
+        with patch("maidere.core.agent.execute_tool", side_effect=mock_exec_tool):
             state = {
                 "messages": [
                     AIMessage(

@@ -6,14 +6,14 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.subagent import SubAgentResult
-from tools.agy_bridge import (
+from maidere.core.subagent import SubAgentResult
+from maidere.tools.agy_bridge import (
     AgyStafferTool,
     find_agy_executable,
     get_workspace_dirty_files,
     is_rate_limited,
 )
-from tools.registry import get_tool
+from maidere.tools.registry import get_tool
 
 
 class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
@@ -64,8 +64,8 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(dirty, ["src/index.ts", "notes/new.md", "old.txt"])
 
-    @patch("tools.agy_bridge.find_agy_executable", return_value=None)
-    @patch("tools.agy_bridge.run_subagent")
+    @patch("maidere.tools.agy_bridge.find_agy_executable", return_value=None)
+    @patch("maidere.tools.agy_bridge.run_subagent")
     async def test_fallback_when_agy_missing(self, mock_run_subagent, mock_find):
         """Verify that missing agy executable gracefully falls back to local subagent."""
         mock_run_subagent.return_value = SubAgentResult(
@@ -88,8 +88,8 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
         self.assertIn("All 12 packages clean", res)
         mock_run_subagent.assert_called_once()
 
-    @patch("tools.agy_bridge.find_agy_executable", return_value="/usr/local/bin/agy")
-    @patch("tools.agy_bridge.get_workspace_dirty_files", return_value=["core/db.py"])
+    @patch("maidere.tools.agy_bridge.find_agy_executable", return_value="/usr/local/bin/agy")
+    @patch("maidere.tools.agy_bridge.get_workspace_dirty_files", return_value=["core/db.py"])
     @patch("asyncio.create_subprocess_exec")
     async def test_successful_subprocess_execution(self, mock_exec, mock_dirty, mock_find):
         """Verify successful agy execution via safe argument array (shell=False)."""
@@ -101,7 +101,7 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
         )
         mock_exec.return_value = mock_proc
 
-        with patch("tools.agy_bridge.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.tools.agy_bridge.settings.agent_workspace", self.temp_dir.name):
             res = await self.tool.execute(
                 task="Refactor async session context",
                 persona="implementer",
@@ -122,8 +122,8 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Gemini 3.8 Flash (Google Antigravity CLI)", res)
         self.assertIn("Finding 1: Refactor complete", res)
 
-    @patch("tools.agy_bridge.find_agy_executable", return_value="/usr/local/bin/agy")
-    @patch("tools.agy_bridge.run_subagent")
+    @patch("maidere.tools.agy_bridge.find_agy_executable", return_value="/usr/local/bin/agy")
+    @patch("maidere.tools.agy_bridge.run_subagent")
     @patch("asyncio.create_subprocess_exec")
     async def test_rate_limit_fallback_to_local(self, mock_exec, mock_run_subagent, mock_find):
         """Verify that agy 429 / RESOURCE_EXHAUSTED triggers local fallback."""
@@ -147,7 +147,7 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
             brief="• Local researcher finished.",
         )
 
-        with patch("tools.agy_bridge.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.tools.agy_bridge.settings.agent_workspace", self.temp_dir.name):
             res = await self.tool.execute(task="Heavy code scan", persona="researcher")
 
         self.assertIn("[AGY STAFFER FALLBACK -> LOCAL RESEARCHER]", res)
@@ -155,8 +155,8 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Local researcher finished", res)
         mock_run_subagent.assert_called_once()
 
-    @patch("tools.agy_bridge.find_agy_executable", return_value=None)
-    @patch("tools.agy_bridge.run_subagent")
+    @patch("maidere.tools.agy_bridge.find_agy_executable", return_value=None)
+    @patch("maidere.tools.agy_bridge.run_subagent")
     async def test_verification_and_validation_fallback_to_local(self, mock_run_subagent, mock_find):
         """Verify that verification and validation personas fallback to correct local subagents."""
         mock_run_subagent.return_value = SubAgentResult(

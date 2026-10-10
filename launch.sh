@@ -13,8 +13,10 @@ while [ -h "$SOURCE" ]; do
 done
 REPO_ROOT="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 
-# Change working directory to Maidere repository root
+# Change working directory to Maidere repository root.
+# src/ is on the path so the package imports even before an editable install.
 cd "$REPO_ROOT"
+export PYTHONPATH="$REPO_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
 echo "================================================================="
 echo "   Starting Maidere Autonomous AI Agent (v4.1)"
@@ -53,7 +55,7 @@ else
   PY="python3"
 fi
 
-TOKEN="$($PY -c 'from core.tokens import load_or_create_token; print(load_or_create_token())' 2>/dev/null || true)"
+TOKEN="$($PY -c 'from maidere.core.tokens import load_or_create_token; print(load_or_create_token())' 2>/dev/null || true)"
 UI_URL="http://${HOST}:${PORT}/"
 if [ -n "$TOKEN" ]; then
   # The token travels in the URL fragment: browsers never send it to the server.
@@ -79,4 +81,4 @@ echo "================================================================="
 echo ""
 
 # 6. Exec uvicorn bound to loopback for clean signal handling
-exec $PY -m uvicorn api.app:app --host "$HOST" --port "$PORT" --reload
+exec $PY -m uvicorn maidere.api.app:app --host "$HOST" --port "$PORT" --reload

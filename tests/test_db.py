@@ -4,8 +4,8 @@ import asyncio
 import tempfile
 import unittest
 
-from core.db import get_db, init_tables
-from tools.registry import log_audit_record
+from maidere.core.db import get_db, init_tables
+from maidere.tools.registry import log_audit_record
 
 
 class TestDatabaseAndConcurrency(unittest.IsolatedAsyncioTestCase):

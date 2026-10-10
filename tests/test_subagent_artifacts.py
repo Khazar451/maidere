@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from core.subagent import (
+from maidere.core.subagent import (
     SubAgentDefinition,
     SubAgentResult,
     generate_handoff_brief,
@@ -16,7 +16,7 @@ from core.subagent import (
     run_subagent,
     write_subagent_artifact,
 )
-from tools.delegate import DelegateTaskTool
+from maidere.tools.delegate import DelegateTaskTool
 
 
 class TestSubagentArtifacts(unittest.IsolatedAsyncioTestCase):
@@ -179,8 +179,8 @@ class TestSubagentArtifacts(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Full Artifact Stored At:", brief)
         self.assertIn("https://vllm.ai/benchmarks", brief)
 
-    @patch("core.subagent.llm.chat")
-    @patch("core.subagent._store_subagent_memory", new_callable=AsyncMock)
+    @patch("maidere.core.subagent.llm.chat")
+    @patch("maidere.core.subagent._store_subagent_memory", new_callable=AsyncMock)
     async def test_run_subagent_produces_artifact_and_brief(self, mock_store, mock_chat):
         """Test full run_subagent execution returns artifact_path and brief."""
         mock_chat.return_value = {
@@ -195,7 +195,7 @@ class TestSubagentArtifacts(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("core.subagent.settings.agent_workspace", self.temp_dir.name):
+        with patch("maidere.core.subagent.settings.agent_workspace", self.temp_dir.name):
             result = await run_subagent(
                 task="Test subagent artifact production",
                 subagent_type="researcher",
@@ -225,7 +225,7 @@ class TestSubagentArtifacts(unittest.IsolatedAsyncioTestCase):
             brief="• Finding 1: Safe subprocess args used.\n• Finding 2: Zero shell injection.",
         )
 
-        with patch("tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_result):
+        with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_result):
             res_str = await tool.execute(prompt="Evaluate security diff", subagent_type="reviewer")
 
         self.assertIn("[SUB-AGENT RESEARCH RESULT]", res_str)

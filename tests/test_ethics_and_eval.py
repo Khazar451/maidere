@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from core.agent import create_graph, evaluate_node
-from core.audit import record_audit, sanitize_secrets
-from core.db import get_db, init_tables
-from core.memory import init_memory_table, store_memory
-from tools.shell import ShellTool
+from maidere.core.agent import create_graph, evaluate_node
+from maidere.core.audit import record_audit, sanitize_secrets
+from maidere.core.db import get_db, init_tables
+from maidere.core.memory import init_memory_table, store_memory
+from maidere.tools.shell import ShellTool
 
 _patchers = []
 
@@ -19,10 +19,10 @@ _patchers = []
 def setUpModule():
     mock_emb_model = MagicMock()
     mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
-    p1 = patch("core.embeddings._get_model", return_value=mock_emb_model)
-    p2 = patch("core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
-    p3 = patch("core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
-    p4 = patch("core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
+    p1 = patch("maidere.core.embeddings._get_model", return_value=mock_emb_model)
+    p2 = patch("maidere.core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
+    p3 = patch("maidere.core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
+    p4 = patch("maidere.core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
     for p in (p1, p2, p3, p4):
         p.start()
         _patchers.append(p)
@@ -320,7 +320,7 @@ class TestAgentLoopWithEvaluation(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, side_effect=[mock_tool_call_response, mock_final_response]):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, side_effect=[mock_tool_call_response, mock_final_response]):
             config = {"configurable": {"thread_id": "test-eval-loop"}}
             result = await self.graph.ainvoke(
                 {
@@ -338,9 +338,9 @@ class TestAgentLoopWithEvaluation(unittest.IsolatedAsyncioTestCase):
 class TestBrowserSanitizationAndCap(unittest.IsolatedAsyncioTestCase):
     """Test character cap (2500 chars) and whitespace sanitization in browser tool."""
 
-    @patch("tools.browser.async_playwright")
+    @patch("maidere.tools.browser.async_playwright")
     async def test_browse_url_caps_at_2500_and_sanitizes_whitespace(self, mock_playwright):
-        from tools.browser import MAX_CONTENT_CHARS, browse_url
+        from maidere.tools.browser import MAX_CONTENT_CHARS, browse_url
 
         self.assertEqual(MAX_CONTENT_CHARS, 2500)
 
@@ -374,7 +374,7 @@ class TestOllamaTimeoutConfiguration(unittest.TestCase):
     """Test extended Ollama client timeout settings."""
 
     def test_ollama_timeout_is_180s(self):
-        from core.config import settings
+        from maidere.core.config import settings
 
         self.assertEqual(settings.ollama_timeout, 180.0)
         self.assertEqual(settings.ollama_connect_timeout, 10.0)

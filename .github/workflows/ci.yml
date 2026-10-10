@@ -30,8 +30,8 @@ jobs:
           sudo apt-get install -y -q bubblewrap
           bwrap --version
 
-      - name: Install dependencies
-        run: uv sync --no-install-project
+      - name: Install dependencies (including this project)
+        run: uv sync
 
       - name: Ensure runtime directories
         run: mkdir -p db logs workspace
@@ -39,4 +39,4 @@ jobs:
       - name: Run test suite
         env:
           HF_HUB_OFFLINE: "1"
-        run: uv run --no-sync python -m unittest discover -s tests -p "test_*.py"
+        run: uv run python -m unittest discover -s tests -p "test_*.py"

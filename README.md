@@ -24,7 +24,7 @@
 
 - **Antigravity-Grade Multimodal Vision & Input Deck**: Paste screenshots (`Ctrl+V`), drag-and-drop UI mockups or documents, and open the upward-popping **Add Context** (`+`) menu for media, `@ file mentions`, `/ actions`, and browser links. Automatically routes visual queries to `qwen2.5-vl:7b` with high-speed in-memory PDF/document text extraction.
 - **Zero-VRAM CPU Embeddings**: High-performance semantic vector embeddings executed entirely on CPU via `fastembed` (`BAAI/bge-small-en-v1.5`), preserving 100% of GPU VRAM for LLM generation.
-- **Native Desktop & Continuous Development App**: Runs as a lightweight native desktop application (`python3 maidere.py`) with OS dock integration, intelligent server lifecycle management, and a live hot-reloading development mode (`--dev`).
+- **Native Desktop & Continuous Development App**: Runs as a lightweight native desktop application (`maidere` / `python -m maidere`) with OS dock integration, intelligent server lifecycle management, and a live hot-reloading development mode (`--dev`).
 - **Dynamic 5-Tier Context Selector**: Real-time context window switcher scalable from **8K (Local Fast)** up to **128K (Cloud Extreme)** with automatic token trimming and context-aware KV cache management.
 - **System 2 Deliberation Pipeline**: Multi-stage cognitive deconstruction, divergent exploration, formal proof verification, and convergent synthesis with real-time `<think>...</think>` streaming.
 - **Hybrid Local + Cloud Execution**: Auto-routes between local Ollama instances (`qwen2.5:7b-instruct`, `qwen2.5:3b`, `deepseek-r1:7b`) and cloud-accelerated endpoints (NVIDIA Nemotron 3 Ultra 550B, OpenAI-compatible APIs).
@@ -78,17 +78,21 @@ Maidere can be launched in three modes:
 
 ```bash
 # 1. Native Desktop Application (Default)
-python3 maidere.py
+maidere
+# or, from a checkout before the console script is on PATH:
+python -m maidere
 
 # 2. Continuous Development Mode (Live hot-reloading on file change)
-python3 maidere.py --dev
+maidere --dev
 
 # 3. Register Desktop App in OS Start Menu & App Launcher
-python3 maidere.py install-desktop
+maidere install-desktop
 
 # 4. Headless Server Mode (Browser UI at http://127.0.0.1:8000)
-.venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8000
+.venv/bin/uvicorn maidere.api.app:app --host 127.0.0.1 --port 8000
 ```
+
+`uv sync` installs Maidere as a package, so the `maidere` command and `python -m maidere` work from any directory. Relative paths such as `db/maidere.db` and `workspace/` stay inside this repository when you run from a checkout, and move to `~/.local/share/maidere` for a plain `pip install`. Set `MAIDERE_RUNTIME_ROOT` to choose the base explicitly. Logs are written as JSON to `logs/maidere.jsonl` (rotated at 5 MB), not only printed.
 
 ### 4. Access Control
 

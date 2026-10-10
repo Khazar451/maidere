@@ -35,8 +35,14 @@ dependencies = [
 
 
 [project.scripts]
-maidere = "maidere:main"
+maidere = "maidere.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+maidere = ["static/*", "static/**/*", "skills/**/*", "agents/*"]
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"

@@ -4,9 +4,9 @@ import unittest
 from unittest.mock import AsyncMock, patch
 import httpx
 
-from core import llm
-from core.config import settings
-from tools.registry import get_tools_ollama_schemas
+from maidere.core import llm
+from maidere.core.config import settings
+from maidere.tools.registry import get_tools_ollama_schemas
 
 
 class TestLLMClient(unittest.IsolatedAsyncioTestCase):
@@ -14,7 +14,7 @@ class TestLLMClient(unittest.IsolatedAsyncioTestCase):
 
     @patch("httpx.AsyncClient.post")
     async def test_chat_payload_structure(self, mock_post):
-        """Test chat payload contains num_ctx=8192, stream=False, model, messages, and tools."""
+        """Test chat payload contains num_ctx=8192, stream=False, model, messages, and maidere.tools."""
         mock_response = httpx.Response(
             status_code=200,
             json={

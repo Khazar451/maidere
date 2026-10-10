@@ -16,10 +16,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core.config import settings
-from tools import sandbox
-from tools.code_runner import CodeRunnerTool
-from tools.sandbox import (
+from maidere.core.config import settings
+from maidere.tools import sandbox
+from maidere.tools.code_runner import CodeRunnerTool
+from maidere.tools.sandbox import (
     SandboxError,
     SandboxMode,
     build_bwrap_command,
@@ -28,7 +28,7 @@ from tools.sandbox import (
     run_sandboxed,
     validate_restricted,
 )
-from tools.shell import ShellTool
+from maidere.tools.shell import ShellTool
 
 BWRAP_WORKS = sandbox.bwrap_available()
 needs_bwrap = unittest.skipUnless(BWRAP_WORKS, "bubblewrap not usable on this host")
@@ -290,7 +290,7 @@ class TestBwrapEscapeProbes(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(Path.home().joinpath(".bashrc_pwned").exists())
 
     async def test_workspace_write_and_venv_packages_work(self):
-        from tools.shell import WORKSPACE
+        from maidere.tools.shell import WORKSPACE
 
         marker = WORKSPACE / ".tmp" / "sandbox_marker.txt"
         try:

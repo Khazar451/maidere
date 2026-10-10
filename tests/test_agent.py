@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock, patch
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage, ToolMessage
 from langgraph.graph import END
 
-from core.agent import (
+from maidere.core.agent import (
     create_graph,
     should_continue,
     think_node,
     trim_messages_node,
     SYSTEM_PROMPT,
 )
-from tools.filesystem import WORKSPACE
+from maidere.tools.filesystem import WORKSPACE
 
 
 class TestAgentTrimmingAndRouting(unittest.TestCase):
@@ -91,10 +91,10 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import MagicMock
         cls.mock_emb_model = MagicMock()
         cls.mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
-        cls.patcher1 = patch("core.embeddings._get_model", return_value=cls.mock_emb_model)
-        cls.patcher2 = patch("core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
-        cls.patcher3 = patch("core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
-        cls.patcher4 = patch("core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher1 = patch("maidere.core.embeddings._get_model", return_value=cls.mock_emb_model)
+        cls.patcher2 = patch("maidere.core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher3 = patch("maidere.core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
+        cls.patcher4 = patch("maidere.core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
         cls.patcher1.start()
         cls.patcher2.start()
         cls.patcher3.start()
@@ -172,7 +172,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        with patch("core.llm.chat", side_effect=mock_responses) as mock_chat:
+        with patch("maidere.core.llm.chat", side_effect=mock_responses) as mock_chat:
             config = {"configurable": {"thread_id": "test-multistep-thread"}}
             result = await graph.ainvoke(
                 {
@@ -198,10 +198,10 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_remember_node_recalls_and_injects_memory(self):
         """Test that remember node retrieves stored memory and injects into LLM prompt."""
-        from core.db import get_db, init_tables
-        from core.memory import store_memory
+        from maidere.core.db import get_db, init_tables
+        from maidere.core.memory import store_memory
 
-        with patch("core.config.settings.db_path", self.temp_db_path):
+        with patch("maidere.core.config.settings.db_path", self.temp_db_path):
             db = await get_db(self.temp_db_path)
             await init_tables(db)
             await store_memory(db, "User favorite beverage is Japanese Matcha Latte.", session_id="thread-pref")
@@ -217,7 +217,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
                 }
             }
 
-            with patch("core.llm.chat", return_value=mock_response) as mock_chat:
+            with patch("maidere.core.llm.chat", return_value=mock_response) as mock_chat:
                 config = {"configurable": {"thread_id": "thread-pref"}}
                 result = await graph.ainvoke(
                     {
@@ -268,7 +268,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
     def test_think_node_passes_custom_num_ctx(self):
         """Test that think_node forwards active num_ctx to llm.chat."""
         from unittest.mock import AsyncMock
-        from core.agent import think_node
+        from maidere.core.agent import think_node
 
         state = {
             "messages": [HumanMessage(content="Hello context test")],
@@ -282,15 +282,15 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
             captured_num_ctx.append(num_ctx)
             return {"message": {"role": "assistant", "content": "Context test ok"}}
 
-        with patch("core.llm.chat", side_effect=fake_chat), \
-             patch("core.agent.emit_agent_event", new_callable=AsyncMock):
+        with patch("maidere.core.llm.chat", side_effect=fake_chat), \
+             patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock):
             asyncio.run(think_node(state))
 
         self.assertEqual(captured_num_ctx, [32768])
 
     def test_think_tag_and_tool_call_extraction_with_thinking_model(self):
         """Test extract_text_tool_calls extracts tool calls when model outputs <think> tags."""
-        from core.agent import extract_text_tool_calls
+        from maidere.core.agent import extract_text_tool_calls
 
         ai_response = (
             "<think>\n"
@@ -308,7 +308,7 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
     def test_think_node_emits_think_logs_when_thinking_tags_present(self):
         """Test that think_node emits [THINK] agent logs when thinking tags are present."""
         from unittest.mock import AsyncMock
-        from core.agent import think_node
+        from maidere.core.agent import think_node
 
         state = {
             "messages": [HumanMessage(content="Reason about this and use tools")],
@@ -337,8 +337,8 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
         async def fake_emit(thread_id, event):
             emitted_events.append(event)
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_resp), \
-             patch("core.agent.emit_agent_event", side_effect=fake_emit):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_resp), \
+             patch("maidere.core.agent.emit_agent_event", side_effect=fake_emit):
             asyncio.run(think_node(state))
 
         think_logs = [e for e in emitted_events if e.get("type") == "agent_log" and "[THINK]" in e.get("text", "")]
@@ -355,10 +355,10 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import MagicMock
         cls.mock_emb_model = MagicMock()
         cls.mock_emb_model.embed.side_effect = lambda texts: [np.array([0.05] * 384) for _ in texts]
-        cls.patcher1 = patch("core.embeddings._get_model", return_value=cls.mock_emb_model)
-        cls.patcher2 = patch("core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
-        cls.patcher3 = patch("core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
-        cls.patcher4 = patch("core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher1 = patch("maidere.core.embeddings._get_model", return_value=cls.mock_emb_model)
+        cls.patcher2 = patch("maidere.core.embeddings.embed_one", side_effect=lambda t: [0.05] * 384)
+        cls.patcher3 = patch("maidere.core.embeddings.embed", side_effect=lambda texts: [[0.05] * 384 for _ in texts])
+        cls.patcher4 = patch("maidere.core.memory.embed_one", side_effect=lambda t: [0.05] * 384)
         cls.patcher1.start()
         cls.patcher2.start()
         cls.patcher3.start()
@@ -373,20 +373,20 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
 
     def test_should_deliberate_greetings_return_false(self):
         """Test that simple greetings bypass deliberation."""
-        from core.agent import should_deliberate
+        from maidere.core.agent import should_deliberate
         state = {"deep_reasoning": False, "refinement_count": 0}
         self.assertFalse(should_deliberate(state, "hello", AIMessage(content="Hello!")))
         self.assertFalse(should_deliberate(state, "hi", AIMessage(content="Hi there!")))
 
     def test_should_deliberate_deep_reasoning_returns_true(self):
         """Test that explicit deep reasoning flag triggers deliberation."""
-        from core.agent import should_deliberate
+        from maidere.core.agent import should_deliberate
         state = {"deep_reasoning": True, "refinement_count": 0}
         self.assertTrue(should_deliberate(state, "What are the trade-offs of microservices?", AIMessage(content="Draft answer")))
 
     def test_should_deliberate_already_refined_returns_false(self):
         """Test that already refined state avoids infinite deliberation loops."""
-        from core.agent import should_deliberate
+        from maidere.core.agent import should_deliberate
         state = {"deep_reasoning": True, "refinement_count": 1}
         self.assertFalse(should_deliberate(state, "What are the trade-offs of microservices?", AIMessage(content="Refined answer")))
 
@@ -417,7 +417,7 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
 
     async def test_critique_and_refine_nodes_flow(self):
         """Test critique_node and refine_node execution with mocked LLM."""
-        from core.agent import critique_node, refine_node
+        from maidere.core.agent import critique_node, refine_node
 
         state = {
             "messages": [
@@ -442,14 +442,14 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
             }
         }
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_critique_resp):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_critique_resp):
             critique_res = await critique_node(state)
             self.assertIn("critique", critique_res)
             self.assertIn("Lamport", critique_res["critique"])
 
         state["critique"] = critique_res["critique"]
 
-        with patch("core.llm.chat", new_callable=AsyncMock, return_value=mock_refine_resp):
+        with patch("maidere.core.llm.chat", new_callable=AsyncMock, return_value=mock_refine_resp):
             refine_res = await refine_node(state)
             self.assertIn("messages", refine_res)
             final_msg = refine_res["messages"][0]
@@ -463,7 +463,7 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
         temp_db.close()
 
         try:
-            with patch("core.config.settings.db_path", temp_db_path):
+            with patch("maidere.core.config.settings.db_path", temp_db_path):
                 graph, checkpointer_ctx = await create_graph(temp_db_path)
 
                 mock_responses = [
@@ -488,7 +488,7 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
                     },
                 ]
 
-                with patch("core.llm.chat", side_effect=mock_responses) as mock_chat:
+                with patch("maidere.core.llm.chat", side_effect=mock_responses) as mock_chat:
                     config = {"configurable": {"thread_id": "test-delib-graph"}}
                     result = await graph.ainvoke(
                         {
@@ -516,28 +516,28 @@ class TestTopicChangeDetection(unittest.TestCase):
 
     def test_detect_topic_change_same_topic(self):
         """Same topic should NOT trigger topic change."""
-        from core.agent import detect_topic_change
+        from maidere.core.agent import detect_topic_change
         query = "Explain the tie-breaker rule in the inventory system"
         context = "The inventory system has three containers X, Y, Z. Tie-breaker rules apply when containers have equal items."
         self.assertFalse(detect_topic_change(query, context))
 
     def test_detect_topic_change_different_topic(self):
         """Completely unrelated topics should trigger topic change."""
-        from core.agent import detect_topic_change
+        from maidere.core.agent import detect_topic_change
         query = "Who was the first president of the United States?"
         context = "The inventory system has three containers X, Y, Z with 10 items each. Apply the tie-breaker rule."
         self.assertTrue(detect_topic_change(query, context))
 
     def test_detect_topic_change_empty_inputs(self):
         """Empty inputs should not trigger topic change."""
-        from core.agent import detect_topic_change
+        from maidere.core.agent import detect_topic_change
         self.assertFalse(detect_topic_change("", "some context"))
         self.assertFalse(detect_topic_change("some query", ""))
         self.assertFalse(detect_topic_change("", ""))
 
     def test_detect_topic_change_short_words_only(self):
         """Queries with only stop words should not trigger topic change."""
-        from core.agent import detect_topic_change
+        from maidere.core.agent import detect_topic_change
         self.assertFalse(detect_topic_change("is it", "the"))
 
     def test_trim_messages_prunes_on_topic_change(self):
@@ -606,11 +606,11 @@ class TestRouterWarningLogging(unittest.TestCase):
 
     def test_thinking_mode_logs_warning_when_deepseek_missing(self):
         """select_model should log a warning when thinking_mode=True but DeepSeek is not installed."""
-        from core.router import select_model
+        from maidere.core.router import select_model
 
         async def run():
-            with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-                 patch("core.router.logger") as mock_logger:
+            with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+                 patch("maidere.core.router.logger") as mock_logger:
                 mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
                 mock_logger.awarn = AsyncMock()
 
@@ -630,11 +630,11 @@ class TestRouterWarningLogging(unittest.TestCase):
 
     def test_auto_reasoning_logs_warning_when_deepseek_missing(self):
         """select_model should log a warning for REASONING queries when DeepSeek is not installed."""
-        from core.router import select_model
+        from maidere.core.router import select_model
 
         async def run():
-            with patch("core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
-                 patch("core.router.logger") as mock_logger:
+            with patch("maidere.core.router.get_available_models", new_callable=AsyncMock) as mock_models, \
+                 patch("maidere.core.router.logger") as mock_logger:
                 mock_models.return_value = ["qwen2.5:7b-instruct", "qwen2.5:3b"]
                 mock_logger.awarn = AsyncMock()
 
@@ -652,8 +652,8 @@ class TestActNodeConcurrencyPartitioning(unittest.IsolatedAsyncioTestCase):
     """Test per-call concurrency classification and act_node execution partitioning."""
 
     def test_is_tool_call_concurrent_safe(self):
-        """Test classification of concurrent-safe vs serial tools."""
-        from tools.registry import is_tool_call_concurrent_safe
+        """Test classification of concurrent-safe vs serial maidere.tools."""
+        from maidere.tools.registry import is_tool_call_concurrent_safe
 
         # Pure read-only tools
         self.assertTrue(is_tool_call_concurrent_safe("read_file"))
@@ -688,7 +688,7 @@ class TestActNodeConcurrencyPartitioning(unittest.IsolatedAsyncioTestCase):
 
     async def test_act_node_partitions_and_preserves_order(self):
         """Test act_node partitions mixed concurrent and serial tools while preserving result order."""
-        from core.agent import act_node
+        from maidere.core.agent import act_node
 
         execution_log = []
 
@@ -714,7 +714,7 @@ class TestActNodeConcurrencyPartitioning(unittest.IsolatedAsyncioTestCase):
             "thread_id": "test-partition",
         }
 
-        with patch("core.agent.execute_tool", side_effect=mock_execute_tool):
+        with patch("maidere.core.agent.execute_tool", side_effect=mock_execute_tool):
             result = await act_node(state)
 
         tool_msgs = result.get("messages", [])
@@ -744,7 +744,7 @@ class TestThinkNodeStreaming(unittest.IsolatedAsyncioTestCase):
     async def test_think_node_streams_tokens_to_callback(self):
         """Verify think_node passes on_token callback to llm.chat when direct answer is produced."""
         from langchain_core.messages import HumanMessage
-        from core.agent import think_node
+        from maidere.core.agent import think_node
 
         streamed_tokens = []
 
@@ -765,8 +765,8 @@ class TestThinkNodeStreaming(unittest.IsolatedAsyncioTestCase):
             "skip_tools": True,  # Ensures tools_schemas is empty
         }
 
-        with patch("core.llm.chat", side_effect=fake_streaming_chat), \
-             patch("core.agent.emit_agent_event", new_callable=AsyncMock):
+        with patch("maidere.core.llm.chat", side_effect=fake_streaming_chat), \
+             patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock):
             result = await think_node(state)
 
         self.assertEqual(streamed_tokens, ["Hello ", "from ", "stream!"])
