@@ -6,8 +6,14 @@
 #   GRAFANA_ADMIN_PASSWORD  Grafana admin password
 # Compose refuses to start if either is missing.
 #
-# Prometheus and Grafana use the host network so they can scrape the Maidere
-# API, which binds to 127.0.0.1 by default (not reachable from a bridge network).
+# `docker compose up -d` starts only the sidecars.
+# `docker compose --profile app up -d` also starts Maidere and Ollama.
+# On a machine with an NVIDIA GPU, add the GPU file:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile app up -d
+#
+# Inside the Maidere container the API listens on 0.0.0.0. The published port
+# is bound to 127.0.0.1 on the host. The access token is written to the
+# maidere_data volume at /data/api-token on first start.
 
 services:
   searxng:
@@ -69,6 +75,43 @@ services:
           memory: 256M
     restart: unless-stopped
 
+  ollama:
+    profiles: ["app"]
+    image: ollama/ollama:latest
+    container_name: maidere-ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  maidere:
+    profiles: ["app"]
+    build: .
+    image: maidere:local
+    container_name: maidere-app
+    depends_on:
+      - searxng
+      - ollama
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
+      API_TOKEN: ${API_TOKEN:-}
+      API_TOKEN_FILE: /data/api-token
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+      SEARXNG_URL: http://searxng:8080
+      MAIDERE_DATA_DIR: /data
+      MAIDERE_RUNTIME_ROOT: /data
+      TOOL_SANDBOX_MODE: restricted
+    volumes:
+      - maidere_data:/data
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
   grafana_data:
+  ollama_data:
+  maidere_data:

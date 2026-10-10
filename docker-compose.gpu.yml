@@ -1,0 +1,6 @@
+# Add an NVIDIA GPU to the Ollama service.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile app up -d
+services:
+  ollama:
+    gpus: all

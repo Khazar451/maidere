@@ -23,7 +23,9 @@ from maidere.api.schemas import (
     ChatResponse,
     HealthResponse,
     HistoryResponse,
+    LiveResponse,
     MessageItem,
+    ReadyResponse,
     ThreadItem,
     ThreadsListResponse,
     ToolExecutionItem,
@@ -945,6 +947,25 @@ async def health() -> HealthResponse:
         db_path=settings.db_path,
         sandbox_mode=str(sandbox_info.get("active")),
     )
+
+
+@router.get("/live", response_model=LiveResponse)
+async def live() -> LiveResponse:
+    """Process is up. Does not check the database or the model server."""
+    return LiveResponse(status="live")
+
+
+@router.get("/ready", response_model=ReadyResponse)
+async def ready() -> ReadyResponse:
+    """Database, disk, and model server must pass. SearXNG is reported only."""
+    from maidere.core.readiness import collect_checks, readiness_status
+
+    checks = await collect_checks()
+    is_ready, status = readiness_status(checks)
+    body = ReadyResponse(status=status, ready=is_ready, checks=checks)
+    if not is_ready:
+        raise HTTPException(status_code=503, detail=body.model_dump())
+    return body
 
 
 @router.get("/obsidian/vault")

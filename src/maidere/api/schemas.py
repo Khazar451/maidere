@@ -89,6 +89,20 @@ class HealthResponse(BaseModel):
     )
 
 
+class LiveResponse(BaseModel):
+    """Process liveness. Does not check dependencies."""
+
+    status: str = Field(..., description="Always 'live' when the process can answer")
+
+
+class ReadyResponse(BaseModel):
+    """Whether Maidere can serve a chat turn."""
+
+    status: str = Field(..., description="ok, degraded, or unavailable")
+    ready: bool = Field(..., description="True when the database, disk, and model server are usable")
+    checks: dict[str, bool] = Field(default_factory=dict, description="Individual dependency checks")
+
+
 class MessageItem(BaseModel):
     """A single chat message in thread history."""
 

@@ -315,6 +315,31 @@ Ran 258 tests in 5.322s — OK (100% Passed, 0 Failures, 0 Errors)
 
 ---
 
+## Running in Docker
+
+Sidecars only (SearXNG, Prometheus, Grafana):
+
+```bash
+docker compose up -d
+```
+
+Maidere and Ollama as well, with the API published only on `127.0.0.1:8000`:
+
+```bash
+docker compose --profile app up -d --build
+docker compose --profile app exec maidere cat /data/api-token
+```
+
+Open `http://127.0.0.1:8000/#token=` plus that value. On a machine with an NVIDIA GPU, pass the GPU through to Ollama:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile app up -d
+```
+
+Inside the container the process listens on `0.0.0.0` so Docker can publish the port. The host binding stays on loopback. Tool commands use the restricted sandbox there, because bubblewrap user namespaces are not available in a default container.
+
+`/live` answers when the process is up. `/ready` also checks that the database accepts a write, the data volume has free space, and Ollama is reachable. SearXNG is reported and does not by itself mark the service unready.
+
 ## License
 
 MIT License — Free for personal, academic, and commercial use.

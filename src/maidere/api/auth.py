@@ -35,7 +35,7 @@ Scope = dict[str, Any]
 Receive = Callable[[], Awaitable[dict[str, Any]]]
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 
-PUBLIC_EXACT_PATHS: frozenset[str] = frozenset({"/", "/health", "/favicon.ico", "/manifest.json"})
+PUBLIC_EXACT_PATHS: frozenset[str] = frozenset({"/", "/health", "/live", "/ready", "/favicon.ico", "/manifest.json"})
 PUBLIC_PREFIXES: tuple[str, ...] = ("/static/",)
 METRICS_PATH = "/metrics"
 

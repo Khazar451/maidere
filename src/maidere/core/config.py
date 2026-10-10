@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
 
     # API authentication
-    # Every HTTP route except /health, / and /static requires
+    # Every HTTP route except /health, /live, /ready, / and /static requires
     # `Authorization: Bearer <token>`. The WebSocket requires an auth frame as
     # its first message. If `api_token` is empty, a random token is generated
     # once and persisted to `api_token_file` (mode 0600).
@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     # frame may be (attachments included).
     max_concurrent_generations: int = 2
     max_ws_message_bytes: int = 2_000_000
+
+    # Refuse /ready when the database volume has less free space than this.
+    min_free_disk_mb: int = 100
 
     # Cloud AI Provider (NVIDIA NIM / OpenAI-compatible endpoints)
     cloud_api_key: str = ""
