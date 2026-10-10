@@ -1976,6 +1976,53 @@ html, body {
   cursor: pointer;
 }
 
+/* Access token prompt */
+.auth-overlay {
+  z-index: 2000;
+}
+
+.auth-dialog {
+  max-width: 440px;
+}
+
+.auth-message {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.auth-hint {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.auth-hint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-badge);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+
+.auth-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.auth-input:focus {
+  border-color: var(--border-focus);
+}
+
 /* Search & Filter in Sidebar */
 .sidebar-search-container {
   padding: 8px 12px;

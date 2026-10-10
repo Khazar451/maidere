@@ -20,6 +20,8 @@ SECRET_PATTERNS = [
     (r"\bsk-ant-[a-zA-Z0-9_\-]{20,}\b", "[REDACTED_SECRET]"),
     # Hugging Face Tokens
     (r"\bhf_[a-zA-Z0-9]{20,}\b", "[REDACTED_SECRET]"),
+    # NVIDIA NIM / build.nvidia.com API Keys
+    (r"\bnvapi-[a-zA-Z0-9_\-]{20,}\b", "[REDACTED_SECRET]"),
     # GitHub Tokens (Personal Access, OAuth, User-to-Server)
     (r"\b(ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{30,}\b", "[REDACTED_SECRET]"),
     (r"\bgithub_pat_[a-zA-Z0-9_]{30,}\b", "[REDACTED_SECRET]"),

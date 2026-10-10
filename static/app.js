@@ -57,6 +57,86 @@
     })(),
   };
 
+  // --- API Authentication ---
+  // The backend requires a bearer token on every request. The desktop launcher
+  // hands it over in the URL fragment (#token=...), which the browser never
+  // sends to the server. It is then kept in localStorage.
+  const AUTH_STORAGE_KEY = 'maidere_api_token';
+
+  function captureTokenFromFragment() {
+    const hash = window.location.hash || '';
+    if (!hash.includes('token=')) return;
+    const params = new URLSearchParams(hash.replace(/^#/, ''));
+    const token = params.get('token');
+    if (token) {
+      localStorage.setItem(AUTH_STORAGE_KEY, token.trim());
+    }
+    // Strip the fragment so the token never lingers in history or screenshots.
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  captureTokenFromFragment();
+
+  function getApiToken() {
+    return localStorage.getItem(AUTH_STORAGE_KEY) || '';
+  }
+
+  function setApiToken(token) {
+    if (token && token.trim()) {
+      localStorage.setItem(AUTH_STORAGE_KEY, token.trim());
+    } else {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+  }
+
+  function withAuthHeaders(headers) {
+    const merged = Object.assign({}, headers || {});
+    const token = getApiToken();
+    if (token) merged['Authorization'] = `Bearer ${token}`;
+    return merged;
+  }
+
+  let authPromptVisible = false;
+
+  function showTokenPrompt(message) {
+    const overlay = document.getElementById('auth-overlay');
+    if (!overlay) return;
+    const msgEl = document.getElementById('auth-overlay-message');
+    if (msgEl && message) msgEl.textContent = message;
+    overlay.classList.add('active');
+    authPromptVisible = true;
+    const input = document.getElementById('auth-token-input');
+    if (input) {
+      input.value = '';
+      setTimeout(() => input.focus(), 50);
+    }
+  }
+
+  function setupTokenPrompt() {
+    const form = document.getElementById('auth-token-form');
+    if (!form) return;
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const input = document.getElementById('auth-token-input');
+      const value = input ? input.value.trim() : '';
+      if (!value) return;
+      setApiToken(value);
+      document.getElementById('auth-overlay').classList.remove('active');
+      authPromptVisible = false;
+      // Re-run the bootstrap with the new credentials.
+      window.location.reload();
+    });
+  }
+
+  async function apiFetch(url, options) {
+    const opts = Object.assign({}, options || {});
+    opts.headers = withAuthHeaders(opts.headers);
+    const res = await window.fetch(url, opts);
+    if (res.status === 401 && !authPromptVisible) {
+      showTokenPrompt('The backend rejected the saved access token. Paste the current token to continue.');
+    }
+    return res;
+  }
+
   // --- DOM Elements Cache ---
   const el = {};
 
@@ -532,7 +612,7 @@
     localStorage.setItem('maidere_username', val);
     updateSidebarUser();
     try {
-      await fetch('/user/login', {
+      await apiFetch('/user/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: val }),
@@ -585,7 +665,7 @@
         localStorage.setItem('maidere_username', newName);
         updateSidebarUser();
         try {
-          await fetch('/user/login', {
+          await apiFetch('/user/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: newName }),
@@ -663,7 +743,7 @@
   // --- API & WebSocket Client ---
   async function loadModels() {
     try {
-      const res = await fetch('/models');
+      const res = await apiFetch('/models');
       const data = await res.json();
       state.models = data.models || [];
       el.modelSelect.innerHTML = '';
@@ -697,7 +777,7 @@
 
   async function loadThreads() {
     try {
-      const res = await fetch('/threads');
+      const res = await apiFetch('/threads');
       const data = await res.json();
       state.threads = data.threads || [];
       renderThreads();
@@ -767,7 +847,7 @@
     }
 
     try {
-      const res = await fetch(`/threads/${threadId}/history`);
+      const res = await apiFetch(`/threads/${threadId}/history`);
       const data = await res.json();
       const messages = data.messages || [];
 
@@ -1127,27 +1207,41 @@
       state.activeWs = socket;
       let startTime = Date.now();
 
+      const chatPayload = JSON.stringify({
+        message: text,
+        thread_id: state.activeThreadId,
+        model: selectedModelParam,
+        num_ctx: state.selectedNumCtx,
+        thinking_mode: state.thinkingMode,
+        deep_reasoning: state.deepReasoning,
+        username: state.username || 'User',
+        attachments: attachments,
+      });
+
       socket.onopen = () => {
         wsSuccess = true;
-        socket.send(
-          JSON.stringify({
-            message: text,
-            thread_id: state.activeThreadId,
-            model: selectedModelParam,
-            num_ctx: state.selectedNumCtx,
-            thinking_mode: state.thinkingMode,
-            deep_reasoning: state.deepReasoning,
-            username: state.username || 'User',
-            attachments: attachments,
-          })
-        );
+        // Protocol: authenticate first; the message is sent once the server
+        // acknowledges with {type: "auth_ok"}.
+        socket.send(JSON.stringify({ type: 'auth', token: getApiToken() }));
+      };
+
+      socket.onclose = (ev) => {
+        if (ev.code === 4401 || ev.code === 4403) {
+          agentGroup.working.style.display = 'none';
+          agentGroup.body.innerHTML = `<span style="color:#ef4444;">Not authorized: the backend rejected this session.</span>`;
+          setRunningTask(null);
+          finishGeneration();
+          showTokenPrompt('The backend rejected the saved access token. Paste the current token to continue.');
+        }
       };
 
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
 
-          if (data.type === 'agent_log') {
+          if (data.type === 'auth_ok') {
+            socket.send(chatPayload);
+          } else if (data.type === 'agent_log') {
             appendTerminal('agent-shell', data.text, data.level || 'info');
           } else if (data.type === 'stage') {
             const stageLabel = data.stage ? data.stage.charAt(0).toUpperCase() + data.stage.slice(1) : 'Working';
@@ -1270,7 +1364,7 @@
     const startTime = Date.now();
 
     try {
-      const res = await fetch('/chat', {
+      const res = await apiFetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1326,7 +1420,7 @@
     if (state.activeWs && state.activeWs.readyState === WebSocket.OPEN) {
       state.activeWs.send(JSON.stringify({ type: 'cancel', thread_id: state.activeThreadId }));
     }
-    fetch('/chat/cancel', {
+    apiFetch('/chat/cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ thread_id: state.activeThreadId }),
@@ -1345,7 +1439,7 @@
   window.maidereDeleteThread = async function (threadId) {
     if (!confirm('Are you sure you want to delete this conversation?')) return;
     try {
-      await fetch(`/threads/${threadId}`, { method: 'DELETE' });
+      await apiFetch(`/threads/${threadId}`, { method: 'DELETE' });
       state.threads = state.threads.filter((t) => t.thread_id !== threadId);
       if (state.activeThreadId === threadId) {
         startNewConversation();
@@ -1359,7 +1453,7 @@
 
   window.maidereOpenObsidian = async function (title) {
     try {
-      await fetch('/obsidian/open', {
+      await apiFetch('/obsidian/open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: title }),
@@ -1372,7 +1466,7 @@
 
   window.maidereDeleteMemory = async function (memId) {
     try {
-      await fetch(`/memories/${memId}`, { method: 'DELETE' });
+      await apiFetch(`/memories/${memId}`, { method: 'DELETE' });
       const row = document.getElementById(`mem-row-${memId}`);
       if (row) row.remove();
       appendTerminal('agent-shell', `Deleted memory ID ${memId}`, 'info');
@@ -1444,7 +1538,7 @@
 
   async function openMemoriesModal() {
     try {
-      const res = await fetch('/memories?top_k=30');
+      const res = await apiFetch('/memories?top_k=30');
       const data = await res.json();
       const memories = data.memories || [];
 
@@ -1477,7 +1571,7 @@
         const resEl = document.getElementById('memory-search-results');
         try {
           const url = q ? `/memories?query=${encodeURIComponent(q)}&top_k=20` : '/memories?top_k=30';
-          const sres = await fetch(url);
+          const sres = await apiFetch(url);
           const sdata = await sres.json();
           const items = sdata.memories || [];
           if (items.length === 0) {
@@ -1506,7 +1600,7 @@
 
   async function openSkillsModal() {
     try {
-      const res = await fetch('/skills');
+      const res = await apiFetch('/skills');
       const data = await res.json();
       const skills = data.skills || [];
 
@@ -1537,7 +1631,7 @@
 
   async function openObsidianModal() {
     try {
-      const res = await fetch('/obsidian/vault');
+      const res = await apiFetch('/obsidian/vault');
       const vdata = await res.json();
       showModal(
         'Obsidian Vault Explorer',
@@ -1554,7 +1648,7 @@
 
   async function openSettingsModal() {
     try {
-      const res = await fetch('/settings/system-prompt');
+      const res = await apiFetch('/settings/system-prompt');
       const data = await res.json();
       const currentPrompt = data.system_prompt || '';
 
@@ -1574,7 +1668,7 @@
 
       document.getElementById('save-prompt-btn').onclick = async () => {
         const val = document.getElementById('system-prompt-input').value;
-        await fetch('/settings/system-prompt', {
+        await apiFetch('/settings/system-prompt', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ system_prompt: val }),
@@ -1584,7 +1678,7 @@
       };
 
       document.getElementById('reset-prompt-btn').onclick = async () => {
-        await fetch('/settings/system-prompt', {
+        await apiFetch('/settings/system-prompt', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ system_prompt: null }),
@@ -1716,7 +1810,7 @@
 
     el.scheduledTasksPill?.addEventListener('click', async () => {
       try {
-        const res = await fetch('/scheduler/tasks');
+        const res = await apiFetch('/scheduler/tasks');
         const data = await res.json();
         const tasks = data.tasks || [];
         let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
@@ -1773,6 +1867,7 @@
   // --- Bootstrap ---
   async function init() {
     initElements();
+    setupTokenPrompt();
     applyLayout();
     setupEventListeners();
     setupDragAndDrop();

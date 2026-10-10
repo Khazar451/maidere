@@ -63,6 +63,11 @@ ollama pull qwen2.5:3b
 ollama pull deepseek-r1:7b
 ollama pull qwen2.5-vl:7b # Multimodal vision for screenshots & documents
 
+# Configure secrets for the Docker sidecars (compose refuses to start without them)
+cp .env.example .env
+sed -i "s/^SEARXNG_SECRET=.*/SEARXNG_SECRET=$(openssl rand -hex 32)/" .env
+sed -i "s/^GRAFANA_ADMIN_PASSWORD=.*/GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)/" .env
+
 # Launch background infrastructure (SearXNG metasearch, Prometheus, Grafana)
 docker compose up -d
 ```
@@ -81,8 +86,23 @@ python3 maidere.py --dev
 # 3. Register Desktop App in OS Start Menu & App Launcher
 python3 maidere.py install-desktop
 
-# 4. Headless Server Mode (Browser UI at http://localhost:8000)
-.venv/bin/uvicorn api.app:app --host 0.0.0.0 --port 8000
+# 4. Headless Server Mode (Browser UI at http://127.0.0.1:8000)
+.venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8000
+```
+
+### 4. Access Control
+
+The API binds to **loopback only** (`127.0.0.1`) and every request requires a bearer token. The agent can run shell commands and read your workspace, so this is not optional.
+
+- On first start Maidere generates a random token and stores it in `~/.config/maidere/token` (mode `0600`). The desktop launcher and `launch.sh` pass it to the UI automatically via the URL fragment, which the browser never sends over the network.
+- Opening `http://127.0.0.1:8000` by hand shows a prompt; paste the token from that file once and it is remembered in the browser.
+- Scripts and other clients send `Authorization: Bearer <token>` (or `X-Maidere-Token: <token>`). The WebSocket at `/ws/chat` expects `{"type": "auth", "token": "<token>"}` as its first frame and replies `{"type": "auth_ok"}`.
+- To pin a token yourself set `API_TOKEN=` in `.env`. To expose Maidere beyond your machine, put a TLS-terminating reverse proxy in front of it, keep `API_HOST=127.0.0.1`, and add the proxy's origin to `ALLOWED_ORIGINS=`.
+- `/health`, `/` and `/static/*` are public. `/metrics` accepts unauthenticated scrapes from loopback only (the bundled Prometheus runs on the host network), or from anywhere with a token.
+
+```bash
+TOKEN=$(cat ~/.config/maidere/token)
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/threads
 ```
 
 ---

@@ -133,6 +133,10 @@ Contributors should familiarize themselves with the modular layout before making
    - Test strings in unit tests must use standard mock placeholders (e.g., `AKIAIOSFODNN7EXAMPLE`) and never real keys.
 3. **Workspace Isolation**:
    - File read and write operations initiated by the agent must remain bounded to `settings.agent_workspace`.
+4. **API Authentication**:
+   - All routes are protected by the bearer-token middleware in [`api/auth.py`](file:///home/khazar/maidere/api/auth.py). Do not add routes to the public allowlist (`PUBLIC_EXACT_PATHS` / `PUBLIC_PREFIXES`) unless they expose nothing and are needed before the UI has a token (e.g. `/health`).
+   - New frontend calls must go through `apiFetch()` in `static/app.js`, never raw `fetch()`, so the `Authorization` header is attached.
+   - Tests that build the app must pin a token and send it: use `patch_api_token()` and `AUTH_HEADERS` from `tests/authhelpers.py` (see `tests/test_api.py`). WebSocket tests send `WS_AUTH_FRAME` first. Never let a test read or write `~/.config/maidere/token`.
 
 ---
 

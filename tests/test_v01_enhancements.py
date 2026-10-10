@@ -16,6 +16,7 @@ from core.db import get_db, get_db_context, init_tables
 from core.llm import chat_stream
 from core.memory import delete_memory, is_duplicate_memory, list_all_memories, recall, store_memory
 from core.state import AgentState
+from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
 class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
@@ -25,6 +26,7 @@ class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
         self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.temp_db_path = self.temp_db.name
         self.temp_db.close()
+        self.token_patcher = patch_api_token()
 
         # Init DB tables
         async with get_db_context(self.temp_db_path) as db:
@@ -34,9 +36,10 @@ class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
         self.graph, self.checkpointer_ctx = await create_graph(self.temp_db_path)
         set_graph(self.graph)
         self.app = create_app()
-        self.client = TestClient(self.app)
+        self.client = TestClient(self.app, headers=AUTH_HEADERS)
 
     async def asyncTearDown(self):
+        self.token_patcher.stop()
         await self.checkpointer_ctx.__aexit__(None, None, None)
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css?v=3.1" />
+  <link rel="stylesheet" href="/static/style.css?v=3.2" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -298,8 +298,30 @@
     </div>
   </div>
 
+  <!-- API Access Token Prompt (shown when the backend returns 401) -->
+  <div id="auth-overlay" class="modal-overlay auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-overlay-title">
+    <form id="auth-token-form" class="modal-dialog auth-dialog" autocomplete="off">
+      <div class="modal-header">
+        <span id="auth-overlay-title" class="modal-title">Access token required</span>
+      </div>
+      <div class="modal-body">
+        <p id="auth-overlay-message" class="auth-message">
+          This Maidere backend requires an access token.
+        </p>
+        <p class="auth-hint">
+          Launching with <code>python3 maidere.py</code> passes the token automatically.
+          Otherwise copy it from <code>~/.config/maidere/token</code> (or your <code>API_TOKEN</code> setting).
+        </p>
+        <input type="password" id="auth-token-input" class="auth-input" placeholder="Paste access token" spellcheck="false" />
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn-primary">Unlock</button>
+      </div>
+    </form>
+  </div>
+
   <!-- Main Application Script -->
-  <script src="/static/app.js?v=3.1"></script>
+  <script src="/static/app.js?v=3.2"></script>
 </body>
 </html>
 

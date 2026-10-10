@@ -1,12 +1,23 @@
+# Auxiliary services for Maidere (SearXNG metasearch, Prometheus, Grafana).
+#
+# Secrets are read from the project .env file (docker compose loads it
+# automatically). Copy .env.example to .env and set:
+#   SEARXNG_SECRET          random string, e.g. `openssl rand -hex 32`
+#   GRAFANA_ADMIN_PASSWORD  Grafana admin password
+# Compose refuses to start if either is missing.
+#
+# Prometheus and Grafana use the host network so they can scrape the Maidere
+# API, which binds to 127.0.0.1 by default (not reachable from a bridge network).
+
 services:
   searxng:
     image: docker.io/searxng/searxng:latest
     container_name: maidere-searxng
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       - SEARXNG_BASE_URL=http://localhost:8080/
-      - SEARXNG_SECRET=maidere_searxng_secret_key_change_me
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?Set SEARXNG_SECRET in .env (e.g. openssl rand -hex 32)}
     volumes:
       - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
     deploy:
@@ -15,24 +26,20 @@ services:
           memory: 256M
     restart: unless-stopped
 
-
   prometheus:
     image: prom/prometheus:latest
     container_name: maidere-prometheus
+    network_mode: host
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=7d"
       - "--storage.tsdb.retention.size=1GB"
-      - "--web.enable-lifecycle"
-    ports:
-      - "9090:9090"
+      - "--web.listen-address=127.0.0.1:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus_data:/prometheus
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
@@ -42,12 +49,14 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: maidere-grafana
-    ports:
-      - "3000:3000"
+    network_mode: host
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_HTTP_ADDR=127.0.0.1
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro

@@ -38,8 +38,29 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # API
-    api_host: str = "0.0.0.0"
+    # Bind to loopback by default. The agent can run shell commands and read
+    # the workspace, so exposing it on 0.0.0.0 without a reverse proxy is unsafe.
+    api_host: str = "127.0.0.1"
     api_port: int = 8000
+
+    # API authentication
+    # Every HTTP route except /health, / and /static requires
+    # `Authorization: Bearer <token>`. The WebSocket requires an auth frame as
+    # its first message. If `api_token` is empty, a random token is generated
+    # once and persisted to `api_token_file` (mode 0600).
+    api_auth_enabled: bool = True
+    api_token: str = ""
+    api_token_file: str = "~/.config/maidere/token"
+    # Extra browser origins allowed for CORS and WebSocket handshakes,
+    # comma-separated (e.g. "https://maidere.example.com,http://10.0.0.5:8000").
+    # Loopback origins for the configured port are always allowed.
+    allowed_origins: str = ""
+    # Allow unauthenticated /metrics scrapes from loopback clients
+    # (Prometheus runs with network_mode: host in docker-compose.yml).
+    metrics_allow_loopback: bool = True
+
+    # Upload limits
+    max_upload_bytes: int = 25 * 1024 * 1024
 
     # Web Search (SearXNG)
     searxng_url: str = "http://localhost:8080"
@@ -62,6 +83,23 @@ class Settings(BaseSettings):
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
     openai_api_key: str = ""
     openai_base_url: str = ""
+
+    def get_allowed_origins(self) -> list[str]:
+        """Browser origins permitted for CORS and WebSocket handshakes.
+
+        Always includes the loopback origins for the configured port, plus any
+        comma-separated extras from `allowed_origins`.
+        """
+        origins = [
+            f"http://127.0.0.1:{self.api_port}",
+            f"http://localhost:{self.api_port}",
+            f"http://[::1]:{self.api_port}",
+        ]
+        for raw in self.allowed_origins.split(","):
+            origin = raw.strip().rstrip("/")
+            if origin and origin not in origins:
+                origins.append(origin)
+        return origins
 
     def get_effective_cloud_config(self) -> tuple[str, str, str]:
         """Resolve effective cloud API key, base URL, and default model."""

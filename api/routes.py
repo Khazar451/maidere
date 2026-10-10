@@ -1,6 +1,7 @@
 """FastAPI routes for Maidere API."""
 
 import asyncio
+import re
 from pathlib import Path
 import uuid
 from typing import Any
@@ -10,6 +11,12 @@ from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile,
 from fastapi.responses import JSONResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+from api.auth import (
+    WS_AUTH_TIMEOUT_SECONDS,
+    WS_CLOSE_UNAUTHORIZED,
+    websocket_auth_required,
+    websocket_frame_is_authenticated,
+)
 from api.schemas import (
     ChatRequest,
     ChatResponse,
@@ -447,11 +454,39 @@ async def delete_thread(thread_id: str) -> dict[str, Any]:
 
 @router.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket) -> None:
-    """WebSocket endpoint for real-time chat streaming with token-level emissions and cancellation."""
+    """WebSocket endpoint for real-time chat streaming with token-level emissions and cancellation.
+
+    Protocol: the first frame must be ``{"type": "auth", "token": "<api token>"}``
+    (browsers cannot set headers on WebSocket upgrades). The server replies with
+    ``{"type": "auth_ok"}`` or closes the socket with code 4401.
+    """
     await websocket.accept()
+
+    if websocket_auth_required():
+        try:
+            first_frame = await asyncio.wait_for(
+                websocket.receive_json(), timeout=WS_AUTH_TIMEOUT_SECONDS
+            )
+        except (asyncio.TimeoutError, ValueError):
+            await websocket.close(code=WS_CLOSE_UNAUTHORIZED, reason="Authentication required")
+            return
+        except WebSocketDisconnect:
+            return
+        if not websocket_frame_is_authenticated(first_frame):
+            await logger.awarn("ws_auth_rejected", client=str(websocket.client))
+            await websocket.close(code=WS_CLOSE_UNAUTHORIZED, reason="Invalid token")
+            return
+        await websocket.send_json({"type": "auth_ok"})
+
     try:
         while True:
             data = await websocket.receive_json()
+
+            # Clients always send an auth frame first; acknowledge it even when
+            # auth is disabled so the protocol stays identical.
+            if data.get("type") == "auth":
+                await websocket.send_json({"type": "auth_ok"})
+                continue
 
             # Handle explicit cancellation request
             if data.get("type") == "cancel":
@@ -710,19 +745,70 @@ async def fork_thread(thread_id: str, from_message: int | None = None) -> dict[s
     return {"status": "forked", "new_thread_id": new_thread_id, "message_count": len(messages)}
 
 
+_SAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+_UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+def sanitize_upload_filename(raw: str | None) -> str:
+    """Reduce a client-supplied filename to a safe basename.
+
+    Strips any directory components (``../``, absolute paths, backslashes),
+    replaces characters outside ``[A-Za-z0-9._-]``, refuses hidden/empty names,
+    and caps the length. Never trust ``UploadFile.filename`` directly.
+    """
+    name = (raw or "").replace("\\", "/").split("/")[-1].strip()
+    name = _SAFE_FILENAME_CHARS.sub("_", name).strip("._")
+    if not name:
+        name = f"upload_{uuid.uuid4().hex[:8]}.bin"
+    if len(name) > 120:
+        stem, dot, ext = name.rpartition(".")
+        if dot and len(ext) <= 16:
+            name = stem[: 120 - len(ext) - 1] + "." + ext
+        else:
+            name = name[:120]
+    return name
+
+
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)) -> dict[str, Any]:
-    """Upload a file to workspace/uploads/."""
-    uploads_dir = Path(settings.agent_workspace) / "uploads"
+    """Upload a file to workspace/uploads/ (sanitized name, size-capped)."""
+    uploads_dir = (Path(settings.agent_workspace) / "uploads").resolve()
     uploads_dir.mkdir(parents=True, exist_ok=True)
-    file_path = uploads_dir / file.filename
-    content = await file.read()
-    file_path.write_bytes(content)
+
+    safe_name = sanitize_upload_filename(file.filename)
+    file_path = (uploads_dir / safe_name).resolve()
+    # Defense in depth: the sanitized name cannot escape, but verify anyway.
+    if file_path.parent != uploads_dir:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    limit = settings.max_upload_bytes
+    total = 0
+    tmp_path = file_path.with_name(f".{safe_name}.{uuid.uuid4().hex[:8]}.part")
+    try:
+        with tmp_path.open("wb") as out:
+            while True:
+                chunk = await file.read(_UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > limit:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File exceeds the {limit // (1024 * 1024)} MB upload limit",
+                    )
+                out.write(chunk)
+        tmp_path.replace(file_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
+
     return {
         "status": "uploaded",
-        "filename": file.filename,
-        "path": f"uploads/{file.filename}",
-        "size": len(content),
+        "filename": safe_name,
+        "path": f"uploads/{safe_name}",
+        "size": total,
     }
 
 

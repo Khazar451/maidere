@@ -206,6 +206,12 @@ graph TD
 
 | # | Security Control | Threat Mitigated | Technical Implementation |
 | :---: | :--- | :--- | :--- |
+| **0a** | Loopback-Only Binding | LAN / Internet exposure of a tool-executing agent | Default `API_HOST=127.0.0.1`; startup warning on any other bind; sidecars join the host network to reach it. |
+| **0b** | Bearer-Token Authentication | Unauthenticated command execution, data exfiltration | `api/auth.py` pure-ASGI middleware; token from `API_TOKEN` or auto-generated into `~/.config/maidere/token` (0600); constant-time compare (`core/tokens.py`). Public: `/`, `/health`, `/static/*`. |
+| **0c** | WebSocket Handshake Guard | Cross-site WebSocket hijacking from a malicious page | `Origin` header must match the allowed-origin list (handshake rejected with 4403 before `accept`); first frame must be `{"type":"auth","token":…}` or the socket closes with 4401. |
+| **0d** | Restricted CORS | Credentialed cross-origin API calls | Explicit origin allowlist (loopback for the configured port + `ALLOWED_ORIGINS`); no wildcard, `allow_credentials=False`. |
+| **0e** | Upload Hardening | Path traversal via `UploadFile.filename`, disk exhaustion | `sanitize_upload_filename()` reduces to a safe basename; streamed write to a `.part` temp file with `MAX_UPLOAD_BYTES` cap (413) and no partial leftovers. |
+| **0f** | No Shipped Secrets | Default `admin/admin` Grafana and committed SearXNG key | `docker-compose.yml` requires `SEARXNG_SECRET` and `GRAFANA_ADMIN_PASSWORD` from `.env` (`${VAR:?}` fails fast); sidecar ports bound to `127.0.0.1`. |
 | **1** | Directory Traversal Defense | Unauthorized system file read/write (`/etc/passwd`) | `pathlib.Path.resolve()` + `is_relative_to(WORKSPACE)` validation. |
 | **2** | Symmetrical Path Resolution | Comparison failure between relative and absolute paths | Base `WORKSPACE` resolved to absolute path at startup. |
 | **3** | Shell Injection Immunity | Malicious shell metacharacter execution (`rm -rf /;`) | `subprocess.run(shell=False)` with argument list. |
@@ -291,5 +297,13 @@ Ran 245 tests in 4.808s — OK (100% Passed, 0 Failures, 0 Errors)
 | `LOG_LEVEL` | `INFO` | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `SEARXNG_URL` | `http://localhost:8080` | Endpoint for local SearXNG Docker container. |
 | `OBSIDIAN_VAULT_PATH` | `""` | Optional explicit path to user Obsidian vault. |
-| `API_HOST` | `0.0.0.0` | Bind host for FastAPI Uvicorn server. |
+| `API_HOST` | `127.0.0.1` | Bind host for FastAPI Uvicorn server. Keep loopback; front with a reverse proxy to expose. |
 | `API_PORT` | `8000` | Port for FastAPI Uvicorn server. |
+| `API_AUTH_ENABLED` | `true` | Require a bearer token on all non-public routes and the WebSocket. |
+| `API_TOKEN` | `""` | Pinned token. Empty = auto-generate once into `API_TOKEN_FILE`. |
+| `API_TOKEN_FILE` | `~/.config/maidere/token` | Where the generated token is persisted (mode `0600`). |
+| `ALLOWED_ORIGINS` | `""` | Extra comma-separated browser origins for CORS / WebSocket; loopback origins are implicit. |
+| `METRICS_ALLOW_LOOPBACK` | `true` | Let loopback clients scrape `/metrics` without a token. |
+| `MAX_UPLOAD_BYTES` | `26214400` | Upload size cap (25 MB) enforced while streaming to disk. |
+| `SEARXNG_SECRET` | *(required)* | Read by `docker-compose.yml`; SearXNG refuses to start without it. |
+| `GRAFANA_ADMIN_PASSWORD` | *(required)* | Read by `docker-compose.yml`; replaces the former `admin/admin` default. |

@@ -1,7 +1,9 @@
 use_default_settings: true
 
 server:
-  secret_key: "maidere_searxng_secret_key_change_me"
+  # Overridden at runtime by the SEARXNG_SECRET environment variable
+  # (set in .env, injected via docker-compose.yml). Do not put a real secret here.
+  secret_key: "set-SEARXNG_SECRET-in-dot-env"
   limiter: false
   image_proxy: false
 

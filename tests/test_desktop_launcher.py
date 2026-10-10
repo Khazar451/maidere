@@ -9,12 +9,15 @@ import unittest
 from unittest.mock import MagicMock, patch
 import urllib.error
 
+from core.config import settings
 from desktop.launcher import (
     DEFAULT_HOST,
     DEFAULT_PORT,
+    build_ui_url,
     find_browser_engine,
     install_desktop_entry,
     is_server_healthy,
+    resolve_api_token,
     start_server_process,
     wait_for_server,
 )
@@ -22,6 +25,20 @@ from desktop.launcher import (
 
 class TestDesktopLauncher(unittest.TestCase):
     """Unit tests for desktop launcher functions."""
+
+    def test_build_ui_url_puts_token_in_fragment(self):
+        """The token must travel in the URL fragment, never the query string."""
+        url = build_ui_url("127.0.0.1", 8000, "abc123")
+        self.assertEqual(url, "http://127.0.0.1:8000/#token=abc123")
+        self.assertNotIn("?", url)
+        self.assertEqual(build_ui_url("127.0.0.1", 8000, None), "http://127.0.0.1:8000/")
+
+    def test_resolve_api_token_uses_server_resolution(self):
+        """Launcher resolves the same token the server will accept."""
+        with patch.object(settings, "api_token", "launcher-token-0123456789"):
+            self.assertEqual(resolve_api_token(), "launcher-token-0123456789")
+        with patch.object(settings, "api_auth_enabled", False):
+            self.assertIsNone(resolve_api_token())
 
     @patch("urllib.request.urlopen")
     def test_is_server_healthy_success(self, mock_urlopen):

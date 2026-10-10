@@ -12,6 +12,7 @@ from api.app import create_app
 from api.routes import set_graph
 from core.agent import create_graph
 from core.db import get_db, init_tables
+from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
 class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
@@ -50,13 +51,15 @@ class TestWebUIAndThreads(unittest.IsolatedAsyncioTestCase):
         # Build graph
         self.graph, self.checkpointer_ctx = await create_graph(self.temp_db_path)
         set_graph(self.graph)
+        self.token_patcher = patch_api_token()
         self.app = create_app()
         self.transport = ASGITransport(app=self.app)
-        self.client = httpx.AsyncClient(transport=self.transport, base_url="http://test")
+        self.client = httpx.AsyncClient(transport=self.transport, base_url="http://test", headers=AUTH_HEADERS)
 
     async def asyncTearDown(self):
         import os
         await self.client.aclose()
+        self.token_patcher.stop()
         await self.checkpointer_ctx.__aexit__(None, None, None)
         if os.path.exists(self.temp_db_path):
             os.remove(self.temp_db_path)

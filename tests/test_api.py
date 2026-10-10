@@ -14,6 +14,7 @@ from core.agent import create_graph
 from core.config import settings
 from core.db import get_db, init_tables
 from core.memory import store_memory
+from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 
 class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
@@ -49,6 +50,7 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
         # Patch settings.db_path so all endpoint requests use the isolated test database
         self.db_patcher = patch.object(settings, "db_path", self.temp_db_path)
         self.db_patcher.start()
+        self.token_patcher = patch_api_token()
 
         # Init DB tables
         db = await get_db(self.temp_db_path)
@@ -59,10 +61,11 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
         self.graph, self.checkpointer_ctx = await create_graph(self.temp_db_path)
         set_graph(self.graph)
         self.app = create_app()
-        self.client = TestClient(self.app)
+        self.client = TestClient(self.app, headers=AUTH_HEADERS)
 
     async def asyncTearDown(self):
         import os
+        self.token_patcher.stop()
         self.db_patcher.stop()
         await self.checkpointer_ctx.__aexit__(None, None, None)
         if os.path.exists(self.temp_db_path):

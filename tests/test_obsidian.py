@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from api.app import app
 from core.config import get_obsidian_vault_info, settings
 from core.skills import load_all_skills, match_skills
+from tests.authhelpers import AUTH_HEADERS, TEST_TOKEN
 from tools.obsidian import ObsidianTool, format_frontmatter
 
 
@@ -122,7 +123,7 @@ class TestObsidianSkillsAndAPI(unittest.TestCase):
         self.assertIn("obsidian", matched_names)
 
     def test_obsidian_api_endpoints(self):
-        with TestClient(app) as client:
+        with patch.object(settings, "api_token", TEST_TOKEN), TestClient(app, headers=AUTH_HEADERS) as client:
             res = client.get("/obsidian/vault")
             self.assertEqual(res.status_code, 200)
             data = res.json()

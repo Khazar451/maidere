@@ -8,8 +8,14 @@ rule_files:
 scrape_configs:
   - job_name: "maidere-agent"
     metrics_path: "/metrics"
+    # Prometheus runs with network_mode: host (see docker-compose.yml), so it
+    # reaches the loopback-bound API directly. /metrics accepts loopback
+    # scrapes without a token (METRICS_ALLOW_LOOPBACK=true). To scrape from a
+    # remote Prometheus instead, add:
+    #   authorization:
+    #     credentials_file: /etc/prometheus/maidere_token
     static_configs:
-      - targets: ["host.docker.internal:8000"]
+      - targets: ["127.0.0.1:8000"]
         labels:
           app: "maidere"
           env: "local"

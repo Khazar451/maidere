@@ -41,28 +41,42 @@ else
   echo "   Ollama LLM service detected and active."
 fi
 
-# 4. Trigger Web UI launch in default browser non-blockingly (~1.5s delay)
+# 4. Resolve runner and the API access token (created on first run, mode 0600)
+HOST="${API_HOST:-127.0.0.1}"
+PORT="${API_PORT:-8000}"
+
+if [ -f "$REPO_ROOT/.venv/bin/python" ]; then
+  PY="$REPO_ROOT/.venv/bin/python"
+elif command -v uv >/dev/null 2>&1; then
+  PY="uv run python"
+else
+  PY="python3"
+fi
+
+TOKEN="$($PY -c 'from core.tokens import load_or_create_token; print(load_or_create_token())' 2>/dev/null || true)"
+UI_URL="http://${HOST}:${PORT}/"
+if [ -n "$TOKEN" ]; then
+  # The token travels in the URL fragment: browsers never send it to the server.
+  OPEN_URL="${UI_URL}#token=${TOKEN}"
+else
+  OPEN_URL="$UI_URL"
+fi
+
+# 5. Trigger Web UI launch in default browser non-blockingly (~1.5s delay)
 (
   sleep 1.5
   if command -v xdg-open >/dev/null 2>&1 && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
-    xdg-open "http://localhost:8000" >/dev/null 2>&1 || true
+    xdg-open "$OPEN_URL" >/dev/null 2>&1 || true
   elif command -v open >/dev/null 2>&1; then
-    open "http://localhost:8000" >/dev/null 2>&1 || true
+    open "$OPEN_URL" >/dev/null 2>&1 || true
   fi
 ) &
 
-echo "   Web UI accessible at: http://localhost:8000"
+echo "   Web UI accessible at: $UI_URL"
+echo "   API token file:       ~/.config/maidere/token"
 echo "   Press Ctrl + C to stop Maidere"
 echo "================================================================="
 echo ""
 
-# 5. Determine Python / Uvicorn runner and exec process for clean signal handling
-if command -v uv >/dev/null 2>&1; then
-  exec uv run uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
-elif [ -f "$REPO_ROOT/.venv/bin/uvicorn" ]; then
-  exec "$REPO_ROOT/.venv/bin/uvicorn" api.app:app --host 0.0.0.0 --port 8000 --reload
-elif [ -f "$REPO_ROOT/.venv/bin/python" ]; then
-  exec "$REPO_ROOT/.venv/bin/python" -m uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
-else
-  exec uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
-fi
+# 6. Exec uvicorn bound to loopback for clean signal handling
+exec $PY -m uvicorn api.app:app --host "$HOST" --port "$PORT" --reload

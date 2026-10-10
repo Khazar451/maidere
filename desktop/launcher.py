@@ -25,6 +25,31 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
 
 
+def resolve_api_token() -> str | None:
+    """Resolve (creating if needed) the API token the server will accept.
+
+    Uses the same resolution as the server (``core.tokens``) so the browser
+    window can be opened with the token in the URL fragment. Returns ``None``
+    when auth is disabled or the token cannot be resolved.
+    """
+    try:
+        from core.config import settings
+        from core.tokens import load_or_create_token
+
+        if not settings.api_auth_enabled:
+            return None
+        return load_or_create_token()
+    except Exception as exc:  # pragma: no cover - defensive; launcher must not crash
+        print(f"[DESKTOP] Warning: could not resolve API token ({exc}). The UI will ask for it.")
+        return None
+
+
+def build_ui_url(host: str, port: int, token: str | None) -> str:
+    """URL to open in the window; token travels in the fragment, never the query."""
+    base = f"http://{host}:{port}/"
+    return f"{base}#token={token}" if token else base
+
+
 def is_server_healthy(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, timeout: float = 1.0) -> bool:
     """Check if Maidere server is actively responding on /health."""
     url = f"http://{host}:{port}/health"
@@ -260,6 +285,12 @@ def run_desktop(
     if server_only:
         print("[DESKTOP] Running in server-only headless mode. Press Ctrl+C to stop.")
         try:
+            from core.tokens import token_file_path
+
+            print(f"[DESKTOP] API token file: {token_file_path()} (send as 'Authorization: Bearer <token>')")
+        except Exception:
+            pass
+        try:
             while True:
                 time.sleep(1.0)
                 if server_proc and server_proc.poll() is not None:
@@ -270,8 +301,9 @@ def run_desktop(
             _cleanup()
         return 0
 
-    # 2. Launch native application window
-    window_proc = launch_window(url, title="Maidere — Local Autonomous AI Agent", dev_mode=dev_mode)
+    # 2. Launch native application window (token handed over via URL fragment)
+    ui_url = build_ui_url(host, port, resolve_api_token())
+    window_proc = launch_window(ui_url, title="Maidere — Local Autonomous AI Agent", dev_mode=dev_mode)
 
     # 3. Keep launcher alive while window or server is running
     try:

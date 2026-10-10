@@ -17,10 +17,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.auth import AuthMiddleware
 from api.routes import router, set_graph
 from core.agent import create_graph
 from core.config import settings
 from core.db import get_db, init_tables
+from core.tokens import load_or_create_token, token_file_path, token_strength_warning
 
 
 def setup_logging() -> None:
@@ -76,6 +78,26 @@ async def lifespan(app: FastAPI):
 
     start_scheduler(settings.db_path)
 
+    # Resolve (and if needed create) the API token before serving traffic.
+    if settings.api_auth_enabled:
+        load_or_create_token()
+        token_source = "env" if settings.api_token.strip() else str(token_file_path())
+        await log.ainfo("api_auth_enabled", token_source=token_source)
+        warning = token_strength_warning()
+        if warning:
+            await log.awarn("api_token_weak", detail=warning)
+    else:
+        await log.awarn(
+            "api_auth_disabled",
+            detail="API_AUTH_ENABLED=false: anyone who can reach this port can run tools.",
+        )
+    if settings.api_host not in ("127.0.0.1", "localhost", "::1"):
+        await log.awarn(
+            "api_bound_to_non_loopback",
+            host=settings.api_host,
+            detail="Ensure a TLS-terminating reverse proxy or firewall is in front of this port.",
+        )
+
     await log.ainfo(
         "maidere_started",
         model=settings.ollama_model,
@@ -103,12 +125,21 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Middleware order: Starlette wraps in reverse order of add_middleware, so
+    # CORS (added last) is outermost and answers preflights itself; the auth
+    # middleware sits directly inside it, so no unauthenticated request ever
+    # reaches the router.
+    app.add_middleware(AuthMiddleware)
+
+    # CORS: only the origins we serve the UI from (loopback for the configured
+    # port) plus any explicitly configured extras. No wildcard, no credentials:
+    # auth is a bearer header, so cookies are never relied upon.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=settings.get_allowed_origins(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Maidere-Token"],
     )
 
     # Include API routes
