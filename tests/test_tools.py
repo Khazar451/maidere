@@ -231,9 +231,15 @@ class TestShellTool(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.strip(), "Maidere agent")
 
     async def test_python_execution(self):
-        """Test running python code inside workspace."""
+        """Inline python runs under bwrap isolation; restricted mode refuses inline code."""
+        from tools.sandbox import SandboxMode, resolve_mode
+
         result = await self.shell_tool.execute("python3 -c \"print(21 * 2)\"")
-        self.assertEqual(result.strip(), "42")
+        if resolve_mode() is SandboxMode.RESTRICTED:
+            self.assertIn("inline code", result)
+            self.assertIn("not permitted", result)
+        else:
+            self.assertEqual(result.strip(), "42")
 
     async def test_disallowed_command_blocked(self):
         """Test blocked binary commands are rejected immediately."""

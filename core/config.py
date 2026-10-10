@@ -62,6 +62,21 @@ class Settings(BaseSettings):
     # Upload limits
     max_upload_bytes: int = 25 * 1024 * 1024
 
+    # Tool sandbox (shell + code_runner subprocesses)
+    # auto       -> bwrap if bubblewrap works on this host, else restricted (with a warning)
+    # bwrap      -> require bubblewrap; tools refuse to run if it is unavailable
+    # restricted -> argument-level confinement only (no namespaces); weaker
+    # off        -> no confinement beyond cwd (development only)
+    tool_sandbox_mode: str = "auto"
+    tool_sandbox_allow_network: bool = False
+    tool_sandbox_memory_mb: int = 1024
+    tool_sandbox_max_file_mb: int = 64
+    tool_sandbox_max_output_chars: int = 20000
+    tool_sandbox_timeout_seconds: float = 30.0
+    # Extra host paths to expose read-only inside the sandbox, comma-separated
+    # (e.g. a Node.js install outside /usr).
+    tool_sandbox_extra_ro_paths: str = ""
+
     # Web Search (SearXNG)
     searxng_url: str = "http://localhost:8080"
 

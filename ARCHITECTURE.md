@@ -212,10 +212,12 @@ graph TD
 | **0d** | Restricted CORS | Credentialed cross-origin API calls | Explicit origin allowlist (loopback for the configured port + `ALLOWED_ORIGINS`); no wildcard, `allow_credentials=False`. |
 | **0e** | Upload Hardening | Path traversal via `UploadFile.filename`, disk exhaustion | `sanitize_upload_filename()` reduces to a safe basename; streamed write to a `.part` temp file with `MAX_UPLOAD_BYTES` cap (413) and no partial leftovers. |
 | **0f** | No Shipped Secrets | Default `admin/admin` Grafana and committed SearXNG key | `docker-compose.yml` requires `SEARXNG_SECRET` and `GRAFANA_ADMIN_PASSWORD` from `.env` (`${VAR:?}` fails fast); sidecar ports bound to `127.0.0.1`. |
-| **1** | Directory Traversal Defense | Unauthorized system file read/write (`/etc/passwd`) | `pathlib.Path.resolve()` + `is_relative_to(WORKSPACE)` validation. |
+| **0g** | Namespace Isolation for Tool Subprocesses | Host filesystem reads (`cat /etc/hostname`), `$HOME` access, outbound network, writes outside the workspace from `shell`/`code_runner` | `tools/sandbox.py` wraps each command in bubblewrap: `--ro-bind /usr`, workspace as the only `--bind`, tmpfs `/tmp`+`HOME`, `--unshare-all` (network opt-in), `--die-with-parent`, `--new-session`, `--cap-drop ALL`, `--remount-ro /`. Falls back to `restricted` mode (argument confinement) with a startup warning; `TOOL_SANDBOX_MODE=bwrap` fails closed. |
+| **0h** | Environment Scrubbing & Resource Limits | API keys leaking into tool subprocesses; runaway memory/disk | `--clearenv` + explicit minimal env in every mode; `prlimit --as/--fsize/--core`; output capped at `TOOL_SANDBOX_MAX_OUTPUT_CHARS`; `python -I` for `code_runner`. |
+| **1** | Directory Traversal Defense (file tools) | Unauthorized system file read/write (`/etc/passwd`) | `pathlib.Path.resolve()` + `is_relative_to(WORKSPACE)` validation. |
 | **2** | Symmetrical Path Resolution | Comparison failure between relative and absolute paths | Base `WORKSPACE` resolved to absolute path at startup. |
 | **3** | Shell Injection Immunity | Malicious shell metacharacter execution (`rm -rf /;`) | `subprocess.run(shell=False)` with argument list. |
-| **4** | Shell Binary Allowlist | Unauthorized system binary execution | Strict allowlist: `python3`, `git`, `ls`, `grep`, `mkdir`, `pytest`, etc. |
+| **4** | Shell Binary Allowlist | Unauthorized system binary execution | Strict allowlist matched on basename, resolved to the real executable path; read-only `git` subcommands only. |
 | **5** | Safe `shlex.split` Handling | Unhandled crashes on malformed LLM quotes | Enclosed in `try...except ValueError` returning clean error string. |
 | **6** | Ephemeral Browser Lifecycle | Memory leaks and orphaned Chromium processes | `async with async_playwright()` with guaranteed `finally` termination. |
 | **7** | Browser Timeout Caps | Infinite hanging on slow or hostile websites | 15,000ms navigation timeout cap. |
@@ -305,5 +307,12 @@ Ran 245 tests in 4.808s — OK (100% Passed, 0 Failures, 0 Errors)
 | `ALLOWED_ORIGINS` | `""` | Extra comma-separated browser origins for CORS / WebSocket; loopback origins are implicit. |
 | `METRICS_ALLOW_LOOPBACK` | `true` | Let loopback clients scrape `/metrics` without a token. |
 | `MAX_UPLOAD_BYTES` | `26214400` | Upload size cap (25 MB) enforced while streaming to disk. |
+| `TOOL_SANDBOX_MODE` | `auto` | `auto` / `bwrap` / `restricted` / `off` for `shell` and `code_runner` subprocesses. |
+| `TOOL_SANDBOX_ALLOW_NETWORK` | `false` | Share the host network namespace with sandboxed commands. |
+| `TOOL_SANDBOX_MEMORY_MB` | `1024` | `RLIMIT_AS` cap via `prlimit` (0 disables). |
+| `TOOL_SANDBOX_MAX_FILE_MB` | `64` | `RLIMIT_FSIZE` cap for files written by sandboxed commands. |
+| `TOOL_SANDBOX_MAX_OUTPUT_CHARS` | `20000` | Truncation point for captured stdout/stderr. |
+| `TOOL_SANDBOX_TIMEOUT_SECONDS` | `30` | Wall-clock limit per command (tools also cap at 30 s). |
+| `TOOL_SANDBOX_EXTRA_RO_PATHS` | `""` | Extra host paths mounted read-only inside the sandbox (comma-separated). |
 | `SEARXNG_SECRET` | *(required)* | Read by `docker-compose.yml`; SearXNG refuses to start without it. |
 | `GRAFANA_ADMIN_PASSWORD` | *(required)* | Read by `docker-compose.yml`; replaces the former `admin/admin` default. |

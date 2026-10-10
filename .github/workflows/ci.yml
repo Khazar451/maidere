@@ -24,6 +24,12 @@ jobs:
           enable-cache: true
           python-version: "3.12"
 
+      - name: Install system dependencies (bubblewrap for tool sandbox tests)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q bubblewrap
+          bwrap --version
+
       - name: Install dependencies
         run: uv sync --no-install-project
 

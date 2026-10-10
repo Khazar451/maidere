@@ -100,6 +100,9 @@ class HealthResponse(BaseModel):
     )
     model: str = Field(..., description="Configured LLM model")
     db_path: str = Field(..., description="Database file path")
+    sandbox_mode: str | None = Field(
+        None, description="Active tool sandbox mode: bwrap, restricted, off, or unavailable"
+    )
 
 
 class MessageItem(BaseModel):

@@ -1,28 +1,30 @@
 """Sandboxed Python code runner tool for Maidere.
 
-Executes Python code in an isolated subprocess with:
-- shell=False
-- 30-second hard timeout
-- Guaranteed cleanup of temporary script files
-- Scoped inside workspace/
+Executes Python code in an isolated subprocess via ``tools.sandbox``:
+- bubblewrap namespaces when available (read-only root, workspace-only writes,
+  no network), otherwise restricted mode with a scrubbed environment
+- ``python -I`` (isolated mode: ignores PYTHON* env vars and user site-packages)
+- 30-second hard timeout, memory/file-size rlimits, output caps
+- Guaranteed cleanup of the temporary script file
+- Project virtualenv packages remain importable (mounted read-only)
 """
 
 import asyncio
 from pathlib import Path
-import subprocess
 import sys
 import uuid
 from typing import Any
 
 from core.config import settings
 from tools.base import BaseTool
+from tools.sandbox import SandboxError, run_sandboxed
 
 WORKSPACE: Path = (Path.cwd() / settings.agent_workspace).resolve()
 DEFAULT_TIMEOUT_SECONDS: float = 30.0
 
 
 class CodeRunnerTool(BaseTool):
-    """Tool to execute Python code in a dedicated subprocess with timeout enforcement."""
+    """Tool to execute Python code in a dedicated sandboxed subprocess with timeout enforcement."""
 
     name: str = "code_runner"
     description: str = (
@@ -41,51 +43,48 @@ class CodeRunnerTool(BaseTool):
     }
 
     async def execute(self, code: str, **kwargs: Any) -> str:
-        """Execute Python code asynchronously in a subprocess."""
+        """Execute Python code asynchronously in a sandboxed subprocess."""
         if not code or not code.strip():
             return "Error: No Python code provided to execute."
 
         tmp_dir = WORKSPACE / ".tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
         script_file = tmp_dir / f"snippet_{uuid.uuid4().hex[:8]}.py"
+        timeout = min(DEFAULT_TIMEOUT_SECONDS, float(settings.tool_sandbox_timeout_seconds))
+        # Keep the unresolved interpreter path: a venv is detected from the
+        # symlink location (pyvenv.cfg), resolving it would drop the venv.
+        python_bin = sys.executable or "python3"
 
         def _run() -> str:
             try:
-                # Write script
                 script_file.write_text(code, encoding="utf-8")
-
-                # Execute using the active Python interpreter
-                python_bin = sys.executable or "python3"
-                result = subprocess.run(
-                    [python_bin, str(script_file)],
-                    cwd=str(WORKSPACE),
-                    shell=False,
-                    capture_output=True,
-                    text=True,
-                    timeout=DEFAULT_TIMEOUT_SECONDS,
-                )
-
-                stdout = result.stdout.strip()
-                stderr = result.stderr.strip()
+                try:
+                    result = run_sandboxed(
+                        [python_bin, "-I", str(script_file)],
+                        workspace=WORKSPACE,
+                        timeout=timeout,
+                    )
+                except SandboxError as e:
+                    return str(e)
+                if result.timed_out:
+                    return f"Error: Execution timed out after {timeout:g} seconds."
 
                 output_parts = []
-                if stdout:
-                    output_parts.append(stdout)
-                if stderr:
-                    output_parts.append(f"[stderr]\n{stderr}")
+                if result.stdout:
+                    output_parts.append(result.stdout)
+                if result.stderr:
+                    output_parts.append(f"[stderr]\n{result.stderr}")
+                if result.truncated:
+                    output_parts.append("[output truncated]")
                 if result.returncode != 0:
                     output_parts.append(f"[Exit code: {result.returncode}]")
-
                 return "\n".join(output_parts) if output_parts else "Code executed successfully (no output)."
-            except subprocess.TimeoutExpired:
-                return f"Error: Execution timed out after {DEFAULT_TIMEOUT_SECONDS} seconds."
             except Exception as e:
                 return f"Error executing Python snippet: {str(e)}"
             finally:
-                if script_file.exists():
-                    try:
-                        script_file.unlink()
-                    except Exception:
-                        pass
+                try:
+                    script_file.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         return await asyncio.to_thread(_run)

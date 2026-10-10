@@ -873,12 +873,16 @@ async def list_skills_endpoint() -> dict[str, Any]:
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     """Check service health and Ollama connectivity."""
+    from tools.sandbox import describe as describe_sandbox
+
     ollama_ok = await llm.is_available()
+    sandbox_info = describe_sandbox()
     return HealthResponse(
         status="ok" if ollama_ok else "degraded",
         ollama_available=ollama_ok,
         model=settings.ollama_model,
         db_path=settings.db_path,
+        sandbox_mode=str(sandbox_info.get("active")),
     )
 
 

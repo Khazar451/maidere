@@ -1,21 +1,26 @@
 """Shell command execution tool for Maidere with security guardrails.
 
-Enforces:
+Policy layer (this module):
 - shell=False with argument list execution
 - Safe shlex.split() exception handling
-- Strict Linux binary allowlist
-- 30-second execution timeout
-- Execution scoped inside workspace/
+- Strict Linux binary allowlist, read-only git subcommands
+- Deterministic destructive-pattern rejection
+
+Isolation layer (``tools.sandbox``):
+- bubblewrap namespaces (read-only root, workspace-only writes, no network),
+  or argument-level confinement when bubblewrap is unavailable
+- Scrubbed environment, rlimits, timeout, output caps
 """
 
 import asyncio
+import shutil
 from pathlib import Path
 import shlex
-import subprocess
 from typing import Any
 
 from core.config import settings
 from tools.base import BaseTool
+from tools.sandbox import SandboxError, run_sandboxed
 
 # Path resolution symmetry: WORKSPACE is explicitly resolved to absolute path at startup
 WORKSPACE: Path = (Path.cwd() / settings.agent_workspace).resolve()
@@ -142,35 +147,26 @@ class ShellTool(BaseTool):
 
         WORKSPACE.mkdir(parents=True, exist_ok=True)
 
-        # 3. Execution via subprocess with shell=False, timeout=30s, and cwd=WORKSPACE
+        # 5. Resolve the binary on the host. The allowlist is matched on the
+        # basename, so a relative/absolute argv[0] cannot smuggle in another
+        # executable; the resolved real path is what actually runs.
+        resolved = shutil.which(binary_name)
+        if not resolved:
+            return f"Error: Executable '{binary_name}' not found on host system."
+        args[0] = str(Path(resolved).resolve())
+
+        # 6. Execution inside the sandbox (bwrap namespaces or restricted mode)
+        timeout = min(DEFAULT_TIMEOUT_SECONDS, float(settings.tool_sandbox_timeout_seconds))
+
         def _run() -> str:
             try:
-                result = subprocess.run(
-                    args,
-                    cwd=str(WORKSPACE),
-                    shell=False,
-                    capture_output=True,
-                    text=True,
-                    timeout=DEFAULT_TIMEOUT_SECONDS,
-                )
-                stdout = result.stdout.strip()
-                stderr = result.stderr.strip()
-
-                output_parts = []
-                if stdout:
-                    output_parts.append(stdout)
-                if stderr:
-                    output_parts.append(f"[stderr]\n{stderr}")
-
-                if result.returncode != 0:
-                    output_parts.append(f"[Process exited with code {result.returncode}]")
-
-                return "\n".join(output_parts) if output_parts else "Command executed successfully (no output)."
-            except subprocess.TimeoutExpired:
-                return f"Error: Command execution timed out after {DEFAULT_TIMEOUT_SECONDS} seconds."
-            except FileNotFoundError:
-                return f"Error: Executable '{binary_name}' not found on host system."
+                result = run_sandboxed(args, workspace=WORKSPACE, timeout=timeout)
+            except SandboxError as e:
+                return str(e)
             except Exception as e:
                 return f"Error executing command: {str(e)}"
+            if result.timed_out:
+                return f"Error: Command execution timed out after {timeout:g} seconds."
+            return result.format()
 
         return await asyncio.to_thread(_run)

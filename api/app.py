@@ -91,6 +91,22 @@ async def lifespan(app: FastAPI):
             "api_auth_disabled",
             detail="API_AUTH_ENABLED=false: anyone who can reach this port can run tools.",
         )
+    # Report which tool sandbox is in effect; restricted mode is a weaker guarantee.
+    from tools.sandbox import describe as describe_sandbox
+
+    sandbox_info = describe_sandbox()
+    if sandbox_info["active"] == "bwrap":
+        await log.ainfo("tool_sandbox", **sandbox_info)
+    else:
+        await log.awarn(
+            "tool_sandbox_degraded",
+            **sandbox_info,
+            detail=(
+                "Tool subprocesses are not namespace-isolated. Install `bubblewrap` "
+                "(and allow unprivileged user namespaces) for full isolation."
+            ),
+        )
+
     if settings.api_host not in ("127.0.0.1", "localhost", "::1"):
         await log.awarn(
             "api_bound_to_non_loopback",

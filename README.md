@@ -31,7 +31,7 @@
 - **In-Process SQLite Vector Database**: ACID-compliant SQLite WAL mode with `sqlite-vec` extension (`vec0` virtual table), eliminating external vector database overhead.
 - **3-Tier Self-Healing Memory**: Persistent hierarchical memory combining rule enforcement (`RULES.md`), structured topic auto-memory with LRU eviction (`memory/*.md`), and turn-level fact extraction with Jaccard novelty filtering.
 - **Specialized Subagent Fleet**: Ephemeral subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) communicating via a microsecond-stamped file artifact bus.
-- **Local Metasearch & Sandboxed Tools**: Private metasearch via local SearXNG, ephemeral Playwright web scraper, safe subprocess execution, and bidirectional Obsidian vault synchronization.
+- **Local Metasearch & Namespace-Isolated Tools**: Private metasearch via local SearXNG, ephemeral Playwright web scraper, `shell`/`code_runner` subprocesses confined with [bubblewrap](https://github.com/containers/bubblewrap) (read-only root, workspace-only writes, no network, scrubbed environment), and bidirectional Obsidian vault synchronization.
 
 ---
 
@@ -41,7 +41,7 @@
 - **Workstation OS**: Linux Mint 21+, Ubuntu 22.04+, or modern Linux distribution.
 - **Local GPU**: NVIDIA GPU with $\ge$ 8GB VRAM (e.g. RTX 5060, 4060, 3060).
 - **System Memory**: 16 GB RAM.
-- **Prerequisites**: Python 3.12 (`>=3.12, <3.14`), Docker & Docker Compose, Ollama, [uv](https://docs.astral.sh/uv/) (recommended).
+- **Prerequisites**: Python 3.12 (`>=3.12, <3.14`), Docker & Docker Compose, Ollama, [uv](https://docs.astral.sh/uv/) (recommended), `bubblewrap` (`sudo apt install bubblewrap`) for tool isolation.
 
 ### 2. Setup & Installation
 ```bash
@@ -104,6 +104,16 @@ The API binds to **loopback only** (`127.0.0.1`) and every request requires a be
 TOKEN=$(cat ~/.config/maidere/token)
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/threads
 ```
+
+### 5. Tool Sandbox
+
+The `shell` and `code_runner` tools run every subprocess through `tools/sandbox.py`. `GET /health` reports the active mode as `sandbox_mode`.
+
+- **`bwrap`** (default when available): a fresh bubblewrap sandbox per command with a read-only `/usr`, the workspace as the *only* writable host path, tmpfs `/tmp` and `HOME`, new user/PID/IPC/UTS namespaces, **no network** (`TOOL_SANDBOX_ALLOW_NETWORK=true` to opt in), a cleared environment (the server's API keys are never inherited), `prlimit` memory/file-size caps, and a 30 s timeout. The project virtualenv is mounted read-only so `code_runner` keeps its packages. Your home directory, `/etc/passwd`, and the Maidere repository itself do not exist inside the sandbox.
+- **`restricted`** (automatic fallback, logged as a warning): no namespaces. Path arguments must stay inside the workspace, interpreters refuse inline code (`python -c`, `node -e`), `find -exec` is blocked, and the environment is still scrubbed. This confines arguments, not what a script does once it runs; install `bubblewrap` rather than relying on it.
+- **`off`**: cwd only. Development use.
+
+Set `TOOL_SANDBOX_MODE=bwrap` to fail closed: tools refuse to run at all if bubblewrap is unavailable. On Ubuntu 24.04+ unprivileged user namespaces are restricted by AppArmor, but the stock `bubblewrap` package ships a profile that permits them.
 
 ---
 
@@ -249,8 +259,8 @@ graph TD
 | `read_file` | Read workspace file contents with path confinement | `path: str` |
 | `write_file` | Atomic file write with automatic directory creation | `path: str, content: str` |
 | `list_dir` | List files and directories within the sandbox | `path: str` |
-| `shell` | Run allowlisted shell command with `shell=False` | `command: str` |
-| `code_runner` | Execute sandboxed Python script inside workspace | `code: str` |
+| `shell` | Run allowlisted command inside a bubblewrap sandbox (`shell=False`, no network, workspace-only writes) | `command: str` |
+| `code_runner` | Execute a Python script inside the same sandbox (`python -I`, venv packages available) | `code: str` |
 | `browser` | Scrape webpage DOM text via ephemeral Playwright | `url: str` |
 | `delegate_task` | Spawn isolated subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) | `prompt: str, subagent_type: str, max_turns: int` |
 | `manage_memory`| 3-Tier memory manager (read/save topic facts, view rules) | `action: str, topic: str, content: str` |
