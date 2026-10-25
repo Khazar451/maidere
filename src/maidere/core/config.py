@@ -1,5 +1,6 @@
 """Maidere configuration via environment variables."""
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 
@@ -77,6 +78,15 @@ class Settings(BaseSettings):
     # Extra host paths to expose read-only inside the sandbox, comma-separated
     # (e.g. a Node.js install outside /usr).
     tool_sandbox_extra_ro_paths: str = ""
+
+    # Extra binaries the shell tool may run, comma-separated bare names
+    # (e.g. EXTRA_ALLOWED_COMMANDS=uv,pytest,cargo,go,ruff). Empty by default.
+    # Still confined to the workspace sandbox; shells, sudo and network clients
+    # are always refused.
+    extra_allowed_commands: str = Field(
+        default="",
+        validation_alias=AliasChoices("extra_allowed_commands", "maidere_extra_allowed_commands"),
+    )
 
     # Web Search (SearXNG)
     searxng_url: str = "http://localhost:8080"

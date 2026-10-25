@@ -247,6 +247,44 @@ class TestShellTool(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Error: Command binary", res)
             self.assertIn("not permitted", res)
 
+    async def test_extra_allowed_commands_are_opt_in(self):
+        """Binaries outside the built-in list are rejected until the operator allows them."""
+        from unittest.mock import patch
+
+        from maidere.core.config import settings
+
+        with patch.object(settings, "extra_allowed_commands", ""):
+            res = await self.shell_tool.execute("pytest --version")
+        self.assertIn("not permitted", res)
+
+        with patch.object(settings, "extra_allowed_commands", " pytest , uv "):
+            res = await self.shell_tool.execute("pytest --version")
+            self.assertNotIn("not permitted", res)
+            self.assertIn("pytest", ShellTool().description)
+
+    async def test_extra_allowed_commands_reject_unsafe_entries(self):
+        """Shells, privilege escalation, paths and flags can never be allowed via config."""
+        from unittest.mock import patch
+
+        from maidere.core.config import settings
+        from maidere.tools.shell import extra_allowed_commands
+
+        unsafe = "bash,sudo,curl,/usr/bin/cargo,-rf,go test,"
+        with patch.object(settings, "extra_allowed_commands", unsafe + ",cargo"):
+            self.assertEqual(extra_allowed_commands(), {"cargo"})
+            res = await self.shell_tool.execute("bash -c 'echo injected'")
+        self.assertIn("not permitted", res)
+
+    async def test_extra_command_keeps_destructive_and_git_guards(self):
+        """Adding extras does not relax the destructive-pattern or git read-only checks."""
+        from unittest.mock import patch
+
+        from maidere.core.config import settings
+
+        with patch.object(settings, "extra_allowed_commands", "go"):
+            self.assertIn("Destructive action blocked", await self.shell_tool.execute("rm -rf ."))
+            self.assertIn("blocked by security policy", await self.shell_tool.execute("git push origin main"))
+
     async def test_unclosed_quotes_shlex_handling(self):
         """Test safe exception handling when shlex receives unclosed quotes."""
         bad_command = 'echo "unclosed quote'

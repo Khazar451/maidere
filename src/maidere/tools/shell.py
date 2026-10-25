@@ -18,10 +18,14 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+import structlog
+
 from maidere.core.config import settings
 from maidere.tools.base import BaseTool
 from maidere.tools.filesystem import get_workspace
 from maidere.tools.sandbox import SandboxError, run_sandboxed
+
+logger = structlog.get_logger()
 
 
 def __getattr__(name: str) -> Any:
@@ -62,7 +66,65 @@ ALLOWED_GIT_SUBCOMMANDS: set[str] = {
 
 DISALLOWED_GIT_FLAGS: set[str] = {"-c", "--work-tree", "--git-dir", "--exec-path"}
 
+# Binaries that defeat the policy layer (interactive shells, privilege
+# escalation, network clients). They are rejected even if listed in
+# MAIDERE_EXTRA_ALLOWED_COMMANDS.
+NEVER_ALLOWED_COMMANDS: frozenset[str] = frozenset(
+    {
+        "sh",
+        "bash",
+        "dash",
+        "zsh",
+        "fish",
+        "csh",
+        "ksh",
+        "sudo",
+        "su",
+        "doas",
+        "env",
+        "xargs",
+        "ssh",
+        "scp",
+        "curl",
+        "wget",
+        "nc",
+        "ncat",
+        "socat",
+        "telnet",
+        "dd",
+        "mkfs",
+        "chmod",
+        "chown",
+    }
+)
+
 DEFAULT_TIMEOUT_SECONDS: float = 30.0
+
+
+def extra_allowed_commands() -> set[str]:
+    """Operator-configured extra binaries (``MAIDERE_EXTRA_ALLOWED_COMMANDS``).
+
+    Entries must be bare binary names; paths, whitespace and anything in
+    ``NEVER_ALLOWED_COMMANDS`` are dropped.
+    """
+    extras: set[str] = set()
+    for raw in settings.extra_allowed_commands.split(","):
+        name = raw.strip()
+        if not name:
+            continue
+        if name != Path(name).name or any(c.isspace() for c in name) or name.startswith("-"):
+            logger.warning("shell_extra_command_ignored", command=name, reason="not a bare binary name")
+            continue
+        if name in NEVER_ALLOWED_COMMANDS:
+            logger.warning("shell_extra_command_ignored", command=name, reason="never allowed")
+            continue
+        extras.add(name)
+    return extras
+
+
+def effective_allowed_commands() -> set[str]:
+    """Built-in allowlist merged with the operator's extras."""
+    return ALLOWED_COMMANDS | extra_allowed_commands()
 
 
 class ShellTool(BaseTool):
@@ -84,6 +146,11 @@ class ShellTool(BaseTool):
         },
         "required": ["command"],
     }
+
+    def model_post_init(self, __context: Any) -> None:
+        extras = sorted(extra_allowed_commands())
+        if extras:
+            self.description += f" Also allowed (operator-configured): {', '.join(extras)}."
 
     async def execute(self, command: str, **kwargs: Any) -> str:
         """Execute command securely and return output string."""
@@ -119,10 +186,11 @@ class ShellTool(BaseTool):
         binary_raw = args[0]
         binary_name = Path(binary_raw).name
 
-        if binary_name not in ALLOWED_COMMANDS:
+        allowed = effective_allowed_commands()
+        if binary_name not in allowed:
             return (
                 f"Error: Command binary '{binary_name}' is not permitted by security policy. "
-                f"Allowed binaries: {', '.join(sorted(ALLOWED_COMMANDS))}."
+                f"Allowed binaries: {', '.join(sorted(allowed))}."
             )
 
         # 4. Git subcommand and boundary verification
