@@ -5,6 +5,8 @@ Zero VRAM usage — keeps Qwen pinned in GPU memory 24/7.
 """
 
 import os
+from collections.abc import Iterator
+from typing import Any
 
 import structlog
 from fastembed import TextEmbedding
@@ -13,7 +15,7 @@ from maidere.core.config import settings
 
 logger = structlog.get_logger()
 
-_model = None
+_model: "TextEmbedding | FallbackEmbedding | None" = None
 
 
 class FallbackEmbedding:
@@ -42,7 +44,7 @@ class FallbackEmbedding:
         "by",
     }
 
-    def embed(self, texts: list[str]):
+    def embed(self, texts: list[str]) -> Iterator[Any]:
         import zlib
 
         import numpy as np
@@ -63,7 +65,7 @@ class FallbackEmbedding:
             yield vec
 
 
-def _get_model():
+def _get_model() -> TextEmbedding | FallbackEmbedding:
     """Lazy-load the embedding model on first use."""
     global _model
     if _model is None:

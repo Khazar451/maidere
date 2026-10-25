@@ -73,7 +73,7 @@ async def rebuild_memories_preserving_rows(db: aiosqlite.Connection, db_path: st
 
 async def init_memory_table(db: aiosqlite.Connection, db_path: str = "") -> None:
     """Ensure memories exists and has session_id, without discarding rows that already do."""
-    rows = await db.execute_fetchall("SELECT sql FROM sqlite_master WHERE name='memories'")
+    rows = list(await db.execute_fetchall("SELECT sql FROM sqlite_master WHERE name='memories'"))
     if rows:
         sql = rows[0]["sql"] or ""
         if "session_id" not in sql:
@@ -90,15 +90,17 @@ async def is_duplicate_memory(
 ) -> bool:
     """Check if a semantically identical memory already exists within distance threshold."""
     try:
-        rows = await db.execute_fetchall(
-            """
+        rows = list(
+            await db.execute_fetchall(
+                """
             SELECT distance
             FROM memories
             WHERE embedding MATCH ?
             ORDER BY distance
             LIMIT 1
             """,
-            [serialize_vector(vector)],
+                [serialize_vector(vector)],
+            )
         )
         if rows and len(rows) > 0:
             dist = float(rows[0][0])

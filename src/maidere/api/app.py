@@ -12,7 +12,9 @@ import logging
 import logging.handlers
 import sys
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
 from fastapi import FastAPI
@@ -46,7 +48,7 @@ def setup_logging() -> None:
     level = getattr(logging, settings.log_level.upper(), logging.INFO)
     debug = settings.log_level.upper() == "DEBUG"
 
-    shared = [
+    shared: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
@@ -92,7 +94,7 @@ def setup_logging() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: setup on startup, cleanup on shutdown."""
     log = structlog.get_logger()
 
@@ -197,10 +199,10 @@ async def lifespan(app: FastAPI):
 class RequestContextMiddleware:
     """Bind a request id into the logs and return it as X-Request-Id."""
 
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
@@ -208,7 +210,7 @@ class RequestContextMiddleware:
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
 
-        async def send_with_id(message):
+        async def send_with_id(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers") or [])
                 headers.append((b"x-request-id", request_id.encode("ascii")))
@@ -267,8 +269,8 @@ def create_app() -> FastAPI:
     if ui_dir.is_dir():
         app.mount("/static", StaticFiles(directory=str(ui_dir)), name="static")
 
-    @app.get("/", include_in_schema=False)
-    async def serve_index():
+    @app.get("/", include_in_schema=False, response_model=None)
+    async def serve_index() -> FileResponse | dict[str, str]:
         index_file = ui_dir / "index.html"
         if index_file.exists():
             return FileResponse(index_file)

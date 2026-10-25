@@ -313,7 +313,8 @@ def read_auto_memory_topic(topic: str) -> str:
 def list_auto_memory_topics() -> list[dict[str, Any]]:
     """Return all currently indexed memory topics."""
     idx = read_memory_index()
-    return idx.get("entries", [])
+    entries: list[dict[str, Any]] = idx.get("entries", [])
+    return entries
 
 
 def format_auto_memory_context() -> str:

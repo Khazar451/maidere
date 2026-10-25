@@ -193,12 +193,11 @@ async def select_model(
         # The API fills in the default text model when the client sends no model
         # (the UI's Auto mode), so that name is not a choice. A text-only model
         # rejects images, so only a different, explicit model is honoured here.
-        explicitly_chosen = (
+        if (
             requested_model
             and requested_model.lower() not in ("auto", "none", "")
             and requested_model.lower() != settings.ollama_model.lower()
-        )
-        if explicitly_chosen:
+        ):
             return requested_model, "user_override_vision", TaskComplexity.VISION
 
         matched_vision = None

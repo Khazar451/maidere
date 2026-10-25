@@ -1056,6 +1056,44 @@ class TestToolsOmittedForUnsupportedModels(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bool(seen[0][1]), expect_tools)
 
 
+class TestTypingSensitiveEdges(unittest.IsolatedAsyncioTestCase):
+    """Behaviour that the strict type check made explicit."""
+
+    async def test_delegated_turn_without_tools_does_not_crash(self):
+        """has_delegated filters the tool list; with tools disabled that list is None."""
+        from langchain_core.messages import HumanMessage
+
+        from maidere.core.agent import think_node
+
+        async def chat(messages, tools=None, model=None, num_ctx=None, on_token=None):
+            return {"message": {"role": "assistant", "content": "Done.", "tool_calls": []}}
+
+        state = {
+            "messages": [HumanMessage(content="Hello there my friend")],
+            "thread_id": "delegated-no-tools",
+            "has_delegated": True,
+            "skip_tools": True,
+        }
+        with (
+            patch("maidere.core.llm.chat", side_effect=chat),
+            patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+        ):
+            result = await think_node(state)
+
+        self.assertEqual(result["messages"][0].content, "Done.")
+
+    def test_message_text_handles_missing_and_non_string_content(self):
+        from langchain_core.messages import AIMessage
+
+        from maidere.core.agent import _message_text
+
+        self.assertEqual(_message_text(None), "")
+        self.assertEqual(_message_text(AIMessage(content="draft")), "draft")
+        self.assertEqual(
+            _message_text(AIMessage(content=[{"type": "text", "text": "x"}])), str([{"type": "text", "text": "x"}])
+        )
+
+
 class TestEmptyReplyThroughGraph(unittest.IsolatedAsyncioTestCase):
     async def test_deep_reasoning_turn_with_silent_model_ends_with_notice_and_no_critic_calls(self):
         import os

@@ -187,5 +187,5 @@ class WebSearchTool(BaseTool):
         "required": ["query"],
     }
 
-    async def execute(self, query: str, num_results: int = 5, **kwargs: Any) -> str:  # type: ignore[override]
+    async def execute(self, query: str, num_results: int = 5, **kwargs: Any) -> str:
         return await search_searxng(query=query, num_results=num_results)

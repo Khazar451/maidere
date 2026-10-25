@@ -15,8 +15,13 @@ class BaseTool(ABC, BaseModel):
     is_concurrent_safe: bool = False  # Fail-closed default: tools are serial unless opted in
 
     @abstractmethod
-    async def execute(self, **kwargs: Any) -> str:
-        """Execute the tool action asynchronously and return string output."""
+    async def execute(self, *args: Any, **kwargs: Any) -> str:
+        """Execute the tool action asynchronously and return string output.
+
+        Each tool declares its own named parameters (matching its JSON schema), so
+        the base signature is deliberately open: ``(*args, **kwargs)`` lets mypy
+        accept those narrower overrides.
+        """
 
     def to_ollama_schema(self) -> dict[str, Any]:
         """Convert tool definition to Ollama API tool schema format."""

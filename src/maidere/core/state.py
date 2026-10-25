@@ -35,4 +35,7 @@ class AgentState(TypedDict, total=False):
     username: str
     images: list[str]
     image_history: list[dict]
+    callback: Any
+    verification_notes: str
+    skip_tools: bool
     attachments: list[dict]

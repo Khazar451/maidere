@@ -92,20 +92,9 @@ quote-style = "double"
 
 [tool.mypy]
 python_version = "3.12"
-files = [
-    "src/maidere/paths.py",
-    "src/maidere/api/auth.py",
-    "src/maidere/core/tokens.py",
-    "src/maidere/tools/sandbox.py",
-    "src/maidere/tools/shell.py",
-    "src/maidere/tools/web_search.py",
-    "src/maidere/core/config.py",
-    "src/maidere/core/db.py",
-    "src/maidere/core/visual_memory.py",
-    "src/maidere/cli.py",
-    "src/maidere/desktop/launcher.py",
-]
+files = ["src/maidere"]
 mypy_path = "src"
+plugins = ["pydantic.mypy"]
 follow_imports = "silent"
 ignore_missing_imports = true
 warn_redundant_casts = true

@@ -13,7 +13,7 @@ import json
 import re
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from langchain_core.messages import (
@@ -43,7 +43,7 @@ logger = structlog.get_logger()
 class SystemPromptTemplate(str):
     """String template for system prompt that gracefully defaults missing placeholders."""
 
-    def format(self, *args, **kwargs) -> str:
+    def format(self, *args: Any, **kwargs: Any) -> str:
         kwargs.setdefault("username", "User")
         kwargs.setdefault("memory_context", "No relevant memories found.")
         now = datetime.now()
@@ -185,7 +185,8 @@ def trim_messages_node(state: AgentState) -> dict:
                 to_keep = set(id(m) for m in non_system[-2:])
                 for msg in non_system:
                     if id(msg) not in to_keep:
-                        removals.append(RemoveMessage(id=msg.id))
+                        # The add_messages reducer assigns every stored message an id.
+                        removals.append(RemoveMessage(id=cast(str, msg.id)))
 
                 if removals:
                     logger.info(
@@ -208,7 +209,7 @@ def trim_messages_node(state: AgentState) -> dict:
             break
         content_len = len(msg.content) if hasattr(msg, "content") and isinstance(msg.content, str) else 0
         freed += content_len
-        removals.append(RemoveMessage(id=msg.id))
+        removals.append(RemoveMessage(id=cast(str, msg.id)))
 
     if removals:
         logger.info("messages_trimmed", count=len(removals), chars_freed=freed)
@@ -768,7 +769,7 @@ def extract_research_subtasks(text: str, user_query: str) -> list[str]:
 
 def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]:
     """Extract tool calls written as text/JSON by local LLMs."""
-    calls = []
+    calls: list[dict] = []
     if not text:
         return calls
 
@@ -900,10 +901,10 @@ def normalize_citations_and_sources(content: str) -> str:
         word = m.group(1)
         num = int(m.group(2))
         if word.lower() in EXCLUDED_CITATION_WORDS:
-            return m.group(0)
+            return str(m.group(0))
         if num <= max_source:
             return f"{word} [{num}]"
-        return m.group(0)
+        return str(m.group(0))
 
     repaired_body = re.sub(
         r"(\b[a-zA-Z\)]+)\s+([1-9]|1[0-9]|20)(?=[\.,;]|\s*$)",
@@ -1008,7 +1009,7 @@ def restore_markdown_urls(content: str, messages: list[Any]) -> str:
         for k_title, k_url in known_links.items():
             if k_title in low or low in k_title:
                 return f"{prefix}[{raw_text}]({k_url})"
-        return match.group(0)
+        return str(match.group(0))
 
     # Catches:
     # URL: NVIDIA Inception Program
@@ -1024,7 +1025,7 @@ def restore_markdown_urls(content: str, messages: list[Any]) -> str:
         for k_title, k_url in known_links.items():
             if k_title in low or low in k_title:
                 return f"[{title}]({k_url})"
-        return match.group(0)
+        return str(match.group(0))
 
     # Catches [Title] not followed by '('
     fixed = re.sub(r"\[([^\]]+)\](?!\s*[\(\[])", replace_unlinked_bracket, fixed)
@@ -1288,7 +1289,7 @@ async def think_node(state: AgentState) -> dict:
         # After the orchestrator has delegated once, remove Agent and delegate_task from
         # available tools for the remainder of this query. One shot at delegation.
         tools_schemas = [
-            t for t in tools_schemas if t.get("function", {}).get("name") not in ("Agent", "delegate_task")
+            t for t in (tools_schemas or []) if t.get("function", {}).get("name") not in ("Agent", "delegate_task")
         ]
 
     # Models without tool support (e.g. vision models) 400 on any request that carries tools.
@@ -1412,7 +1413,7 @@ async def think_node(state: AgentState) -> dict:
     active_num_ctx = _resolve_num_ctx(state)
     streamed_to_callback = False
 
-    async def _realtime_stream_token(token_text: str):
+    async def _realtime_stream_token(token_text: str) -> None:
         nonlocal streamed_to_callback
         streamed_to_callback = True
         if callback:
@@ -1428,7 +1429,7 @@ async def think_node(state: AgentState) -> dict:
         )
         else None
     )
-    chat_kwargs = {
+    chat_kwargs: dict[str, Any] = {
         "tools": tools_schemas,
         "model": selected_model,
         "num_ctx": active_num_ctx,
@@ -1604,7 +1605,7 @@ async def think_node(state: AgentState) -> dict:
                 ),
             }
             ollama_messages.append(synthesis_prompt)
-            synth_kwargs = {
+            synth_kwargs: dict[str, Any] = {
                 "tools": None,
                 "model": selected_model,
                 "num_ctx": active_num_ctx,
@@ -1882,11 +1883,21 @@ async def evaluate_node(state: AgentState) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _message_text(message: Any) -> str:
+    """Text of a message, or "" for none; non-string content is stringified."""
+    if message is None:
+        return ""
+    content = getattr(message, "content", None)
+    if content is None:
+        return str(message or "")
+    return content if isinstance(content, str) else str(content)
+
+
 async def verify_node(state: AgentState) -> dict:
     """Perform rigorous mathematical, logical, and constraint verification on the provisional solution."""
     messages = state.get("messages", [])
     last_ai = messages[-1] if messages else None
-    draft_content = last_ai.content if hasattr(last_ai, "content") else str(last_ai or "")
+    draft_content = _message_text(last_ai)
 
     latest_user_query = ""
     for msg in reversed(messages):
@@ -1976,7 +1987,7 @@ async def converge_node(state: AgentState) -> dict:
     """Synthesize hardened final response incorporating analytical verification."""
     messages = state.get("messages", [])
     last_ai = messages[-1] if messages else None
-    draft_content = last_ai.content if hasattr(last_ai, "content") else str(last_ai or "")
+    draft_content = _message_text(last_ai)
     verification_text = state.get("verification_notes") or state.get("critique", "")
     thread_id = state.get("thread_id")
     callback = state.get("callback") or _stream_callbacks.get(thread_id or "")

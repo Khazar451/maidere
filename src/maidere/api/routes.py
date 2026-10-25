@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
@@ -62,7 +63,7 @@ class GenerationBusy(Exception):
 
 
 @asynccontextmanager
-async def generation_slot():
+async def generation_slot() -> AsyncIterator[None]:
     """Limit how many agent turns run at once."""
     global _generation_slots
     if _generation_slots >= settings.max_concurrent_generations:
@@ -102,7 +103,7 @@ def agent_http_error(exc: Exception) -> HTTPException:
     )
 
 
-def set_graph(graph) -> None:
+def set_graph(graph: Any) -> None:
     """Set the compiled LangGraph instance. Called from app lifespan."""
     global _graph
     _graph = graph
@@ -126,9 +127,11 @@ async def update_thread_metadata_and_title(
     try:
         async with get_db_context(settings.db_path) as db:
             # Check existing meta
-            row = await db.execute_fetchall(
-                "SELECT title, summary FROM threads_meta WHERE thread_id = ?",
-                [thread_id],
+            row = list(
+                await db.execute_fetchall(
+                    "SELECT title, summary FROM threads_meta WHERE thread_id = ?",
+                    [thread_id],
+                )
             )
             existing_title = row[0][0] if row and row[0] else None
             existing_summary = row[0][1] if row and row[0] else None

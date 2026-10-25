@@ -5,6 +5,7 @@ Always enforces num_ctx=8192 to prevent VRAM overflow on RTX 5060 8GB.
 """
 
 import time
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -296,7 +297,7 @@ async def _chat_cloud(
                 LLM_DURATION_SECONDS.labels(model=target_model).observe(duration)
                 LLM_REQUESTS_TOTAL.labels(model=target_model, status="success").inc()
 
-                result_dict = {
+                result_dict: dict[str, Any] = {
                     "model": target_model,
                     "message": {
                         "role": "assistant",
@@ -339,7 +340,7 @@ async def _chat_cloud_stream(
     messages: list[dict],
     tools: list[dict] | None = None,
     model: str | None = None,
-):
+) -> AsyncIterator[dict]:
     """Stream chat response chunks from Cloud AI provider, yielding in Ollama chunk format."""
     import json
 
@@ -515,7 +516,8 @@ async def chat(
                 eval_duration_ns=data.get("eval_duration"),
                 duration_s=round(duration, 3),
             )
-            return data
+            result: dict[Any, Any] = data
+            return result
         except Exception:
             duration = time.perf_counter() - start_time
             LLM_DURATION_SECONDS.labels(model=target_model).observe(duration)
@@ -528,7 +530,7 @@ async def chat_stream(
     tools: list[dict] | None = None,
     model: str | None = None,
     num_ctx: int | None = None,
-):
+) -> AsyncIterator[dict]:
     """Stream chat response chunks from Ollama or Cloud AI provider.
 
     Yields individual chunk dicts as they arrive.
