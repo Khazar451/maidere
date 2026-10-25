@@ -129,6 +129,7 @@ All of these go in `.env` (see `.env.example`). Defaults are safe; change them o
 | `SEARCH_FALLBACK_ENABLED` | `true` | If SearXNG is down, search falls back to Tavily or Serper (when `TAVILY_API_KEY` / `SERPER_API_KEY` is set) and then DuckDuckGo. Fallback queries leave your machine; set `false` to keep search local. |
 | `IMAGE_MEMORY_TURNS` | `2` | How many user turns an uploaded image stays available for follow-up questions. The upload turn counts as the first, and `0` turns the feature off. |
 | `IMAGE_MEMORY_MAX_IMAGES` | `4` | Most remembered images kept in a conversation. Stored images are downscaled to fit 1920x1080. |
+| `EMPTY_RESPONSE_RETRIES` | `2` | How many times to re-ask when the model returns no text and no tool call, before replying with a clear "empty response" message instead of a blank. |
 | `DB_CHECKPOINT_INTERVAL_SECONDS` | `3600` | Interval for background SQLite WAL checkpoints. `0` disables the loop. A compacting checkpoint always runs on clean shutdown. |
 
 ---

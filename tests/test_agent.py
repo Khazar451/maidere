@@ -802,5 +802,233 @@ class TestThinkNodeStreaming(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["messages"][0].content, "Hello from stream!")
 
 
+class TestEmptyModelResponse(unittest.IsolatedAsyncioTestCase):
+    """A reply with no text and no tool call must be retried, then explained, never returned blank."""
+
+    EMPTY = {"message": {"role": "assistant", "content": "", "tool_calls": []}}
+
+    @staticmethod
+    def _answer(text: str) -> dict:
+        return {"message": {"role": "assistant", "content": text, "tool_calls": []}}
+
+    @staticmethod
+    def _state(**extra) -> dict:
+        from langchain_core.messages import HumanMessage
+
+        return {
+            "messages": [HumanMessage(content="Hello there my friend")],
+            "thread_id": "empty-reply-thread",
+            "skip_tools": True,
+            **extra,
+        }
+
+    async def _think(self, responses, empty_response_retries=2):
+        from maidere.core.agent import think_node
+        from maidere.core.config import settings
+
+        with (
+            patch("maidere.core.llm.chat", side_effect=responses) as chat,
+            patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+            patch.object(settings, "empty_response_retries", empty_response_retries),
+        ):
+            result = await think_node(self._state())
+        return result, chat
+
+    async def test_normal_reply_makes_a_single_call(self):
+        result, chat = await self._think([self._answer("Hi!")])
+
+        self.assertEqual(result["messages"][0].content, "Hi!")
+        self.assertEqual(chat.call_count, 1)
+
+    async def test_retry_recovers_from_an_empty_reply(self):
+        result, chat = await self._think([self.EMPTY, self._answer("Recovered answer")])
+
+        self.assertEqual(result["messages"][0].content, "Recovered answer")
+        self.assertEqual(chat.call_count, 2)
+        self.assertFalse(result["messages"][0].additional_kwargs)
+
+    async def test_retry_tells_the_model_which_tools_exist(self):
+        from maidere.core.agent import EMPTY_RESPONSE_RETRY_NOTE, EMPTY_RESPONSE_RETRY_NOTE_NO_TOOLS
+
+        _, chat = await self._think([self.EMPTY, self._answer("ok")])
+        first, retry = chat.call_args_list[0].args[0], chat.call_args_list[1].args[0]
+
+        self.assertEqual(len(retry), len(first) + 1)
+        self.assertEqual(retry[-1], {"role": "system", "content": EMPTY_RESPONSE_RETRY_NOTE_NO_TOOLS})
+        self.assertIn("Agent tool", EMPTY_RESPONSE_RETRY_NOTE)
+        self.assertIn("web_search", EMPTY_RESPONSE_RETRY_NOTE)
+
+    async def test_retry_can_return_a_tool_call(self):
+        from maidere.core.agent import think_node
+        from maidere.core.config import settings
+
+        tool_reply = {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"function": {"name": "Agent", "arguments": {"prompt": "look it up"}}}],
+            }
+        }
+        state = self._state()
+        state.pop("skip_tools")
+        with (
+            patch("maidere.core.llm.chat", side_effect=[self.EMPTY, tool_reply]) as chat,
+            patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+            patch.object(settings, "empty_response_retries", 2),
+        ):
+            result = await think_node(state)
+
+        self.assertEqual(chat.call_count, 2)
+        self.assertEqual(result["messages"][0].tool_calls[0]["name"], "Agent")
+
+    async def test_gives_up_after_the_configured_retries_with_a_clear_message(self):
+        from maidere.core.agent import EMPTY_RESPONSE_NOTICE
+
+        result, chat = await self._think([self.EMPTY] * 5, empty_response_retries=2)
+
+        message = result["messages"][0]
+        self.assertEqual(chat.call_count, 3)  # first attempt + 2 retries
+        self.assertEqual(message.content, EMPTY_RESPONSE_NOTICE)
+        self.assertTrue(message.additional_kwargs["empty_response_fallback"])
+
+    async def test_retries_can_be_disabled_but_reply_is_never_blank(self):
+        from maidere.core.agent import EMPTY_RESPONSE_NOTICE
+
+        result, chat = await self._think([self.EMPTY], empty_response_retries=0)
+
+        self.assertEqual(chat.call_count, 1)
+        self.assertEqual(result["messages"][0].content, EMPTY_RESPONSE_NOTICE)
+
+    async def test_whitespace_only_reply_counts_as_empty(self):
+        result, _ = await self._think([self._answer("  \n "), self._answer("Real answer")])
+
+        self.assertEqual(result["messages"][0].content, "Real answer")
+
+    async def test_fallback_notice_is_not_sent_to_the_verifier(self):
+        from langchain_core.messages import AIMessage, HumanMessage
+        from langgraph.graph import END
+
+        from maidere.core.agent import EMPTY_RESPONSE_NOTICE, should_continue, should_deliberate
+
+        notice = AIMessage(content=EMPTY_RESPONSE_NOTICE, additional_kwargs={"empty_response_fallback": True})
+        state = {
+            "messages": [HumanMessage(content="Prove that the square root of 2 is irrational"), notice],
+            "deep_reasoning": True,
+        }
+
+        self.assertFalse(should_deliberate(state, "Prove that the square root of 2 is irrational", notice))
+        self.assertEqual(should_continue(state), END)
+        # The same state with a real draft still deliberates.
+        real = AIMessage(content="Assume sqrt(2) = p/q in lowest terms...")
+        self.assertTrue(should_deliberate(state, "Prove that the square root of 2 is irrational", real))
+
+
+class TestDirectWebCallRedirect(unittest.IsolatedAsyncioTestCase):
+    """The orchestrator never runs web_search/browser itself; direct calls become researcher delegations."""
+
+    def test_web_search_becomes_a_researcher_delegation(self):
+        from maidere.core.agent import redirect_direct_web_calls
+
+        calls = [{"name": "web_search", "args": {"query": "python asyncio docs"}, "id": "c1"}]
+        out = redirect_direct_web_calls(calls, "fallback")
+
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["name"], "Agent")
+        self.assertEqual(out[0]["id"], "c1")
+        self.assertEqual(out[0]["args"]["subagent_type"], "researcher")
+        self.assertEqual(out[0]["args"]["prompt"], "Search the web for: python asyncio docs")
+
+    def test_browser_call_is_delegated_and_other_calls_pass_through(self):
+        from maidere.core.agent import redirect_direct_web_calls
+
+        shell = {"name": "shell", "args": {"command": "ls"}, "id": "s1"}
+        out = redirect_direct_web_calls(
+            [shell, {"name": "browser", "args": {"url": "https://example.org"}, "id": "b1"}], "fallback"
+        )
+
+        self.assertEqual(out[0], shell)
+        self.assertEqual(out[1]["name"], "Agent")
+        self.assertIn("https://example.org", out[1]["args"]["prompt"])
+
+    def test_duplicate_and_empty_queries_are_handled(self):
+        from maidere.core.agent import redirect_direct_web_calls
+
+        calls = [
+            {"name": "web_search", "args": {"query": "same"}, "id": "1"},
+            {"name": "web_search", "args": {"query": "same"}, "id": "2"},
+            {"name": "web_search", "args": {}, "id": "3"},
+        ]
+        out = redirect_direct_web_calls(calls, "what the user asked")
+
+        self.assertEqual(
+            [c["args"]["prompt"] for c in out], ["Search the web for: same", "Search the web for: what the user asked"]
+        )
+
+    async def test_model_is_offered_web_tools_only_while_it_can_delegate(self):
+        from langchain_core.messages import HumanMessage
+
+        from maidere.core.agent import think_node
+
+        seen: list[set[str]] = []
+
+        async def chat(messages, tools=None, model=None, num_ctx=None, on_token=None):
+            seen.append({t["function"]["name"] for t in (tools or [])})
+            return {"message": {"role": "assistant", "content": "ok", "tool_calls": []}}
+
+        with (
+            patch("maidere.core.llm.chat", side_effect=chat),
+            patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+        ):
+            await think_node({"messages": [HumanMessage(content="Hello there my friend")], "thread_id": "t1"})
+            await think_node(
+                {"messages": [HumanMessage(content="Hello there my friend")], "thread_id": "t2", "has_delegated": True}
+            )
+
+        self.assertTrue({"Agent", "web_search", "browser"} <= seen[0])
+        self.assertNotIn("Agent", seen[1])
+        self.assertNotIn("web_search", seen[1])
+
+
+class TestEmptyReplyThroughGraph(unittest.IsolatedAsyncioTestCase):
+    async def test_deep_reasoning_turn_with_silent_model_ends_with_notice_and_no_critic_calls(self):
+        import os
+        import tempfile
+
+        from langchain_core.messages import HumanMessage
+
+        from maidere.core.agent import EMPTY_RESPONSE_NOTICE, create_graph
+
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db.close()
+        calls: list[int] = []
+
+        async def silent_chat(messages, tools=None, model=None, num_ctx=None, on_token=None):
+            calls.append(len(messages))
+            return {"message": {"role": "assistant", "content": "", "tool_calls": []}}
+
+        graph, ctx = await create_graph(db.name)
+        try:
+            with (
+                patch("maidere.core.llm.chat", side_effect=silent_chat),
+                patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]),
+                patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+            ):
+                result = await graph.ainvoke(
+                    {
+                        "messages": [HumanMessage(content="Prove that the square root of 2 is irrational")],
+                        "memory_context": "No relevant memories.",
+                        "thread_id": "silent-model-thread",
+                        "deep_reasoning": True,
+                    },
+                    config={"configurable": {"thread_id": "silent-model-thread"}},
+                )
+        finally:
+            await ctx.__aexit__(None, None, None)
+            os.remove(db.name)
+
+        self.assertEqual(result["messages"][-1].content, EMPTY_RESPONSE_NOTICE)
+        self.assertEqual(len(calls), 3, "one attempt plus two retries, and no verify/converge calls")
+
+
 if __name__ == "__main__":
     unittest.main()

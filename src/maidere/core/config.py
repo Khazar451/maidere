@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     image_memory_turns: int = 2
     image_memory_max_images: int = 4
 
+    # A small local model sometimes emits a tool call Ollama cannot parse, which
+    # leaves a reply with no text and no tool call. Ask again this many times
+    # before telling the user the model produced nothing.
+    empty_response_retries: int = 2
+
     # Embeddings (fastembed, CPU-only, zero VRAM)
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_dimensions: int = 384

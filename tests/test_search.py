@@ -163,11 +163,11 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
             os.remove(self.temp_db_path)
 
     async def test_agent_search_and_browse_synthesis(self):
-        """Test agent multi-step: user asks news -> LLM calls web_search -> LLM calls browser -> LLM synthesizes."""
+        """User asks for news -> LLM calls web_search -> call is redirected to a researcher -> LLM synthesizes."""
         graph, checkpointer_ctx = await create_graph(self.temp_db_path)
 
         mock_responses = [
-            # 1. LLM decides to search the web
+            # 1. LLM decides to search the web directly (the orchestrator has no raw web access)
             {
                 "message": {
                     "role": "assistant",
@@ -182,22 +182,7 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
                     ],
                 }
             },
-            # 2. LLM receives search results, decides to browse the top article
-            {
-                "message": {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        {
-                            "function": {
-                                "name": "browser",
-                                "arguments": {"url": "https://tech-news.example.com/ai-agents-2026"},
-                            }
-                        }
-                    ],
-                }
-            },
-            # 3. LLM synthesizes the final answer
+            # 2. LLM synthesizes the final answer from the researcher's findings
             {
                 "message": {
                     "role": "assistant",
@@ -207,28 +192,12 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
             },
         ]
 
-        mock_searxng_res = httpx.Response(
-            status_code=200,
-            json={
-                "results": [
-                    {
-                        "title": "Autonomous AI Agents Breakthrough in 2026",
-                        "url": "https://tech-news.example.com/ai-agents-2026",
-                        "content": "Breakthrough in local AI architecture allows full agent autonomy on consumer GPUs.",
-                    }
-                ]
-            },
-            request=httpx.Request("GET", f"{settings.searxng_url}/search"),
+        research = AsyncMock(
+            return_value="[SUB-AGENT RESEARCH RESULT]\nAutonomous agents operate 24/7 using fastembed and sqlite-vec."
         )
-
         with (
             patch("maidere.core.llm.chat", side_effect=mock_responses) as mock_chat,
-            patch("httpx.AsyncClient.get", return_value=mock_searxng_res),
-            patch(
-                "maidere.tools.browser.browse_url",
-                new_callable=AsyncMock,
-                return_value="Article Body: Autonomous agents operate 24/7 with zero VRAM thrashing using fastembed and sqlite-vec.",
-            ),
+            patch("maidere.tools.delegate.AgentTool.execute", research),
         ):
             config = {"configurable": {"thread_id": "test-search-browse-thread"}}
             result = await graph.ainvoke(
@@ -240,18 +209,18 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
                 config=config,
             )
 
-            # 3 turns in multi-step agent flow
-            self.assertEqual(mock_chat.call_count, 3)
+            self.assertEqual(mock_chat.call_count, 2)
+            # The direct web_search call became a researcher delegation with the same query.
+            research.assert_awaited_once()
+            kwargs = research.await_args.kwargs
+            self.assertEqual(kwargs["subagent_type"], "researcher")
+            self.assertIn("latest developments in autonomous AI agents", kwargs["prompt"])
 
             final_message = result["messages"][-1]
             self.assertIsInstance(final_message, AIMessage)
             self.assertIn("local autonomous AI agents", final_message.content)
 
         await checkpointer_ctx.__aexit__(None, None, None)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

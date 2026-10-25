@@ -33,6 +33,7 @@ from maidere.core.state import AgentState
 from maidere.tools.registry import (
     execute_tool,
     get_orchestrator_ollama_schemas,
+    get_redirected_web_tool_schemas,
     is_tool_call_concurrent_safe,
 )
 
@@ -1033,6 +1034,58 @@ def restore_markdown_urls(content: str, messages: list[Any]) -> str:
     return fixed
 
 
+EMPTY_RESPONSE_NOTICE = (
+    "I couldn't produce an answer for that: the model returned an empty response. "
+    "Please try again, rephrase the request, or switch to a different model."
+)
+
+
+def redirect_direct_web_calls(tool_calls: list[dict], fallback_query: str) -> list[dict]:
+    """Turn direct web_search/browser calls into researcher delegations.
+
+    The orchestrator keeps web access behind sub-agents (dedicated context, own
+    budget). Models still call web_search when a user names it, so the call is
+    honoured by handing the same request to the researcher.
+    """
+    out: list[dict] = []
+    seen: set[str] = set()
+    for call in tool_calls:
+        name = call.get("name")
+        args = call.get("args") or {}
+        if name == "web_search":
+            query = str(args.get("query") or args.get("q") or fallback_query).strip()
+            prompt = f"Search the web for: {query}"
+        elif name == "browser":
+            target = str(args.get("url") or "").strip()
+            prompt = f"Open {target} and report what the page says." if target else fallback_query
+        else:
+            out.append(call)
+            continue
+        if prompt in seen:
+            continue
+        seen.add(prompt)
+        out.append(
+            {
+                "name": "Agent",
+                "args": {"subagent_type": "researcher", "prompt": prompt, "task": prompt},
+                "id": call.get("id") or str(uuid.uuid4()),
+            }
+        )
+    return out
+
+
+EMPTY_RESPONSE_RETRY_NOTE = (
+    "[SYSTEM NOTICE] Your previous reply contained no usable output, because it called a tool that is not "
+    "available to you. You cannot call web_search or browser directly. To look something up online, call the "
+    "Agent tool with subagent_type 'researcher' and a clear prompt. Otherwise call one of your listed tools, "
+    "or answer directly in plain text."
+)
+EMPTY_RESPONSE_RETRY_NOTE_NO_TOOLS = (
+    "[SYSTEM NOTICE] Your previous reply was empty. No tools are available for this reply, "
+    "so answer the user directly in plain text."
+)
+
+
 def should_deliberate(state: AgentState, user_query: str, last_message: Any) -> bool:
     """Determine whether the response requires the Socratic Critic-Refiner deliberation cycle."""
     if not getattr(settings, "enable_agentic_deliberation", True):
@@ -1040,6 +1093,10 @@ def should_deliberate(state: AgentState, user_query: str, last_message: Any) -> 
 
     # Never loop if already refined in this turn
     if state.get("refinement_count", 0) > 0:
+        return False
+
+    # A placeholder for "the model said nothing" has nothing to verify
+    if isinstance(last_message, AIMessage) and last_message.additional_kwargs.get("empty_response_fallback"):
         return False
 
     # Never deliberate on tool calls (must execute tools first)
@@ -1234,6 +1291,11 @@ async def think_node(state: AgentState) -> dict:
             t for t in tools_schemas if t.get("function", {}).get("name") not in ("Agent", "delegate_task")
         ]
 
+    # Show the model the web tools too, but only while it can still delegate; calls
+    # are redirected to a researcher below. An unlisted call would be dropped.
+    if tools_schemas and any(t.get("function", {}).get("name") == "Agent" for t in tools_schemas):
+        tools_schemas = [*tools_schemas, *get_redirected_web_tool_schemas()]
+
     callback = state.get("callback") or _stream_callbacks.get(state.get("thread_id", ""))
 
     has_tools_in_history = any(isinstance(m, ToolMessage) for m in state.get("messages", []))
@@ -1376,6 +1438,25 @@ async def think_node(state: AgentState) -> dict:
     ai_content = message.get("content", "")
     raw_tool_calls = message.get("tool_calls", [])
 
+    # An empty reply (no text, no tool call) means the model called a tool that
+    # was not offered (most often web_search, which only sub-agents may use) and
+    # Ollama discarded the call. Resampling alone repeats the mistake, so retry
+    # with a note about what is actually available.
+    retry_kwargs = {k: v for k, v in chat_kwargs.items() if k != "on_token"}
+    for attempt in range(1, max(0, settings.empty_response_retries) + 1):
+        if (ai_content or "").strip() or raw_tool_calls:
+            break
+        await logger.awarn("empty_model_response_retry", attempt=attempt, model=selected_model)
+        retry_note = {
+            "role": "system",
+            "content": EMPTY_RESPONSE_RETRY_NOTE if tools_schemas else EMPTY_RESPONSE_RETRY_NOTE_NO_TOOLS,
+        }
+        response = await llm.chat([*ollama_messages, retry_note], **retry_kwargs)
+        message = response.get("message", {})
+        ai_content = message.get("content", "")
+        raw_tool_calls = message.get("tool_calls", [])
+
+    empty_fallback = False
     normalized_tool_calls = []
     if raw_tool_calls:
         for tc in raw_tool_calls:
@@ -1403,6 +1484,9 @@ async def think_node(state: AgentState) -> dict:
         if extracted:
             normalized_tool_calls.extend(extracted)
             ai_content = ""
+
+    if normalized_tool_calls:
+        normalized_tool_calls = redirect_direct_web_calls(normalized_tool_calls, latest_user_query)
 
     # Auto-delegation guarantee for deep research queries:
     # If the user explicitly requested research, but the 7B model generated
@@ -1529,9 +1613,17 @@ async def think_node(state: AgentState) -> dict:
         # Apply deterministic URL restoration guard to restore any stripped links from tool history
         ai_content = restore_markdown_urls(ai_content, state.get("messages", []))
 
+        # Never hand the user an empty answer, and never send a placeholder to the critic.
+        if not ai_content.strip():
+            await logger.awarn("empty_model_response", model=selected_model, thread_id=state.get("thread_id"))
+            ai_content = EMPTY_RESPONSE_NOTICE
+            empty_fallback = True
+
         # Check if Socratic deliberation will occur
-        will_deliberate = not normalized_tool_calls and should_deliberate(
-            state, latest_user_query, AIMessage(content=ai_content)
+        will_deliberate = (
+            not empty_fallback
+            and not normalized_tool_calls
+            and should_deliberate(state, latest_user_query, AIMessage(content=ai_content))
         )
 
         if will_deliberate:
@@ -1558,6 +1650,7 @@ async def think_node(state: AgentState) -> dict:
             AIMessage(
                 content=ai_content,
                 tool_calls=normalized_tool_calls or [],
+                additional_kwargs={"empty_response_fallback": True} if empty_fallback else {},
             )
         ],
         "model": selected_model,

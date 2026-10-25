@@ -128,6 +128,18 @@ def get_orchestrator_ollama_schemas() -> list[dict[str, Any]]:
     return schemas
 
 
+# Tools the orchestrator may not run itself. They are still shown to the model so
+# a direct call is visible, then redirected to a researcher sub-agent (see
+# `redirect_direct_web_calls` in core/agent.py). A call to a tool that was never
+# offered is silently discarded by Ollama and leaves an empty reply.
+REDIRECTED_WEB_TOOL_NAMES = ("web_search", "browser")
+
+
+def get_redirected_web_tool_schemas() -> list[dict[str, Any]]:
+    """Schemas for the web tools the orchestrator delegates instead of running."""
+    return [_TOOLS[name].to_ollama_schema() for name in REDIRECTED_WEB_TOOL_NAMES if name in _TOOLS]
+
+
 async def execute_tool(
     name: str,
     args: dict[str, Any],
