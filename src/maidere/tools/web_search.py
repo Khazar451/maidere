@@ -1,5 +1,6 @@
 """Async web search tool using SearXNG JSON API."""
 
+from collections.abc import Awaitable, Callable
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
@@ -70,7 +71,8 @@ async def _query_searxng(client: httpx.AsyncClient, query: str) -> list[dict[str
     await logger.ainfo("searxng_request", query=query, endpoint=endpoint)
     response = await client.get(endpoint, params={"q": query, "format": "json"})
     response.raise_for_status()
-    return response.json().get("results", [])
+    results: list[dict[str, Any]] = response.json().get("results", [])
+    return results
 
 
 async def _query_tavily(client: httpx.AsyncClient, query: str, limit: int) -> list[dict[str, Any]]:
@@ -80,7 +82,8 @@ async def _query_tavily(client: httpx.AsyncClient, query: str, limit: int) -> li
         json={"query": query, "max_results": limit},
     )
     response.raise_for_status()
-    return response.json().get("results", [])
+    results: list[dict[str, Any]] = response.json().get("results", [])
+    return results
 
 
 async def _query_serper(client: httpx.AsyncClient, query: str, limit: int) -> list[dict[str, Any]]:
@@ -110,7 +113,7 @@ async def _query_duckduckgo(client: httpx.AsyncClient, query: str) -> list[dict[
 
 async def _search_fallback(client: httpx.AsyncClient, query: str, limit: int) -> list[dict[str, Any]]:
     """Try each configured fallback provider in order; return the first non-empty result."""
-    providers: list[tuple[str, Any]] = []
+    providers: list[tuple[str, Callable[[], Awaitable[list[dict[str, Any]]]]]] = []
     if settings.tavily_api_key:
         providers.append(("tavily", lambda: _query_tavily(client, query, limit)))
     if settings.serper_api_key:
@@ -184,5 +187,5 @@ class WebSearchTool(BaseTool):
         "required": ["query"],
     }
 
-    async def execute(self, query: str, num_results: int = 5, **kwargs: Any) -> str:
+    async def execute(self, query: str, num_results: int = 5, **kwargs: Any) -> str:  # type: ignore[override]
         return await search_searxng(query=query, num_results=num_results)

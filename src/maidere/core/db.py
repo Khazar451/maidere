@@ -120,11 +120,12 @@ async def get_db_context(db_path: str = "db/maidere.db") -> AsyncGenerator[aiosq
             await db.close()
         return
 
-    db = _shared.get(resolved)
-    if db is None:
-        db = await get_db(resolved)
-        _shared[resolved] = db
+    pooled = _shared.get(resolved)
+    if pooled is None:
+        pooled = await get_db(resolved)
+        _shared[resolved] = pooled
         _shared_refs.setdefault(resolved, 0)
+    db = pooled
     _shared_refs[resolved] = _shared_refs.get(resolved, 0) + 1
     try:
         yield db
@@ -229,10 +230,10 @@ async def shutdown_maintenance(db_path: str) -> None:
 
 
 async def get_setting(db: aiosqlite.Connection, key: str) -> str | None:
-    rows = await db.execute_fetchall("SELECT value FROM app_settings WHERE key = ?", [key])
-    if not rows:
+    rows = list(await db.execute_fetchall("SELECT value FROM app_settings WHERE key = ?", [key]))
+    if not rows or rows[0][0] is None:
         return None
-    return rows[0][0]
+    return str(rows[0][0])
 
 
 async def set_setting(db: aiosqlite.Connection, key: str, value: str | None) -> None:
@@ -305,7 +306,7 @@ async def schema_version(db: aiosqlite.Connection) -> int:
     rows = await db.execute_fetchall("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'")
     if not rows:
         return 0
-    version_rows = await db.execute_fetchall("SELECT version FROM schema_version LIMIT 1")
+    version_rows = list(await db.execute_fetchall("SELECT version FROM schema_version LIMIT 1"))
     if not version_rows:
         return 0
     return int(version_rows[0][0])

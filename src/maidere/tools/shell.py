@@ -152,7 +152,7 @@ class ShellTool(BaseTool):
         if extras:
             self.description += f" Also allowed (operator-configured): {', '.join(extras)}."
 
-    async def execute(self, command: str, **kwargs: Any) -> str:
+    async def execute(self, command: str, **kwargs: Any) -> str:  # type: ignore[override]
         """Execute command securely and return output string."""
         if not command or not command.strip():
             return "Error: Empty command provided."

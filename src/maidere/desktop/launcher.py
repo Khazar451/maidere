@@ -54,7 +54,7 @@ def is_server_healthy(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, timeou
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Maidere-Desktop-Launcher"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status == 200
+            return bool(resp.status == 200)
     except (urllib.error.URLError, TimeoutError, ConnectionRefusedError, OSError):
         return False
 
@@ -151,7 +151,7 @@ def launch_window(url: str, title: str = "Maidere", dev_mode: bool = False) -> s
     """Open the Maidere application in a native standalone window."""
     # Priority 1: pywebview if installed
     try:
-        import webview  # type: ignore
+        import webview
 
         print(f"[DESKTOP] Launching via pywebview window engine (dev_mode={dev_mode})...")
         _window = webview.create_window(
