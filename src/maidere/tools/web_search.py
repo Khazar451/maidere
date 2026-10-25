@@ -47,12 +47,20 @@ def _unwrap_ddg_url(href: str) -> str:
     return href
 
 
+def _is_organic(url: str) -> bool:
+    """Keep real result links; drop DuckDuckGo's own redirects, which are sponsored ads."""
+    if not url.startswith("http"):
+        return False
+    host = (urlparse(url).hostname or "").lower()
+    return host != "duckduckgo.com" and not host.endswith(".duckduckgo.com")
+
+
 def _format_results(results: list[dict[str, Any]], limit: int) -> str:
     formatted = []
     for i, item in enumerate(results[:limit], 1):
-        title = (item.get("title") or "No title").strip()
+        title = " ".join((item.get("title") or "").split()) or "No title"
         url = item.get("url", "")
-        content = (item.get("content") or "").strip()
+        content = " ".join((item.get("content") or "").split())
         formatted.append(f"{i}. {title}\n   Markdown Link: [{title}]({url})\n   URL: {url}\n   Snippet: {content}")
     return "\n\n".join(formatted)
 
@@ -97,7 +105,7 @@ async def _query_duckduckgo(client: httpx.AsyncClient, query: str) -> list[dict[
     response.raise_for_status()
     parser = _DuckDuckGoParser()
     parser.feed(response.text)
-    return [r for r in parser.results if r["url"].startswith("http")]
+    return [r for r in parser.results if _is_organic(r["url"])]
 
 
 async def _search_fallback(client: httpx.AsyncClient, query: str, limit: int) -> list[dict[str, Any]]:

@@ -2,6 +2,7 @@
 
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -251,3 +252,87 @@ class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+class TestDuckDuckGoParser(unittest.IsolatedAsyncioTestCase):
+    """The fallback scrapes DuckDuckGo's HTML endpoint, so pin it to a realistic page."""
+
+    @staticmethod
+    def _parse(html: str) -> list[dict]:
+        from maidere.tools.web_search import _DuckDuckGoParser
+
+        parser = _DuckDuckGoParser()
+        parser.feed(html)
+        return parser.results
+
+    async def _search(self, html: str) -> str:
+        response = httpx.Response(200, text=html, request=httpx.Request("POST", "https://html.duckduckgo.com/html/"))
+        with (
+            patch("httpx.AsyncClient.get", side_effect=httpx.ConnectError("down")),
+            patch("httpx.AsyncClient.post", return_value=response),
+            patch.object(settings, "tavily_api_key", ""),
+            patch.object(settings, "serper_api_key", ""),
+        ):
+            return await WebSearchTool().execute(query="python asyncio", num_results=10)
+
+    async def test_extracts_real_results_in_order(self):
+        result = await self._search((FIXTURES / "duckduckgo_results.html").read_text())
+
+        urls = [line.split("URL: ", 1)[1] for line in result.splitlines() if line.strip().startswith("URL:")]
+        self.assertEqual(
+            urls,
+            [
+                "https://docs.python.org/3/library/asyncio.html",
+                "https://realpython.com/async-io-python/?utm_source=ddg&page=2",
+                "https://example.org/direct-link",
+            ],
+        )
+        self.assertTrue(result.startswith("1. asyncio"))
+
+    async def test_sponsored_results_are_dropped(self):
+        result = await self._search((FIXTURES / "duckduckgo_results.html").read_text())
+
+        self.assertNotIn("Sponsored", result)
+        self.assertNotIn("y.js", result)
+        self.assertNotIn("duckduckgo.com", result)
+
+    async def test_titles_and_snippets_are_clean_text(self):
+        results = self._parse((FIXTURES / "duckduckgo_results.html").read_text())
+        real = [r for r in results if "y.js" not in r["url"]]
+
+        self.assertEqual(" ".join(real[0]["title"].split()), "asyncio — Asynchronous I/O — Python 3.12.4 documentation")
+        snippet = " ".join(real[0]["content"].split())
+        self.assertTrue(
+            snippet.startswith("asyncio is a library to write concurrent code using the async/await syntax.")
+        )
+        self.assertNotIn("<b>", snippet)
+        self.assertEqual(
+            " ".join(real[1]["content"].split()),
+            "Learn how async IO works: coroutines, event loops & tasks. Tom & Jerry's guide to await.",
+        )
+        self.assertEqual(" ".join(real[1]["title"].split()), "Async IO in Python: A Complete Walkthrough – Real Python")
+
+    async def test_result_without_snippet_still_listed(self):
+        result = await self._search((FIXTURES / "duckduckgo_results.html").read_text())
+
+        self.assertIn("Result with a direct, non-redirect link", result)
+
+    async def test_snippets_do_not_leak_between_results(self):
+        results = [r for r in self._parse((FIXTURES / "duckduckgo_results.html").read_text()) if "y.js" not in r["url"]]
+
+        self.assertEqual(results[2]["content"].strip(), "")
+        self.assertNotIn("Learn how", results[0]["content"])
+
+    async def test_page_without_results_reports_none_found(self):
+        result = await self._search("<html><body><div class='no-results'>No results.</div></body></html>")
+
+        self.assertTrue(result.startswith("[Search Unavailable:"))
+
+    async def test_formatted_output_has_single_line_fields(self):
+        result = await self._search((FIXTURES / "duckduckgo_results.html").read_text())
+
+        for block in result.split("\n\n"):
+            self.assertEqual(len(block.splitlines()), 4, block)
