@@ -343,17 +343,33 @@
 
 
   // --- Terminal Logging ---
+  // Cap per-tab history so long-running tasks cannot grow the DOM or memory without bound.
+  const MAX_TERMINAL_LINES = 1000;
+
+  function terminalText(text) {
+    return window.MaidereAnsi ? window.MaidereAnsi.ansiToHtml(text) : escapeHTML(text);
+  }
+
+  function terminalLine(time, text, type) {
+    const line = document.createElement('div');
+    line.className = 'term-line';
+    line.innerHTML = `<span class="term-ts">[${time}]</span> <span class="term-text ${type}">${terminalText(text)}</span>`;
+    return line;
+  }
+
   function appendTerminal(tab, text, type = 'info') {
     const timeStr = new Date().toTimeString().split(' ')[0];
     const logItem = { time: timeStr, text, type };
     if (!state.terminalLogs[tab]) state.terminalLogs[tab] = [];
-    state.terminalLogs[tab].push(logItem);
+    const logs = state.terminalLogs[tab];
+    logs.push(logItem);
+    if (logs.length > MAX_TERMINAL_LINES) logs.splice(0, logs.length - MAX_TERMINAL_LINES);
 
     if (state.activeTerminalTab === tab && el.terminalCanvas) {
-      const line = document.createElement('div');
-      line.className = 'term-line';
-      line.innerHTML = `<span class="term-ts">[${timeStr}]</span> <span class="term-text ${type}">${escapeHTML(text)}</span>`;
-      el.terminalCanvas.appendChild(line);
+      el.terminalCanvas.appendChild(terminalLine(timeStr, text, type));
+      while (el.terminalCanvas.childElementCount > MAX_TERMINAL_LINES) {
+        el.terminalCanvas.firstElementChild.remove();
+      }
       if (state.autoScrollTerminal) {
         el.terminalCanvas.scrollTop = el.terminalCanvas.scrollHeight;
       }
@@ -365,10 +381,7 @@
     el.terminalCanvas.innerHTML = '';
     const logs = state.terminalLogs[state.activeTerminalTab] || [];
     logs.forEach((log) => {
-      const line = document.createElement('div');
-      line.className = 'term-line';
-      line.innerHTML = `<span class="term-ts">[${log.time}]</span> <span class="term-text ${log.type}">${escapeHTML(log.text)}</span>`;
-      el.terminalCanvas.appendChild(line);
+      el.terminalCanvas.appendChild(terminalLine(log.time, log.text, log.type));
     });
     if (state.autoScrollTerminal) {
       el.terminalCanvas.scrollTop = el.terminalCanvas.scrollHeight;
@@ -1791,7 +1804,7 @@
 
     el.btnCopyTerminal.addEventListener('click', () => {
       const logs = (state.terminalLogs[state.activeTerminalTab] || [])
-        .map((l) => `[${l.time}] ${l.text}`)
+        .map((l) => `[${l.time}] ${window.MaidereAnsi ? window.MaidereAnsi.stripAnsi(l.text) : l.text}`)
         .join('\n');
       navigator.clipboard.writeText(logs);
       appendTerminal(state.activeTerminalTab, 'Terminal buffer copied to clipboard', 'info');
