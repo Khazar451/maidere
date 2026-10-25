@@ -90,6 +90,12 @@ class Settings(BaseSettings):
 
     # Web Search (SearXNG)
     searxng_url: str = "http://localhost:8080"
+    # When SearXNG is unreachable, fall back to Tavily/Serper (if a key is set)
+    # and then DuckDuckGo. Queries leave the machine in that case; set to false
+    # to keep search strictly local.
+    search_fallback_enabled: bool = True
+    tavily_api_key: str = ""
+    serper_api_key: str = ""
 
     # Obsidian Vault Integration
     obsidian_vault_path: str = ""

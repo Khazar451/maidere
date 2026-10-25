@@ -67,13 +67,84 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         result = await self.search_tool.execute(query="nonexistentquery12345")
         self.assertIn("No search results found", result)
 
+    @patch("httpx.AsyncClient.post")
     @patch("httpx.AsyncClient.get")
-    async def test_searxng_connection_error(self, mock_get):
-        """Test graceful error message when SearXNG is unreachable."""
+    async def test_searxng_connection_error_with_fallback_down(self, mock_get, mock_post):
+        """Graceful error when SearXNG and every fallback provider are unreachable."""
         mock_get.side_effect = httpx.ConnectError("Connection refused")
+        mock_post.side_effect = httpx.ConnectError("Connection refused")
 
         result = await self.search_tool.execute(query="test connection failure")
+        self.assertTrue(result.startswith("[Search Unavailable:"))
+
+    @patch("httpx.AsyncClient.post")
+    @patch("httpx.AsyncClient.get")
+    async def test_fallback_disabled_never_leaves_machine(self, mock_get, mock_post):
+        """With the fallback switched off, an offline SearXNG makes no outbound request."""
+        mock_get.side_effect = httpx.ConnectError("Connection refused")
+
+        with patch.object(settings, "search_fallback_enabled", False):
+            result = await self.search_tool.execute(query="private query")
+
         self.assertIn("[Search Unavailable: SearXNG container is offline]", result)
+        mock_post.assert_not_called()
+
+    @patch("httpx.AsyncClient.post")
+    @patch("httpx.AsyncClient.get")
+    async def test_duckduckgo_fallback_on_connect_error(self, mock_get, mock_post):
+        """An offline SearXNG falls back to DuckDuckGo and returns formatted results."""
+        mock_get.side_effect = httpx.ConnectError("Connection refused")
+        html = (
+            '<div class="result"><a class="result__a" '
+            'href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fdocs.python.org%2F3%2Flibrary%2Fasyncio.html&rut=x">'
+            "asyncio &mdash; Asynchronous I/O</a>"
+            '<a class="result__snippet" href="#">Coroutines and event loops.</a></div>'
+        )
+        mock_post.return_value = httpx.Response(
+            200, text=html, request=httpx.Request("POST", "https://html.duckduckgo.com/html/")
+        )
+
+        with patch.object(settings, "tavily_api_key", ""), patch.object(settings, "serper_api_key", ""):
+            result = await self.search_tool.execute(query="python asyncio")
+
+        self.assertIn("1. asyncio", result)
+        self.assertIn("URL: https://docs.python.org/3/library/asyncio.html", result)
+        self.assertIn("Snippet: Coroutines and event loops.", result)
+
+    @patch("httpx.AsyncClient.post")
+    @patch("httpx.AsyncClient.get")
+    async def test_fallback_on_timeout_prefers_configured_cloud_provider(self, mock_get, mock_post):
+        """A configured Tavily key is tried before DuckDuckGo; DuckDuckGo is not contacted on success."""
+        mock_get.side_effect = httpx.ReadTimeout("slow")
+        mock_post.return_value = httpx.Response(
+            200,
+            json={"results": [{"title": "Tavily hit", "url": "https://example.com/t", "content": "from tavily"}]},
+            request=httpx.Request("POST", "https://api.tavily.com/search"),
+        )
+
+        with patch.object(settings, "tavily_api_key", "tvly-test"):
+            result = await self.search_tool.execute(query="anything")
+
+        self.assertIn("Tavily hit", result)
+        mock_post.assert_called_once()
+        self.assertEqual(mock_post.call_args.args[0], "https://api.tavily.com/search")
+
+    @patch("httpx.AsyncClient.post")
+    @patch("httpx.AsyncClient.get")
+    async def test_failed_cloud_provider_falls_through_to_next(self, mock_get, mock_post):
+        """If the cloud provider errors, DuckDuckGo is still attempted."""
+        mock_get.side_effect = httpx.ConnectError("down")
+        ddg = httpx.Response(
+            200,
+            text='<a class="result__a" href="https://example.org/x">Example</a>',
+            request=httpx.Request("POST", "https://html.duckduckgo.com/html/"),
+        )
+        mock_post.side_effect = [httpx.ConnectError("tavily down"), ddg]
+
+        with patch.object(settings, "tavily_api_key", "tvly-test"), patch.object(settings, "serper_api_key", ""):
+            result = await self.search_tool.execute(query="anything")
+
+        self.assertIn("URL: https://example.org/x", result)
 
 
 class TestSearchAndBrowseAgentIntegration(unittest.IsolatedAsyncioTestCase):
