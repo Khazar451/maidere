@@ -283,7 +283,10 @@
 
   function formatRelativeTime(timestamp) {
     if (!timestamp) return 'Just now';
-    const date = new Date(timestamp);
+    // SQLite sends UTC as "YYYY-MM-DD HH:MM:SS" with no zone; without this the
+    // browser reads it as local time and every thread looks hours old.
+    const naiveUtc = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(String(timestamp));
+    const date = new Date(naiveUtc ? String(timestamp).replace(' ', 'T') + 'Z' : timestamp);
     if (isNaN(date.getTime())) return 'Just now';
     const now = new Date();
     const diffSec = Math.floor((now - date) / 1000);
