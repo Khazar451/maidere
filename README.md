@@ -27,7 +27,7 @@
 - **Native Desktop & Continuous Development App**: Runs as a lightweight native desktop application (`maidere` / `python -m maidere`) with OS dock integration, intelligent server lifecycle management, and a live hot-reloading development mode (`--dev`).
 - **Dynamic 5-Tier Context Selector**: Real-time context window switcher scalable from **8K (Local Fast)** up to **128K (Cloud Extreme)** with automatic token trimming and context-aware KV cache management.
 - **System 2 Deliberation Pipeline**: Multi-stage cognitive deconstruction, divergent exploration, formal proof verification, and convergent synthesis with real-time `<think>...</think>` streaming.
-- **Hybrid Local + Cloud Execution**: Auto-routes between local Ollama instances (`qwen2.5:7b-instruct`, `qwen2.5:3b`, `deepseek-r1:7b`) and cloud-accelerated endpoints (NVIDIA Nemotron 3 Ultra 550B, OpenAI-compatible APIs).
+- **Hybrid Local + Cloud Execution**: Runs on your configured local Ollama model (`qwen2.5:7b-instruct` by default), switches to a vision model when you attach an image, uses `deepseek-r1:7b` for the Thinking and Deep Reason modes when it is installed, and can target cloud endpoints (NVIDIA Nemotron 3 Ultra 550B, OpenAI-compatible APIs) when you pick one.
 - **In-Process SQLite Vector Database**: ACID-compliant SQLite WAL mode with `sqlite-vec` extension (`vec0` virtual table), eliminating external vector database overhead.
 - **3-Tier Self-Healing Memory**: Persistent hierarchical memory combining rule enforcement (`RULES.md`), structured topic auto-memory with LRU eviction (`memory/*.md`), and turn-level fact extraction with Jaccard novelty filtering.
 - **Specialized Subagent Fleet**: Ephemeral subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) communicating via a microsecond-stamped file artifact bus.
@@ -177,9 +177,11 @@ Maidere provides three cognitive paradigms selectable from the top navigation ba
 
 | Mode | Selector | Execution Pipeline & Behavior |
 | :--- | :--- | :--- |
-| **Auto** *(Default)* | `Auto` | **Dynamic Complexity & Vision Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b`, `VISION` &rarr; `qwen2.5vl:7b`) with sub-millisecond intent evaluation. |
+| **Auto** *(Default)* | `Auto` | **Your configured model, vision-aware**: Every text turn runs on `OLLAMA_MODEL`. Attaching an image switches that turn to the vision model (`OLLAMA_VISION_MODEL`, default `qwen2.5vl:7b`). The UI does not pick a smaller model for simple questions (see the note below). |
 | **Thinking** | `Thinking` | **Single-Pass Chain-of-Thought**: Generates step-by-step reasoning inside `<think>...</think>` scratchpad tags with real-time token streaming and collapsible UI accordions. |
 | **Deep Reason** | `Deep Reason` | **Multi-Stage System 2 Deliberation**: Exhaustive 3-phase cognitive framework:<br>1. *Divergent Exploration*: Problem deconstruction, alternative hypotheses, falsification stress-testing.<br>2. *Analytical Verification*: Independent recalculation of math, state mutations, and citation integrity.<br>3. *Convergent Synthesis*: Formal synthesis with fourth-wall reviewer leakage prevention. |
+
+> **About complexity routing.** `core/router.py` can classify a request as simple, complex or reasoning and pick `OLLAMA_FAST_MODEL`, `OLLAMA_MODEL` or the thinking model. It only runs for API clients that send `"model": "auto"`; the UI's Auto mode sends no model, so it uses `OLLAMA_MODEL`. This is deliberate: on an 8 GB GPU the 7B already answers in a few seconds, swapping in a 3B model was not faster, and the 3B handled tool-style requests worse.
 
 ---
 

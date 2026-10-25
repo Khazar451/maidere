@@ -252,7 +252,7 @@
           state.selectedModel = 'auto';
           el.modelSelect.value = 'auto';
           localStorage.setItem('maidere_selected_model', 'auto');
-          appendTerminal('agent-shell', '[ROUTER] Reset model selection to Auto-route', 'info');
+          appendTerminal('agent-shell', '[ROUTER] Reset model selection to Auto (default model)', 'info');
         }
       }
     }
@@ -761,7 +761,7 @@
 
       const autoOpt = document.createElement('option');
       autoOpt.value = 'auto';
-      autoOpt.textContent = '[AUTO] Auto-route (Qwen & DeepSeek-R1)';
+      autoOpt.textContent = '[AUTO] Default model (vision-aware)';
       if (state.selectedModel === 'auto') autoOpt.selected = true;
       el.modelSelect.appendChild(autoOpt);
 

@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     ollama_thinking_model: str = "deepseek-r1:7b"
     ollama_vision_model: str = "qwen2.5vl:7b"
     ollama_num_ctx: int = 8192
+    # Complexity routing (fast / primary / thinking model). It runs only for requests
+    # that send model="auto"; clients that send no model, like the UI, get ollama_model.
     enable_model_routing: bool = True
     ollama_timeout: float = 180.0
     ollama_connect_timeout: float = 10.0

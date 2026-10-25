@@ -284,10 +284,10 @@ Ran 245 tests in 4.808s — OK (100% Passed, 0 Failures, 0 Errors)
 | :--- | :--- | :--- |
 | `OLLAMA_URL` | `http://localhost:11434` | Endpoint for the local Ollama daemon. |
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Primary pinned local model for complex tasks. |
-| `OLLAMA_FAST_MODEL` | `qwen2.5:3b` | Fast local model for simple conversational turns. |
+| `OLLAMA_FAST_MODEL` | `qwen2.5:3b` | Fast local model for simple turns. Only used when the complexity router runs (API requests with `"model": "auto"`); the UI never selects it. |
 | `OLLAMA_THINKING_MODEL`| `deepseek-r1:7b` | Local reasoning model for proofs and logic puzzles. |
 | `OLLAMA_NUM_CTX` | `16384` | Default context window size in tokens. |
-| `ENABLE_MODEL_ROUTING` | `true` | Enables automatic task complexity classifier. |
+| `ENABLE_MODEL_ROUTING` | `true` | Enables the task complexity classifier for requests that send `"model": "auto"`. The UI's Auto mode sends no model and uses `OLLAMA_MODEL`. |
 | `CLOUD_API_BASE` | `https://integrate.api.nvidia.com/v1` | Base URL for OpenAI-compatible / NVIDIA NIM endpoints. |
 | `CLOUD_API_KEY` | `""` | API key for cloud model inference. |
 | `CLOUD_MODEL` | `nvidia/nemotron-3-ultra-550b-a55b` | Cloud model identifier. |

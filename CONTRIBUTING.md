@@ -22,7 +22,7 @@ Maidere is an autonomous, self-hosted AI agent architecture built for local exec
 - `uv` package manager (recommended) or standard Python `venv`
 - `ollama` with the following models pulled locally:
   - `qwen2.5:7b-instruct` (Primary instruction model)
-  - `qwen2.5:3b` (Fast classifier / summary model)
+  - `qwen2.5:3b` (Optional; used only by the complexity router for API requests that send `"model": "auto"`)
   - `deepseek-r1:7b` (Optional, required for Deep Reasoning mode)
 - `docker` and `docker compose` (for auxiliary services: SearXNG, Prometheus, Grafana)
 

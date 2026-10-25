@@ -27,6 +27,7 @@
 - The desktop launcher exits non-zero when the backend fails to start. Sponsored DuckDuckGo results are dropped from the search fallback.
 
 ### Changed
+- Auto mode is described as what it does: the configured model, switching to the vision model for images. The complexity router (`OLLAMA_FAST_MODEL`, `ENABLE_MODEL_ROUTING`) runs only for API requests that send `"model": "auto"`. The model dropdown label and docs were corrected to match.
 - Logs are JSON lines in `logs/maidere.jsonl`.
 - The GitHub tool no longer assumes a personal repository. Set `GITHUB_DEFAULT_REPO` to choose one.
 
