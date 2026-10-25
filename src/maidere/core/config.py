@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Seconds between background WAL checkpoints (0 disables the loop).
     db_checkpoint_interval_seconds: float = 3600.0
 
+    # Visual memory: how many user turns (the upload turn counts as the first) an
+    # uploaded image stays available for follow-up questions, and the most images
+    # kept in the checkpoint. 0 turns disables it.
+    image_memory_turns: int = 2
+    image_memory_max_images: int = 4
+
     # Embeddings (fastembed, CPU-only, zero VRAM)
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_dimensions: int = 384

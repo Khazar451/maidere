@@ -193,5 +193,204 @@ class TestApiChatRequestSchema(unittest.TestCase):
         self.assertEqual(req.attachments[0]["name"], "spec.pdf")
 
 
+def _png_b64(width: int, height: int, color=(200, 30, 30)) -> str:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), color).save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _decoded_size(b64: str) -> tuple[int, int]:
+    import io
+
+    from PIL import Image
+
+    with Image.open(io.BytesIO(base64.b64decode(b64.split(",", 1)[-1]))) as img:
+        return img.size
+
+
+class TestVisualDeixis(unittest.TestCase):
+    """Follow-ups that point back at an earlier image."""
+
+    def test_detects_references_to_prior_images(self):
+        from maidere.core.visual_memory import references_prior_image
+
+        for q in (
+            "What changes should I make to the primary button in that design?",
+            "Can you describe the screenshot again?",
+            "In the UI mockup, is the header too tall?",
+            "what about the diagram I uploaded",
+            "Compare it with the previous image",
+        ):
+            self.assertTrue(references_prior_image(q), q)
+
+    def test_ignores_unrelated_follow_ups(self):
+        from maidere.core.visual_memory import references_prior_image
+
+        for q in ("Thanks!", "Now write a Python function that sorts a list", "", "Explain asyncio to me"):
+            self.assertFalse(references_prior_image(q), q)
+
+
+class TestImageDownscale(unittest.IsolatedAsyncioTestCase):
+    async def test_large_image_fits_within_1080p_and_keeps_aspect(self):
+        from maidere.core.visual_memory import downscale_image
+
+        out = await downscale_image(_png_b64(3840, 2160))
+        w, h = _decoded_size(out)
+        self.assertLessEqual(w, 1920)
+        self.assertLessEqual(h, 1080)
+        self.assertAlmostEqual(w / h, 3840 / 2160, places=1)
+
+    async def test_small_image_is_returned_untouched(self):
+        from maidere.core.visual_memory import downscale_image
+
+        small = _png_b64(64, 64)
+        self.assertEqual(await downscale_image(small), small)
+
+    async def test_data_uri_prefix_is_preserved(self):
+        from maidere.core.visual_memory import downscale_image
+
+        out = await downscale_image("data:image/png;base64," + _png_b64(2500, 1500))
+        self.assertTrue(out.startswith("data:image/png;base64,"))
+        self.assertLessEqual(_decoded_size(out)[0], 1920)
+
+    async def test_unreadable_image_is_kept_as_uploaded(self):
+        from maidere.core.visual_memory import downscale_image
+
+        self.assertEqual(await downscale_image("not-an-image"), "not-an-image")
+
+
+class TestImageHistoryWindow(unittest.IsolatedAsyncioTestCase):
+    """Sliding window and cap on remembered images."""
+
+    @staticmethod
+    def _msgs(n: int):
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        out = []
+        for i in range(n):
+            out.append(HumanMessage(content=f"q{i}", id=f"h{i}"))
+            out.append(AIMessage(content=f"a{i}", id=f"a{i}"))
+        return out[:-1]  # last user message has no reply yet
+
+    async def test_image_survives_one_follow_up_then_expires(self):
+        from maidere.core.visual_memory import remember_images
+
+        img = _png_b64(8, 8)
+        history = await remember_images(None, self._msgs(1), [img])
+        self.assertEqual([e["message_id"] for e in history], ["h0"])
+
+        history = await remember_images(history, self._msgs(2), [])  # turn 2: still available
+        self.assertEqual([e["message_id"] for e in history], ["h0"])
+
+        history = await remember_images(history, self._msgs(3), [])  # turn 3: pruned
+        self.assertEqual(history, [])
+
+    async def test_max_images_cap_keeps_newest(self):
+        from maidere.core.visual_memory import remember_images
+
+        imgs = [_png_b64(8 + i, 8) for i in range(6)]
+        with patch("maidere.core.visual_memory.settings.image_memory_max_images", 3):
+            history = await remember_images(None, self._msgs(1), imgs)
+        kept = [i for e in history for i in e["images"]]
+        self.assertEqual(kept, imgs[-3:])
+
+    async def test_same_image_is_not_stored_twice(self):
+        from maidere.core.visual_memory import remember_images
+
+        img = _png_b64(8, 8)
+        history = await remember_images(None, self._msgs(1), [img])
+        history = await remember_images(history, self._msgs(2), [img])  # stale re-send
+        self.assertEqual(sum(len(e["images"]) for e in history), 1)
+
+    async def test_disabled_when_turns_is_zero(self):
+        from maidere.core.visual_memory import remember_images
+
+        with patch("maidere.core.visual_memory.settings.image_memory_turns", 0):
+            self.assertEqual(await remember_images(None, self._msgs(1), [_png_b64(8, 8)]), [])
+
+    def test_recall_excludes_current_turn_and_requires_deixis(self):
+        from maidere.core.visual_memory import recall_images
+
+        history = [{"message_id": "h0", "images": ["A"]}, {"message_id": "h1", "images": ["B"]}]
+        self.assertEqual(recall_images(history, "h1", "what is in that screenshot?"), {"h0": ["A"]})
+        self.assertEqual(recall_images(history, "h1", "thanks"), {})
+
+
+class TestMultiTurnVisualMemory(unittest.IsolatedAsyncioTestCase):
+    """End to end through the graph and checkpointer: ask about an image on the next turn."""
+
+    async def asyncSetUp(self):
+        import tempfile
+
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.temp_db_path = self.temp_db.name
+        self.temp_db.close()
+
+    async def asyncTearDown(self):
+        import os
+
+        if os.path.exists(self.temp_db_path):
+            os.remove(self.temp_db_path)
+
+    async def test_follow_up_sees_image_then_it_expires(self):
+        from langchain_core.messages import HumanMessage
+
+        from maidere.core.agent import create_graph
+
+        seen: list[tuple[str, list[str]]] = []
+
+        async def fake_chat(messages, tools=None, model=None, num_ctx=None, on_token=None):
+            images = [img for m in messages if m.get("role") == "user" for img in (m.get("images") or [])]
+            last_user = next(m["content"] for m in reversed(messages) if m.get("role") == "user")
+            seen.append((last_user, images))
+            return {"message": {"role": "assistant", "content": "ok", "tool_calls": []}}
+
+        img = _png_b64(32, 32)
+        graph, ctx = await create_graph(self.temp_db_path)
+        config = {"configurable": {"thread_id": "visual-memory-thread"}}
+
+        async def turn(text: str, images: list[str]):
+            await graph.ainvoke(
+                {
+                    "messages": [HumanMessage(content=text)],
+                    "memory_context": "No relevant memories.",
+                    "thread_id": "visual-memory-thread",
+                    "images": images,
+                },
+                config=config,
+            )
+
+        try:
+            with (
+                patch("maidere.core.llm.chat", side_effect=fake_chat),
+                patch("maidere.core.agent.recall", new_callable=AsyncMock, return_value=[]),
+                patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+            ):
+                await turn("Here is my login screen mockup", [img])
+                await turn("What should I change on the primary button in that design?", [])
+                await turn("Thanks. Now explain Python decorators", [])
+                await turn("Go back to that screenshot: is the header too tall?", [])
+        finally:
+            await ctx.__aexit__(None, None, None)
+
+        by_text = dict(seen)
+        self.assertEqual(len(by_text["Here is my login screen mockup"]), 1)
+        self.assertEqual(
+            len(by_text["What should I change on the primary button in that design?"]),
+            1,
+            "follow-up turn must still see the uploaded image",
+        )
+        self.assertEqual(by_text["Thanks. Now explain Python decorators"], [], "unrelated turn stays text-only")
+        self.assertEqual(
+            by_text["Go back to that screenshot: is the header too tall?"],
+            [],
+            "image is pruned after the 2-turn window",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

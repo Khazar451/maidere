@@ -15,6 +15,7 @@
 - `EXTRA_ALLOWED_COMMANDS` lets you permit more binaries in the shell tool (for example `uv,pytest,cargo,go`). Shells, `sudo` and network clients stay blocked.
 - Web search falls back to Tavily or Serper (when a key is set) and then DuckDuckGo if SearXNG is offline. Set `SEARCH_FALLBACK_ENABLED=false` to keep search local.
 - Terminal tabs render ANSI colours and keep the last 1,000 lines.
+- Uploaded images stay available for follow-up questions (`IMAGE_MEMORY_TURNS`, default 2; `IMAGE_MEMORY_MAX_IMAGES`, default 4). They are re-attached only when the question refers back to them, and stored images are downscaled to fit 1920x1080.
 
 ### Changed
 - Logs are JSON lines in `logs/maidere.jsonl`.

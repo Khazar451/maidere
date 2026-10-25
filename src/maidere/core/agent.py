@@ -287,12 +287,21 @@ async def remember_node(state: AgentState) -> dict:
             await logger.aerror("remember_failed", error=str(e))
 
     mem_ctx = "\n\n".join(context_blocks) if context_blocks else "No relevant memories found."
-    return {
+    update: dict = {
         "memory_context": mem_ctx,
         "has_delegated": False,
         "tool_loop_count": 0,
         "subagent_results": [],
     }
+    try:
+        from maidere.core.visual_memory import remember_images
+
+        update["image_history"] = await remember_images(
+            state.get("image_history"), messages, list(state.get("images") or [])
+        )
+    except Exception as e:
+        await logger.awarn("visual_memory_update_failed", error=str(e))
+    return update
 
 
 _stream_callbacks: dict[str, Any] = {}
@@ -1098,12 +1107,22 @@ async def think_node(state: AgentState) -> dict:
 
     raw_messages = state.get("messages", [])
     turn_images = list(state.get("images") or [])
-    has_images = bool(turn_images)
 
     last_user_idx = -1
     for i, msg in enumerate(raw_messages):
         if isinstance(msg, HumanMessage):
             last_user_idx = i
+
+    # Re-attach images from earlier turns when the user refers back to them.
+    from maidere.core.visual_memory import recall_images
+
+    last_user = raw_messages[last_user_idx] if last_user_idx >= 0 else None
+    recalled_images = recall_images(
+        state.get("image_history"),
+        getattr(last_user, "id", None),
+        str(getattr(last_user, "content", "") or ""),
+    )
+    has_images = bool(turn_images or recalled_images)
 
     for i, msg in enumerate(raw_messages):
         if isinstance(msg, SystemMessage):
@@ -1112,7 +1131,11 @@ async def think_node(state: AgentState) -> dict:
         # Completed prior turns: retain only user prompt and final assistant response
         if last_user_idx > 0 and i < last_user_idx:
             if isinstance(msg, HumanMessage):
-                ollama_messages.append({"role": "user", "content": str(msg.content or "")})
+                prior_msg: dict = {"role": "user", "content": str(msg.content or "")}
+                prior_images = recalled_images.get(str(getattr(msg, "id", "")))
+                if prior_images:
+                    prior_msg["images"] = prior_images
+                ollama_messages.append(prior_msg)
             elif isinstance(msg, AIMessage) and msg.content and not getattr(msg, "tool_calls", None):
                 ollama_messages.append({"role": "assistant", "content": str(msg.content)})
             continue

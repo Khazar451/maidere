@@ -14,6 +14,7 @@ class AgentState(TypedDict, total=False):
     memory_context: Retrieved memories from sqlite-vec, injected each turn.
     thread_id: Unique conversation thread identifier.
     model: Model name to use for this execution.
+    image_history: Recent uploaded images [{"message_id", "images"}] kept for follow-up turns.
     has_delegated: Whether delegate_task was used this query (blocks re-delegation).
     """
 
@@ -33,4 +34,5 @@ class AgentState(TypedDict, total=False):
     complexity: Any
     username: str
     images: list[str]
+    image_history: list[dict]
     attachments: list[dict]
