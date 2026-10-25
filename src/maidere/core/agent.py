@@ -1291,6 +1291,11 @@ async def think_node(state: AgentState) -> dict:
             t for t in tools_schemas if t.get("function", {}).get("name") not in ("Agent", "delegate_task")
         ]
 
+    # Models without tool support (e.g. vision models) 400 on any request that carries tools.
+    if tools_schemas and not await llm.model_supports_tools(selected_model):
+        await logger.ainfo("tools_omitted_unsupported_model", model=selected_model)
+        tools_schemas = None
+
     # Show the model the web tools too, but only while it can still delegate; calls
     # are redirected to a researcher below. An unlisted call would be dropped.
     if tools_schemas and any(t.get("function", {}).get("name") == "Agent" for t in tools_schemas):

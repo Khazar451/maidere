@@ -19,6 +19,9 @@
 - Uploaded images stay available for follow-up questions (`IMAGE_MEMORY_TURNS`, default 2; `IMAGE_MEMORY_MAX_IMAGES`, default 4). They are re-attached only when the question refers back to them, and stored images are downscaled to fit 1920x1080.
 
 ### Fixed
+- Images sent in Auto mode now reach a vision model. The default text model was being treated as the user's explicit choice, so the text-only model got the image and Ollama rejected it.
+- The vision model is named `qwen2.5vl` (Ollama has no `qwen2.5-vl`). The default setting and the README pull command now use the real name.
+- Tool schemas are left out for models that cannot take tools, such as vision models, which previously failed with a 400. Image turns on those models are text-only.
 - A direct `web_search` or `browser` call from the orchestrator model is now handed to a researcher sub-agent. Before, Ollama discarded it and the user got an empty reply.
 - Thread ages in the sidebar are correct outside UTC.
 - The desktop launcher exits non-zero when the backend fails to start. Sponsored DuckDuckGo results are dropped from the search fallback.

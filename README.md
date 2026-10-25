@@ -22,7 +22,7 @@
 
 ## Highlights & Key Capabilities
 
-- **Antigravity-Grade Multimodal Vision & Input Deck**: Paste screenshots (`Ctrl+V`), drag-and-drop UI mockups or documents, and open the upward-popping **Add Context** (`+`) menu for media, `@ file mentions`, `/ actions`, and browser links. Automatically routes visual queries to `qwen2.5-vl:7b` with high-speed in-memory PDF/document text extraction.
+- **Antigravity-Grade Multimodal Vision & Input Deck**: Paste screenshots (`Ctrl+V`), drag-and-drop UI mockups or documents, and open the upward-popping **Add Context** (`+`) menu for media, `@ file mentions`, `/ actions`, and browser links. Automatically routes visual queries to `qwen2.5vl:7b` with high-speed in-memory PDF/document text extraction.
 - **Zero-VRAM CPU Embeddings**: High-performance semantic vector embeddings executed entirely on CPU via `fastembed` (`BAAI/bge-small-en-v1.5`), preserving 100% of GPU VRAM for LLM generation.
 - **Native Desktop & Continuous Development App**: Runs as a lightweight native desktop application (`maidere` / `python -m maidere`) with OS dock integration, intelligent server lifecycle management, and a live hot-reloading development mode (`--dev`).
 - **Dynamic 5-Tier Context Selector**: Real-time context window switcher scalable from **8K (Local Fast)** up to **128K (Cloud Extreme)** with automatic token trimming and context-aware KV cache management.
@@ -61,7 +61,7 @@ pip install -e .
 ollama pull qwen2.5:7b-instruct
 ollama pull qwen2.5:3b
 ollama pull deepseek-r1:7b
-ollama pull qwen2.5-vl:7b # Multimodal vision for screenshots & documents
+ollama pull qwen2.5vl:7b # Multimodal vision (on an 8 GB GPU use qwen2.5vl:3b and set OLLAMA_VISION_MODEL)
 
 # Configure secrets for the Docker sidecars (compose refuses to start without them)
 cp .env.example .env
@@ -177,7 +177,7 @@ Maidere provides three cognitive paradigms selectable from the top navigation ba
 
 | Mode | Selector | Execution Pipeline & Behavior |
 | :--- | :--- | :--- |
-| **Auto** *(Default)* | `Auto` | **Dynamic Complexity & Vision Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b`, `VISION` &rarr; `qwen2.5-vl:7b`) with sub-millisecond intent evaluation. |
+| **Auto** *(Default)* | `Auto` | **Dynamic Complexity & Vision Routing**: Classifies task complexity (`SIMPLE` &rarr; `qwen2.5:3b`, `COMPLEX` &rarr; `qwen2.5:7b-instruct`, `REASONING` &rarr; `deepseek-r1:7b`, `VISION` &rarr; `qwen2.5vl:7b`) with sub-millisecond intent evaluation. |
 | **Thinking** | `Thinking` | **Single-Pass Chain-of-Thought**: Generates step-by-step reasoning inside `<think>...</think>` scratchpad tags with real-time token streaming and collapsible UI accordions. |
 | **Deep Reason** | `Deep Reason` | **Multi-Stage System 2 Deliberation**: Exhaustive 3-phase cognitive framework:<br>1. *Divergent Exploration*: Problem deconstruction, alternative hypotheses, falsification stress-testing.<br>2. *Analytical Verification*: Independent recalculation of math, state mutations, and citation integrity.<br>3. *Convergent Synthesis*: Formal synthesis with fourth-wall reviewer leakage prevention. |
 
@@ -205,7 +205,7 @@ Maidere features an **Antigravity-grade context ingestion deck** designed for ra
 - **Follow-up Questions About Images**:
   - Uploaded images stay available for the next turn, so you can ask about "that screenshot" or "the button in that design" without re-uploading. They are re-attached only when your question refers back to them, then pruned (see `IMAGE_MEMORY_TURNS`).
 - **Automatic Multimodal Routing**:
-  - Image payloads automatically elevate complexity to `TaskComplexity.VISION` and route to `qwen2.5-vl:7b` (or cloud OpenAI vision endpoints).
+  - Image payloads automatically elevate complexity to `TaskComplexity.VISION` and route to `qwen2.5vl:7b` (or cloud OpenAI vision endpoints).
 
 ---
 

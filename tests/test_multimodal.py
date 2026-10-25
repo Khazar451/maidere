@@ -126,7 +126,7 @@ class TestRouterVisionSelection(unittest.IsolatedAsyncioTestCase):
 
     async def test_select_model_auto_routes_to_vision(self):
         with patch(
-            "maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5-vl:7b"])
+            "maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5vl:7b"])
         ):
             model, reason, complexity = await select_model(
                 requested_model="auto",
@@ -137,9 +137,37 @@ class TestRouterVisionSelection(unittest.IsolatedAsyncioTestCase):
             self.assertIn("vl", model.lower())
             self.assertEqual(reason, "multimodal_vision")
 
+    async def test_default_text_model_is_not_treated_as_a_user_choice_for_images(self):
+        """The API sends the default text model when the client picked Auto; images must still reach a vision model."""
+        from maidere.core.config import settings
+
+        with (
+            patch(
+                "maidere.core.router.get_available_models",
+                new=AsyncMock(return_value=[settings.ollama_model, "qwen2.5vl:3b"]),
+            ),
+            patch.object(settings, "ollama_vision_model", "qwen2.5vl:3b"),
+        ):
+            model, reason, _ = await select_model(
+                requested_model=settings.ollama_model, query="What is in this screenshot?", has_images=True
+            )
+        self.assertEqual(model, "qwen2.5vl:3b")
+        self.assertEqual(reason, "multimodal_vision")
+
+    async def test_vision_model_is_found_under_its_real_ollama_name(self):
+        """Ollama's tag is `qwen2.5vl` (no hyphen); the hyphenated name does not exist."""
+        from maidere.core.config import settings
+
+        self.assertEqual(settings.ollama_vision_model.split(":")[0], "qwen2.5vl")
+        with patch(
+            "maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5vl:7b"])
+        ):
+            model, _, _ = await select_model(requested_model=None, query="Check this", has_images=True)
+        self.assertEqual(model, "qwen2.5vl:7b")
+
     async def test_select_model_respects_explicit_user_override_with_images(self):
         with patch(
-            "maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5-vl:7b"])
+            "maidere.core.router.get_available_models", new=AsyncMock(return_value=["qwen2.5:7b", "qwen2.5vl:7b"])
         ):
             model, reason, complexity = await select_model(
                 requested_model="my-custom-vision:latest",

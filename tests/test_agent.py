@@ -989,6 +989,73 @@ class TestDirectWebCallRedirect(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("web_search", seen[1])
 
 
+class TestToolsOmittedForUnsupportedModels(unittest.IsolatedAsyncioTestCase):
+    """Vision models reject requests that carry tools, so the agent must not send any."""
+
+    def setUp(self):
+        from maidere.core import llm
+
+        llm._TOOL_SUPPORT.clear()
+        self.addCleanup(llm._TOOL_SUPPORT.clear)
+
+    @staticmethod
+    def _show(capabilities):
+        import httpx
+
+        return httpx.Response(
+            200, json={"capabilities": capabilities}, request=httpx.Request("POST", "http://x/api/show")
+        )
+
+    async def test_capabilities_decide_tool_support_and_are_cached(self):
+        from maidere.core import llm
+
+        with patch(
+            "httpx.AsyncClient.post", side_effect=[self._show(["completion", "vision"]), self._show(["tools"])]
+        ) as post:
+            self.assertFalse(await llm.model_supports_tools("qwen2.5vl:3b"))
+            self.assertFalse(await llm.model_supports_tools("qwen2.5vl:3b"))  # cached
+            self.assertTrue(await llm.model_supports_tools("qwen2.5:7b-instruct"))
+        self.assertEqual(post.call_count, 2)
+
+    async def test_unreachable_ollama_or_cloud_model_assumes_support_without_caching(self):
+        import httpx
+
+        from maidere.core import llm
+
+        with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectError("down")):
+            self.assertTrue(await llm.model_supports_tools("qwen2.5vl:3b"))
+        self.assertNotIn("qwen2.5vl:3b", llm._TOOL_SUPPORT)
+        with patch("httpx.AsyncClient.post", side_effect=AssertionError("no request for cloud models")):
+            self.assertTrue(await llm.model_supports_tools("nvidia/nemotron-3-ultra-550b-a55b"))
+
+    async def test_think_node_sends_no_tools_to_a_model_without_tool_support(self):
+        from langchain_core.messages import HumanMessage
+
+        from maidere.core.agent import think_node
+
+        seen = []
+
+        async def chat(messages, tools=None, model=None, num_ctx=None, on_token=None):
+            seen.append((model, tools))
+            return {"message": {"role": "assistant", "content": "A red button.", "tool_calls": []}}
+
+        state = {
+            "messages": [HumanMessage(content="What color is the button?")],
+            "thread_id": "vl",
+            "model": "vision-x:3b",
+        }
+        for supports, expect_tools in ((False, False), (True, True)):
+            seen.clear()
+            with (
+                patch("maidere.core.llm.chat", side_effect=chat),
+                patch("maidere.core.llm.model_supports_tools", new=AsyncMock(return_value=supports)),
+                patch("maidere.core.agent.emit_agent_event", new_callable=AsyncMock),
+            ):
+                await think_node(state)
+            self.assertEqual(seen[0][0], "vision-x:3b")
+            self.assertEqual(bool(seen[0][1]), expect_tools)
+
+
 class TestEmptyReplyThroughGraph(unittest.IsolatedAsyncioTestCase):
     async def test_deep_reasoning_turn_with_silent_model_ends_with_notice_and_no_critic_calls(self):
         import os

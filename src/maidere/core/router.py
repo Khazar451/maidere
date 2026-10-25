@@ -186,15 +186,23 @@ async def select_model(
         complexity = classify_complexity(query, history, has_images=has_images)
 
     available = await get_available_models()
-    vision_model = getattr(settings, "ollama_vision_model", "qwen2.5-vl:7b")
+    vision_model = getattr(settings, "ollama_vision_model", "qwen2.5vl:7b")
 
     # 1. Multimodal Vision Routing
     if has_images:
-        if requested_model and requested_model.lower() not in ("auto", "none", ""):
+        # The API fills in the default text model when the client sends no model
+        # (the UI's Auto mode), so that name is not a choice. A text-only model
+        # rejects images, so only a different, explicit model is honoured here.
+        explicitly_chosen = (
+            requested_model
+            and requested_model.lower() not in ("auto", "none", "")
+            and requested_model.lower() != settings.ollama_model.lower()
+        )
+        if explicitly_chosen:
             return requested_model, "user_override_vision", TaskComplexity.VISION
 
         matched_vision = None
-        for cand in (vision_model, "qwen2.5-vl", "qwen2.5-vl:7b", "llama3.2-vision", "vl"):
+        for cand in (vision_model, "qwen2.5vl", "llama3.2-vision", "vl"):
             for m in available:
                 if cand in m.lower():
                     matched_vision = m

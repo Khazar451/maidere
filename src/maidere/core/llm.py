@@ -29,6 +29,33 @@ def is_cloud_model(model: str | None) -> bool:
     return False
 
 
+_TOOL_SUPPORT: dict[str, bool] = {}
+
+
+async def model_supports_tools(model: str | None) -> bool:
+    """Whether Ollama says this model can take tool schemas.
+
+    Vision models such as qwen2.5vl reject any request that carries tools with a
+    400, so the agent must leave them out. The answer comes from Ollama's own
+    capability list and is cached per model. If Ollama cannot be asked, assume
+    yes so behaviour is unchanged.
+    """
+    if not model or is_cloud_model(model):
+        return True
+    if model in _TOOL_SUPPORT:
+        return _TOOL_SUPPORT[model]
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.post(f"{settings.ollama_url}/api/show", json={"model": model})
+        capabilities = res.json().get("capabilities") if res.status_code == 200 else None
+    except (httpx.HTTPError, ValueError):
+        return True
+    if not isinstance(capabilities, list):
+        return True
+    _TOOL_SUPPORT[model] = "tools" in capabilities
+    return _TOOL_SUPPORT[model]
+
+
 def _get_cloud_request_params(target_model: str) -> tuple[str, dict[str, str]]:
     """Resolve cloud completions endpoint URL and authentication headers."""
     api_key, base_url, _ = settings.get_effective_cloud_config()
