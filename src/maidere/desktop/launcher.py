@@ -249,8 +249,8 @@ def run_desktop(
 
     url = f"http://{host}:{port}"
 
-    def _cleanup(signum: Any = None, frame: Any = None):
-        nonlocal server_proc, window_proc
+    def _shutdown() -> None:
+        """Stop the window and, if we started it, the backend. Does not exit."""
         print("\n[DESKTOP] Shutting down Maidere desktop session...")
         if window_proc and window_proc.poll() is None:
             try:
@@ -265,6 +265,9 @@ def run_desktop(
                 server_proc.wait(timeout=5.0)
             except Exception:
                 server_proc.kill()
+
+    def _cleanup(signum: Any = None, frame: Any = None) -> None:
+        _shutdown()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, _cleanup)
@@ -280,7 +283,7 @@ def run_desktop(
 
         if not wait_for_server(host, port, max_wait_sec=15.0):
             print(f"[ERROR] Maidere server failed to become healthy on {url} within 15 seconds.")
-            _cleanup()
+            _shutdown()
             return 1
         print(f"[DESKTOP] Backend server ready at {url}")
 
@@ -300,7 +303,7 @@ def run_desktop(
         except KeyboardInterrupt:
             pass
         finally:
-            _cleanup()
+            _shutdown()
         return 0
 
     # 2. Launch native application window (token handed over via URL fragment)
@@ -323,6 +326,6 @@ def run_desktop(
     except KeyboardInterrupt:
         pass
     finally:
-        _cleanup()
+        _shutdown()
 
     return 0
