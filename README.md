@@ -119,6 +119,18 @@ The `shell` and `code_runner` tools run every subprocess through `tools/sandbox.
 
 Set `TOOL_SANDBOX_MODE=bwrap` to fail closed: tools refuse to run at all if bubblewrap is unavailable. On Ubuntu 24.04+ unprivileged user namespaces are restricted by AppArmor, but the stock `bubblewrap` package ships a profile that permits them.
 
+### 6. Optional Settings
+
+All of these go in `.env` (see `.env.example`). Defaults are safe; change them only when you need to.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `EXTRA_ALLOWED_COMMANDS` | empty | Extra binaries the `shell` tool may run, e.g. `uv,pytest,cargo,go,ruff`. They still run in the sandbox. Shells, `sudo` and network clients are always refused, and paths or flags in the list are ignored. The sandbox has no network, so commands that download packages need `TOOL_SANDBOX_ALLOW_NETWORK=true`. |
+| `SEARCH_FALLBACK_ENABLED` | `true` | If SearXNG is down, search falls back to Tavily or Serper (when `TAVILY_API_KEY` / `SERPER_API_KEY` is set) and then DuckDuckGo. Fallback queries leave your machine; set `false` to keep search local. |
+| `IMAGE_MEMORY_TURNS` | `2` | How many user turns an uploaded image stays available for follow-up questions. The upload turn counts as the first, and `0` turns the feature off. |
+| `IMAGE_MEMORY_MAX_IMAGES` | `4` | Most remembered images kept in a conversation. Stored images are downscaled to fit 1920x1080. |
+| `DB_CHECKPOINT_INTERVAL_SECONDS` | `3600` | Interval for background SQLite WAL checkpoints. `0` disables the loop. A compacting checkpoint always runs on clean shutdown. |
+
 ---
 
 ## Subsystem Architecture
@@ -189,6 +201,8 @@ Maidere features an **Antigravity-grade context ingestion deck** designed for ra
 - **Fast Attachment Processing Engine**:
   - High-speed PDF text extraction via `/usr/bin/pdftotext` with pure-Python FlateDecode zlib stream decompression fallback.
   - Automatic code and markdown formatting injection into turn prompts.
+- **Follow-up Questions About Images**:
+  - Uploaded images stay available for the next turn, so you can ask about "that screenshot" or "the button in that design" without re-uploading. They are re-attached only when your question refers back to them, then pruned (see `IMAGE_MEMORY_TURNS`).
 - **Automatic Multimodal Routing**:
   - Image payloads automatically elevate complexity to `TaskComplexity.VISION` and route to `qwen2.5-vl:7b` (or cloud OpenAI vision endpoints).
 
