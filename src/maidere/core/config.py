@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Database
     db_path: str = "db/maidere.db"
 
+    # Seconds between background WAL checkpoints (0 disables the loop).
+    db_checkpoint_interval_seconds: float = 3600.0
+
     # Embeddings (fastembed, CPU-only, zero VRAM)
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_dimensions: int = 384

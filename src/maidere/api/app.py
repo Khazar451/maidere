@@ -7,6 +7,7 @@ Lifespan manages:
 - Cleanup on shutdown
 """
 
+import asyncio
 import logging
 import logging.handlers
 import sys
@@ -172,11 +173,21 @@ async def lifespan(app: FastAPI):
         runtime_root=str(runtime_root()),
     )
 
+    from maidere.core.db import run_wal_maintenance, shutdown_maintenance
+
+    maintenance_task = None
+    if settings.db_checkpoint_interval_seconds > 0:
+        maintenance_task = asyncio.create_task(run_wal_maintenance(db_path, settings.db_checkpoint_interval_seconds))
+
     yield
 
     # Cleanup
+    if maintenance_task is not None:
+        maintenance_task.cancel()
+        await asyncio.gather(maintenance_task, return_exceptions=True)
     shutdown_scheduler()
     await checkpointer_ctx.__aexit__(None, None, None)
+    await shutdown_maintenance(db_path)
     from maidere.core.db import close_shared_connections
 
     await close_shared_connections()

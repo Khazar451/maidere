@@ -11,6 +11,7 @@ so the sqlite-vec extension is not loaded on every query. `get_db` still
 returns a private connection for callers that close it themselves.
 """
 
+import asyncio
 import atexit
 import time
 from collections.abc import AsyncGenerator
@@ -177,6 +178,54 @@ def stop_shared_connections() -> None:
 
 
 atexit.register(stop_shared_connections)
+
+
+_CHECKPOINT_MODES = ("PASSIVE", "FULL", "RESTART", "TRUNCATE")
+
+
+async def checkpoint_wal(db_path: str = "db/maidere.db", mode: str = "PASSIVE") -> dict[str, int]:
+    """Fold the write-ahead log into the main database file.
+
+    PASSIVE never blocks readers or writers and is safe to run periodically.
+    TRUNCATE also resets the ``-wal`` file to zero bytes, but waits for readers
+    (bounded by ``busy_timeout``), so reserve it for idle moments and shutdown.
+    Returns SQLite's ``busy``, ``log`` and ``checkpointed`` counters.
+    """
+    mode = mode.upper()
+    if mode not in _CHECKPOINT_MODES:
+        raise ValueError(f"Unsupported WAL checkpoint mode: {mode!r}")
+    async with get_db_context(db_path) as db:
+        cursor = await db.execute(f"PRAGMA wal_checkpoint({mode});")
+        row = await cursor.fetchone()
+    busy, log_frames, checkpointed = (row[0], row[1], row[2]) if row else (0, 0, 0)
+    return {"busy": busy, "log": log_frames, "checkpointed": checkpointed}
+
+
+async def optimize_database(db_path: str = "db/maidere.db") -> None:
+    """Refresh query-planner statistics. Cheap; recommended before closing."""
+    async with get_db_context(db_path) as db:
+        await db.execute("PRAGMA optimize;")
+
+
+async def run_wal_maintenance(db_path: str, interval_seconds: float) -> None:
+    """Checkpoint the WAL on a schedule until cancelled."""
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            stats = await checkpoint_wal(db_path, "PASSIVE")
+            await logger.adebug("wal_checkpoint", mode="PASSIVE", **stats)
+        except Exception as e:
+            await logger.awarn("wal_checkpoint_failed", error=str(e))
+
+
+async def shutdown_maintenance(db_path: str) -> None:
+    """Final checkpoint so no ``-wal``/``-shm`` files linger after a clean exit."""
+    try:
+        await optimize_database(db_path)
+        stats = await checkpoint_wal(db_path, "TRUNCATE")
+        await logger.ainfo("wal_checkpoint", mode="TRUNCATE", **stats)
+    except Exception as e:
+        await logger.awarn("wal_shutdown_checkpoint_failed", error=str(e))
 
 
 async def get_setting(db: aiosqlite.Connection, key: str) -> str | None:

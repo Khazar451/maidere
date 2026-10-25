@@ -66,6 +66,56 @@ class TestDatabaseAndConcurrency(unittest.IsolatedAsyncioTestCase):
         finally:
             await db.close()
 
+    async def test_checkpoint_truncates_wal(self):
+        """TRUNCATE checkpoint folds the WAL into the database and empties the -wal file."""
+        import os
+
+        from maidere.core.db import checkpoint_wal, close_shared_connections, get_db_context
+
+        wal_path = self.temp_db_path + "-wal"
+        try:
+            # The outer borrow keeps the pooled connection (and its WAL) alive.
+            async with get_db_context(self.temp_db_path) as db:
+                await init_tables(db)
+                for i in range(50):
+                    await db.execute(
+                        "INSERT INTO audit_log (tool_name, tool_result) VALUES (?, ?)", ["shell", "x" * 2000 + str(i)]
+                    )
+                await db.commit()
+                self.assertGreater(os.path.getsize(wal_path), 0)
+
+                stats = await checkpoint_wal(self.temp_db_path, "TRUNCATE")
+
+                self.assertEqual(stats["busy"], 0)
+                self.assertEqual(os.path.getsize(wal_path), 0)
+        finally:
+            await close_shared_connections()
+
+    async def test_checkpoint_rejects_unknown_mode(self):
+        """Mode is interpolated into a PRAGMA, so only known modes are accepted."""
+        from maidere.core.db import checkpoint_wal
+
+        with self.assertRaises(ValueError):
+            await checkpoint_wal(self.temp_db_path, "TRUNCATE); DROP TABLE users;--")
+
+    async def test_passive_checkpoint_does_not_block_active_reader(self):
+        """A PASSIVE checkpoint completes while another connection holds a read transaction."""
+        from maidere.core.db import checkpoint_wal, close_shared_connections
+
+        db = await get_db(self.temp_db_path)
+        await init_tables(db)
+        await db.execute("INSERT INTO audit_log (tool_name) VALUES ('shell')")
+        await db.commit()
+        await db.execute("BEGIN")
+        await db.execute_fetchall("SELECT COUNT(*) FROM audit_log")
+        try:
+            stats = await asyncio.wait_for(checkpoint_wal(self.temp_db_path, "PASSIVE"), timeout=5)
+            self.assertIn("checkpointed", stats)
+        finally:
+            await db.rollback()
+            await db.close()
+            await close_shared_connections()
+
 
 if __name__ == "__main__":
     unittest.main()
