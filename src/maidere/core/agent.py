@@ -49,7 +49,13 @@ class SystemPromptTemplate(str):
         now = datetime.now()
         kwargs.setdefault("current_date", now.strftime("%A, %B %d, %Y"))
         kwargs.setdefault("current_year", str(now.year))
-        return super().format(*args, **kwargs)
+        try:
+            return super().format(*args, **kwargs)
+        except (KeyError, ValueError, IndexError):
+            result = str(self)
+            for key, value in kwargs.items():
+                result = result.replace(f"{{{key}}}", str(value))
+            return result
 
 
 SYSTEM_PROMPT = SystemPromptTemplate(
@@ -1020,10 +1026,14 @@ def restore_markdown_urls(content: str, messages: list[Any]) -> str:
     def replace_unlinked_bracket(match: re.Match) -> str:
         title = match.group(1).strip()
         low = title.lower()
+        if low.isdigit():
+            return str(match.group(0))
         if low in known_links:
             return f"[{title}]({known_links[low]})"
+        if len(low) < 4:
+            return str(match.group(0))
         for k_title, k_url in known_links.items():
-            if k_title in low or low in k_title:
+            if len(k_title) >= 4 and (k_title in low or low in k_title):
                 return f"[{title}]({k_url})"
         return str(match.group(0))
 

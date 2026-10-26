@@ -1093,6 +1093,31 @@ class TestTypingSensitiveEdges(unittest.IsolatedAsyncioTestCase):
             _message_text(AIMessage(content=[{"type": "text", "text": "x"}])), str([{"type": "text", "text": "x"}])
         )
 
+    def test_restore_markdown_urls_leaves_short_brackets_and_citations_intact(self):
+        from langchain_core.messages import ToolMessage
+
+        from maidere.core.agent import restore_markdown_urls
+
+        history = [
+            ToolMessage(
+                content="[Python 3.12 Release Notes](https://docs.python.org/3/whatsnew/3.12.html)",
+                tool_call_id="tc1",
+            )
+        ]
+        draft = "Index with arr[i] or items[1] and cite [Python 3.12 Release Notes]."
+        restored = restore_markdown_urls(draft, history)
+        self.assertIn("arr[i]", restored)
+        self.assertNotIn("arr[i](", restored)
+        self.assertNotIn("items[1](", restored)
+        self.assertIn("https://docs.python.org/3/whatsnew/3.12.html", restored)
+
+    def test_system_prompt_template_tolerates_json_braces(self):
+        from maidere.core.agent import SystemPromptTemplate
+
+        tpl = SystemPromptTemplate('Hello {username}, output JSON like {"status": "ok"} with {unknown_var}.')
+        rendered = tpl.format(username="Khazar")
+        self.assertEqual(rendered, 'Hello Khazar, output JSON like {"status": "ok"} with {unknown_var}.')
+
 
 class TestEmptyReplyThroughGraph(unittest.IsolatedAsyncioTestCase):
     async def test_deep_reasoning_turn_with_silent_model_ends_with_notice_and_no_critic_calls(self):
