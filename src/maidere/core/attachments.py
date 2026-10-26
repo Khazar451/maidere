@@ -84,17 +84,22 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
     """Extract text from PDF bytes using pdftotext or pure-Python FlateDecode fallback."""
     # 1. Primary: Use poppler pdftotext utility if installed
     try:
-        proc = subprocess.Popen(
+        with subprocess.Popen(
             ["pdftotext", "-layout", "-", "-"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-        )
-        stdout, _ = proc.communicate(input=pdf_bytes, timeout=10)
-        if proc.returncode == 0 and stdout:
-            text = stdout.decode("utf-8", errors="replace").strip()
-            if text:
-                return text
+        ) as proc:
+            try:
+                stdout, _ = proc.communicate(input=pdf_bytes, timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                raise
+            if proc.returncode == 0 and stdout:
+                text = stdout.decode("utf-8", errors="replace").strip()
+                if text:
+                    return text
     except Exception as e:
         logger.debug("pdftotext_cli_failed", error=str(e))
 
@@ -137,7 +142,10 @@ def process_attachment(item: dict[str, Any]) -> dict[str, Any]:
     name = str(item.get("name") or "attachment").strip()
     raw_type = str(item.get("type") or "").strip().lower()
     raw_data = str(item.get("data") or "")
-    size = int(item.get("size") or len(raw_data))
+    try:
+        size = int(item.get("size") or len(raw_data))
+    except (ValueError, TypeError):
+        size = len(raw_data)
 
     ext = Path(name).suffix.lower()
 
@@ -183,12 +191,11 @@ def process_attachment(item: dict[str, Any]) -> dict[str, Any]:
         or ext in TEXT_EXTENSIONS
     ):
         text_content = ""
-        # Try base64 decode first
+        # Try strict base64 decode first; plain text with spaces/newlines falls back cleanly
         try:
-            decoded_bytes = base64.b64decode(b64_content)
-            text_content = decoded_bytes.decode("utf-8", errors="replace")
+            decoded_bytes = base64.b64decode(b64_content, validate=True)
+            text_content = decoded_bytes.decode("utf-8")
         except Exception:
-            # If not valid base64, raw_data is likely already plain text
             text_content = raw_data
 
         return {

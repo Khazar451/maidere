@@ -190,6 +190,39 @@ class TestAgyBridge(unittest.IsolatedAsyncioTestCase):
         self.assertIn("[AGY STAFFER FALLBACK -> LOCAL VALIDATION]", res_val)
         self.assertIn("Validation passed", res_val)
 
+    @patch("maidere.tools.agy_bridge.find_agy_executable", return_value="/usr/local/bin/agy")
+    @patch("asyncio.create_subprocess_exec")
+    @patch("maidere.tools.agy_bridge.run_subagent")
+    async def test_timeout_kills_process_and_prompt_alias(self, mock_run_subagent, mock_exec, mock_find):
+        """Timed-out agy subprocess is killed and waited on; prompt alias is accepted."""
+        from unittest.mock import MagicMock
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.communicate = AsyncMock(side_effect=TimeoutError())
+        mock_proc.kill = MagicMock()
+        mock_proc.wait = AsyncMock(return_value=-9)
+        mock_exec.return_value = mock_proc
+
+        mock_run_subagent.return_value = SubAgentResult(
+            task="Prompt alias task",
+            summary="Fallback summary",
+            subagent_type="researcher",
+            tools_used=[],
+            duration_ms=50,
+            success=True,
+            turns_used=1,
+            artifact_path="/tmp/fallback.md",
+            brief="• Fallback brief.",
+        )
+
+        with patch("maidere.core.config.settings.agent_workspace", self.temp_dir.name):
+            res = await self.tool.execute(prompt="Prompt alias task", persona="researcher")
+
+        mock_proc.kill.assert_called_once()
+        mock_proc.wait.assert_awaited_once()
+        self.assertIn("timed out after 120s", res)
+
 
 if __name__ == "__main__":
     unittest.main()

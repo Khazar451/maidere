@@ -11,6 +11,7 @@ Enables the agent to:
 import asyncio
 import datetime
 import os
+import re
 import subprocess
 import urllib.parse
 from pathlib import Path
@@ -32,15 +33,20 @@ def resolve_vault_path() -> tuple[Path, str]:
     return vault_path, vault_name
 
 
+def _escape_yaml_str(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\r", " ").replace("\n", " ").strip()
+
+
 def format_frontmatter(title: str, tags: list[str] | None = None, extra_meta: dict | None = None) -> str:
     """Generate Obsidian-standard YAML frontmatter."""
     now_iso = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     tag_list = tags or ["maidere", "note"]
-    formatted_tags = "\n".join(f"  - {t.strip().lstrip('#')}" for t in tag_list if t.strip())
+    formatted_tags = "\n".join(f"  - {_escape_yaml_str(t.lstrip('#'))}" for t in tag_list if t.strip())
+    safe_title = _escape_yaml_str(title)
 
     meta_lines = [
         "---",
-        f'title: "{title}"',
+        f'title: "{safe_title}"',
         f"date: {now_iso}",
         "tags:",
         formatted_tags,
@@ -48,7 +54,8 @@ def format_frontmatter(title: str, tags: list[str] | None = None, extra_meta: di
     ]
     if extra_meta:
         for k, v in extra_meta.items():
-            meta_lines.append(f'{k}: "{v}"')
+            safe_k = re.sub(r"[^A-Za-z0-9_-]", "_", str(k))
+            meta_lines.append(f'{safe_k}: "{_escape_yaml_str(str(v))}"')
     meta_lines.append("---\n")
     return "\n".join(meta_lines)
 
@@ -226,7 +233,7 @@ class ObsidianTool(BaseTool):
                 for f in sorted(files):
                     if f.endswith(".md") and not f.startswith("."):
                         p = (rel_root / f) if str(rel_root) != "." else Path(f)
-                        items.append(f"📄 {p}")
+                        items.append(f"- {p}")
             return items
 
         files = await asyncio.to_thread(_scan)

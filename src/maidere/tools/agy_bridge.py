@@ -189,12 +189,13 @@ class AgyStafferTool(BaseTool):
     async def execute(
         self,
         task: str = "",
+        prompt: str = "",
         persona: str = "researcher",
         extra_args: list[str] | None = None,
         **kwargs: Any,
     ) -> str:
         """Execute task via agy CLI or fallback to local subagent."""
-        actual_task = task.strip()
+        actual_task = task.strip() or prompt.strip()
         if not actual_task:
             return "Error: Empty task specified for agy_staffer."
 
@@ -255,6 +256,7 @@ class AgyStafferTool(BaseTool):
             task_preview=actual_task[:100],
         )
 
+        process: asyncio.subprocess.Process | None = None
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -328,6 +330,12 @@ class AgyStafferTool(BaseTool):
             )
 
         except TimeoutError:
+            if process is not None and process.returncode is None:
+                try:
+                    process.kill()
+                    await process.wait()
+                except Exception as kill_err:
+                    await logger.adebug("agy_staffer_kill_failed", error=str(kill_err))
             await logger.awarn("agy_staffer_timeout", task=actual_task[:100])
             return await self._fallback_local_subagent(
                 actual_task,
