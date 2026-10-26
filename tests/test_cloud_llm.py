@@ -42,6 +42,32 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
                 )
             self.assertIn("no NVIDIA_API_KEY or CLOUD_API_KEY", str(ctx.exception))
 
+    def test_effective_cloud_config_respects_custom_nvidia_and_openai_urls(self):
+        """Custom NVIDIA_BASE_URL and OPENAI_BASE_URL are not shadowed by default CLOUD_API_BASE."""
+        with (
+            patch.object(settings, "cloud_api_key", ""),
+            patch.object(settings, "cloud_api_base", "https://integrate.api.nvidia.com/v1"),
+            patch.object(settings, "nvidia_api_key", "nvapi-custom"),
+            patch.object(settings, "nvidia_base_url", "https://custom.nvidia.internal/v1/"),
+            patch.object(settings, "openai_api_key", ""),
+            patch.object(settings, "openai_base_url", ""),
+        ):
+            key, base, _ = settings.get_effective_cloud_config()
+            self.assertEqual(key, "nvapi-custom")
+            self.assertEqual(base, "https://custom.nvidia.internal/v1")
+
+        with (
+            patch.object(settings, "cloud_api_key", ""),
+            patch.object(settings, "cloud_api_base", "https://integrate.api.nvidia.com/v1"),
+            patch.object(settings, "nvidia_api_key", ""),
+            patch.object(settings, "nvidia_base_url", "https://integrate.api.nvidia.com/v1"),
+            patch.object(settings, "openai_api_key", "sk-openai"),
+            patch.object(settings, "openai_base_url", ""),
+        ):
+            key, base, _ = settings.get_effective_cloud_config()
+            self.assertEqual(key, "sk-openai")
+            self.assertEqual(base, "https://api.openai.com/v1")
+
     @patch("httpx.AsyncClient.post")
     async def test_chat_cloud_non_streaming_success(self, mock_post):
         """Test non-streaming cloud chat with reasoning content formatting."""

@@ -156,10 +156,18 @@ class Settings(BaseSettings):
 
     def get_effective_cloud_config(self) -> tuple[str, str, str]:
         """Resolve effective cloud API key, base URL, and default model."""
+        default_nvidia = "https://integrate.api.nvidia.com/v1"
         api_key = self.cloud_api_key or self.nvidia_api_key or self.openai_api_key
-        base_url = (
-            self.cloud_api_base or self.nvidia_base_url or self.openai_base_url or "https://integrate.api.nvidia.com/v1"
-        )
+        if self.cloud_api_base and self.cloud_api_base != default_nvidia:
+            base_url = self.cloud_api_base
+        elif self.nvidia_base_url and self.nvidia_base_url != default_nvidia:
+            base_url = self.nvidia_base_url
+        elif self.openai_base_url:
+            base_url = self.openai_base_url
+        elif self.openai_api_key and not self.cloud_api_key and not self.nvidia_api_key:
+            base_url = "https://api.openai.com/v1"
+        else:
+            base_url = self.cloud_api_base or self.nvidia_base_url or default_nvidia
         model = self.cloud_model or "nvidia/nemotron-3-ultra-550b-a55b"
         return api_key.strip(), base_url.strip().rstrip("/"), model.strip()
 
