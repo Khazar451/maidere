@@ -327,7 +327,11 @@ def build_bwrap_command(
     if exe.is_absolute():
         real = exe.resolve()
         if real.exists() and not _is_under(real, bound_roots + [workspace]):
-            install_root = real.parent.parent if real.parent.name == "bin" else real.parent
+            parent_root = real.parent.parent if real.parent.name == "bin" else real.parent
+            forbidden_roots = {Path("/"), Path("/home"), Path.home().resolve(), (Path.home() / ".local").resolve()}
+            install_root = real.parent if parent_root in forbidden_roots else parent_root
+            if install_root in forbidden_roots:
+                install_root = real
             cmd += ["--ro-bind", str(install_root), str(install_root)]
             bound_roots.append(install_root)
             argv[0] = str(real)
@@ -371,7 +375,7 @@ def canonical_binary_name(argv0: str) -> str:
     return m.group("name") if m else name
 
 
-_FIND_BLOCKED = {"-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"}
+_FIND_BLOCKED = {"-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls", "-delete"}
 _PATH_FLAG_PREFIXES = ("--work-tree=", "--git-dir=", "--output=", "-o=")
 
 
@@ -389,6 +393,18 @@ def _path_inside_workspace(arg: str, workspace: Path) -> bool:
     except (OSError, RuntimeError):
         return False
     return resolved == workspace or workspace in resolved.parents
+
+
+def _is_escaping_symlink(arg: str, workspace: Path) -> bool:
+    if not arg or arg.startswith("-"):
+        return False
+    candidate = workspace / arg
+    try:
+        if candidate.is_symlink() or candidate.exists():
+            return not _path_inside_workspace(arg, workspace)
+    except OSError:
+        return True
+    return False
 
 
 def validate_restricted(argv: list[str], workspace: Path) -> str | None:
@@ -420,7 +436,9 @@ def validate_restricted(argv: list[str], workspace: Path) -> str | None:
         else:
             if "=" in arg and arg.startswith("-"):
                 value = arg.split("=", 1)[1]
-        if _looks_like_path(value) and not _path_inside_workspace(value, workspace):
+        if (_looks_like_path(value) or _is_escaping_symlink(value, workspace)) and not _path_inside_workspace(
+            value, workspace
+        ):
             return (
                 f"Error: Path argument '{value}' is outside the workspace sandbox. "
                 "Only paths inside the workspace are permitted."

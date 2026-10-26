@@ -141,6 +141,19 @@ class TestBwrapCommandConstruction(unittest.TestCase):
         cmd = self._cmd([str(exe), "-v"])
         self.assertIn(f"--ro-bind {fake_root.resolve()} {fake_root.resolve()}", " ".join(cmd))
 
+    def test_executable_in_home_bin_does_not_mount_home_or_local(self):
+        fake_home = Path(self.tmp.name) / "fakehome"
+        local_bin = fake_home / ".local" / "bin"
+        local_bin.mkdir(parents=True)
+        exe = local_bin / "pytest"
+        exe.write_text("#!/bin/sh\n")
+        with patch("pathlib.Path.home", return_value=fake_home):
+            cmd = self._cmd([str(exe)])
+        joined = " ".join(cmd)
+        self.assertIn(f"--ro-bind {local_bin.resolve()} {local_bin.resolve()}", joined)
+        self.assertNotIn(f"--ro-bind {(fake_home / '.local').resolve()} ", joined)
+        self.assertNotIn(f"--ro-bind {fake_home.resolve()} ", joined)
+
 
 class TestRestrictedValidation(unittest.TestCase):
     def setUp(self):
@@ -169,12 +182,20 @@ class TestRestrictedValidation(unittest.TestCase):
         self._bad(["git", "--work-tree=/etc", "status"], "outside the workspace")
         self._bad(["grep", "-r", "x", "--include=../../etc/passwd"], "outside the workspace")
 
+    def test_blocks_escaping_workspace_symlink(self):
+        outside = Path(self.tmp.name) / "outside.txt"
+        outside.write_text("secret")
+        link = self.workspace / "notes" / "escape.txt"
+        link.symlink_to(outside)
+        self._bad(["cat", "notes/escape.txt"], "outside the workspace")
+
     def test_blocks_inline_code_and_find_exec(self):
         self._bad(["python3", "-c", "print(1)"], "inline code")
         self._bad(["python", "-c", "print(1)"], "inline code")
         self._bad(["node", "-e", "1"], "inline code")
         self._bad(["node", "--eval=1"], "inline code")
         self._bad(["find", ".", "-exec", "rm", "{}", ";"], "not permitted")
+        self._bad(["find", ".", "-delete"], "not permitted")
 
     def test_allows_workspace_relative_and_absolute_inside(self):
         self._ok(["ls", "-la"])

@@ -232,6 +232,8 @@ class RollbackFileTool(BaseTool):
 
         try:
             target = secure_path(path.strip())
+            if target == get_workspace() or target.is_dir():
+                return f"Error: Path '{path}' is a directory, not a file."
             bak_path = target.with_name(f"{target.name}.bak")
 
             if not bak_path.exists():

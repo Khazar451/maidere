@@ -183,6 +183,8 @@ class TestFilesystemTools(unittest.IsolatedAsyncioTestCase):
             bak_file.unlink()
         err_res = await rollback_tool.execute(path=no_bak_file)
         self.assertIn("Error: No backup snapshot", err_res)
+        dir_err = await rollback_tool.execute(path=".")
+        self.assertIn("is a directory", dir_err)
         # clean up
         (WORKSPACE / no_bak_file).unlink()
 
