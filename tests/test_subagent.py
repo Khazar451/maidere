@@ -471,6 +471,30 @@ class TestClaudeCodeSubagents(unittest.TestCase):
         self.assertIn("browser", validation_agent.tools)
         self.assertIn("EMPIRICAL REAL-WORLD & VERSION VALIDATION", validation_agent.system_prompt)
 
+        critic_agent = defs["critic"]
+        self.assertIn("{task}", critic_agent.system_prompt)
+        self.assertNotIn("{draft}", critic_agent.system_prompt)
+
+    def test_user_agents_override_bundled_agents(self):
+        """User definitions in ~/.maidere/agents take precedence over bundled agents."""
+        import tempfile
+        from pathlib import Path
+
+        from maidere.core.subagent import load_subagent_definitions
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_home = Path(tmp)
+            user_agents = fake_home / ".maidere" / "agents"
+            user_agents.mkdir(parents=True)
+            (user_agents / "researcher.md").write_text(
+                "---\nname: researcher\ndescription: Custom user researcher\ntools: read_file\n---\nCustom prompt {task}\n",
+                encoding="utf-8",
+            )
+            with patch("pathlib.Path.home", return_value=fake_home):
+                defs = load_subagent_definitions()
+            self.assertEqual(defs["researcher"].description, "Custom user researcher")
+            self.assertEqual(defs["researcher"].tools, ["read_file"])
+
     def test_verification_and_validation_agent_tool_execution(self):
         """Verify Agent/delegate_task tool execution with verification and validation types."""
         from maidere.tools.delegate import AgentTool

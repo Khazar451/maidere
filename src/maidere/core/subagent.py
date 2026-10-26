@@ -629,11 +629,11 @@ def load_subagent_definitions() -> dict[str, SubAgentDefinition]:
     from maidere.paths import agents_dir, runtime_root, workspace_dir
 
     # Later directories override earlier ones. Bundled prompts override the
-    # built-in stubs; a workspace copy overrides the bundle.
+    # built-in stubs; user and project .maidere/agents override the bundle.
     scan_dirs = [
+        agents_dir(),
         Path.home() / ".maidere" / "agents",
         runtime_root() / ".maidere" / "agents",
-        agents_dir(),
         workspace_dir() / ".maidere" / "agents",
     ]
 
@@ -763,7 +763,7 @@ async def run_subagent(
 
     # Build fresh conversation — completely independent from parent context
     if "{task}" in agent_def.system_prompt:
-        system_content = agent_def.system_prompt.format(task=task)
+        system_content = agent_def.system_prompt.replace("{task}", task)
     else:
         system_content = f"{agent_def.system_prompt}\n\nTask:\n{task}"
 
