@@ -190,10 +190,10 @@ Maidere provides three cognitive paradigms selectable from the top navigation ba
 Maidere features an **Antigravity-grade context ingestion deck** designed for rapid multi-modal interaction:
 
 - **Upward-Opening Add Context Menu (`+`)**:
-  - `🖼️ Media`: Multi-file picker for screenshots (`.png`, `.jpg`, `.webp`), PDFs, documents, and code files.
+  - `Media`: Multi-file picker for screenshots (`.png`, `.jpg`, `.webp`), PDFs, documents, and code files.
   - `@ Mentions`: Instant `@` token injection for referencing workspace files, notes, or memories.
-  - `☑ Actions`: Triggers slash workflows (`/plan`, `/review`, `[deep-research]`).
-  - `🌐 Browser`: Quick web URL scraping and browsing query injection.
+  - `Actions`: Triggers slash workflows (`/plan`, `/review`, `[deep-research]`).
+  - `Browser`: Quick web URL scraping and browsing query injection.
 - **Attachment Preview Tray & Lightbox**:
   - Rendered above the input textarea with real-time file previews.
   - Image thumbnails feature hover-zoom and full-screen lightbox modal on click.
@@ -284,10 +284,10 @@ graph TD
 | `code_runner` | Execute a Python script inside the same sandbox (`python -I`, venv packages available) | `code: str` |
 | `browser` | Scrape webpage DOM text via ephemeral Playwright | `url: str` |
 | `delegate_task` | Spawn isolated subagents (`researcher`, `plan`, `verification`, `validation`, `reviewer`, `staffer`) | `prompt: str, subagent_type: str, max_turns: int` |
-| `manage_memory`| 3-Tier memory manager (read/save topic facts, view rules) | `action: str, topic: str, content: str` |
-| `agy_staffer` | External Gemini 3.8 Flash delegate via Antigravity CLI | `prompt: str, persona: str` |
-| `obsidian` | Bi-directional Obsidian note search, read, write, and open | `action: str, note_name: str, content: str` |
-| `scheduler` | Schedule persistent cron jobs via SQLite APScheduler | `action: str, job_id: str, ...` |
+| `manage_memory`| 3-Tier memory manager (read/save topic facts, view rules) | `action: str, topic: str, fact: str` |
+| `agy_staffer` | External Gemini 3.8 Flash delegate via Antigravity CLI | `task: str, persona: str` |
+| `obsidian` | Bi-directional Obsidian note search, read, write, and open | `action: str, title: str, content: str` |
+| `scheduler` | Schedule persistent cron jobs via SQLite APScheduler | `action: str, task_name: str, ...` |
 | `web_search` | Private local metasearch via SearXNG | `query: str` |
 | `list_available_skills` | Discover installed specialized skills | `{}` |
 | `load_skill` | Load executable instructions for a skill | `skill_name: str` |

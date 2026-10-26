@@ -171,9 +171,7 @@ def launch_window(url: str, title: str = "Maidere", dev_mode: bool = False) -> s
     engine_name, cmd_prefix = find_browser_engine()
     if engine_name and cmd_prefix:
         print(f"[DESKTOP] Launching standalone window using {engine_name}...")
-        if "--app" not in " ".join(cmd_prefix) and engine_name != "firefox":
-            cmd = cmd_prefix + [f"--app={url}"]
-        elif engine_name == "firefox":
+        if engine_name == "firefox":
             cmd = cmd_prefix + [url]
         else:
             cmd = cmd_prefix + [f"--app={url}"]

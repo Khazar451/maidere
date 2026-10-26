@@ -44,7 +44,7 @@ triggers:
 - **Balanced Perspectives:** When researching controversial, strategic, or multi-faceted topics, present multiple perspectives objectively without unexamined assumptions.
 - **Source Attribution:** Always cite verified sources using clean markdown format:
   ```markdown
-  ## 🔗 Verified References
-  1. [Source Title](https://example.com/url) - Key takeaway or verified fact.
+  ## Sources
+  [1] [Source Title](https://example.com/url) - Key takeaway or verified fact.
   ```
 - **High-Density Output:** Deliver synthesized information using clear headings, structured tables, and concise bullets without conversational filler.

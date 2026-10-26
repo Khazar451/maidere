@@ -153,7 +153,7 @@ HF_HUB_OFFLINE=1 .venv/bin/mypy
 HF_HUB_OFFLINE=1 .venv/bin/pytest
 ```
 
-`mypy` currently type-checks the security boundary (`paths`, `api.auth`, `core.tokens`, `tools.sandbox`). The rest of the package is still untyped; do not silence new errors in those four modules.
+`mypy` type-checks the entire `src/maidere` package with `disallow_untyped_defs` and `no_implicit_optional`; do not silence new type errors without a specific justification.
 
 ### Writing New Tests
 - Place tests in the [`tests/`](tests/) directory following the `test_<module>.py` naming convention.
