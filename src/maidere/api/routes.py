@@ -311,11 +311,13 @@ async def chat(request: ChatRequest) -> ChatResponse:
     config = {"configurable": {"thread_id": thread_id}}
 
     # Reset sub-agent spawn counter for this new query
+    from maidere.tools.delegate import DelegateTaskTool
     from maidere.tools.registry import get_tool
 
-    delegate_tool = get_tool("delegate_task")
-    if delegate_tool and hasattr(delegate_tool, "reset_spawn_count"):
-        delegate_tool.reset_spawn_count()
+    for _tool_name in ("delegate_task", "Agent"):
+        _delegate_tool = get_tool(_tool_name)
+        if isinstance(_delegate_tool, DelegateTaskTool):
+            _delegate_tool.reset_spawn_count(thread_id)
 
     # Capture message count before invocation to isolate new turn tools
     prior_msg_count = 0
@@ -590,11 +592,13 @@ async def websocket_chat(websocket: WebSocket) -> None:
             config = {"configurable": {"thread_id": thread_id}}
 
             # Reset sub-agent spawn counter for this new query
+            from maidere.tools.delegate import DelegateTaskTool as _DelegateTaskTool
             from maidere.tools.registry import get_tool as _get_tool
 
-            _delegate = _get_tool("delegate_task")
-            if _delegate and hasattr(_delegate, "reset_spawn_count"):
-                _delegate.reset_spawn_count()
+            for _tool_name in ("delegate_task", "Agent"):
+                _delegate = _get_tool(_tool_name)
+                if isinstance(_delegate, _DelegateTaskTool):
+                    _delegate.reset_spawn_count(thread_id)
 
             # Wire rich agent telemetry and sub-agent progress to WebSocket
             from maidere.core.agent import register_event_callback, unregister_event_callback

@@ -1,7 +1,7 @@
 """delegate_task / Agent tool — spawns specialized sub-agents.
 
 Follows the Claude Code sub-agent architecture:
-- Each sub-agent runs in an isolated context window with read-only maidere.tools.
+- Each sub-agent runs in an isolated context window with read-only tools.
 - Scoped subagent types (researcher, code-reviewer, general-purpose).
 - Returns dense verified payload to the parent context.
 - Prevents context overflow and premature conversational completion.
@@ -15,6 +15,9 @@ from maidere.core.subagent import MAX_SUBAGENTS_PER_QUERY, run_subagent
 from maidere.tools.base import BaseTool
 
 logger = structlog.get_logger()
+
+_thread_spawn_counts: dict[str, int] = {}
+_thread_total_delegated: dict[str, int] = {}
 
 
 class DelegateTaskTool(BaseTool):
@@ -103,15 +106,24 @@ class DelegateTaskTool(BaseTool):
         if not actual_task:
             return "Error: Empty task description. Provide a specific subagent task or prompt."
 
-        if self._spawn_count >= MAX_SUBAGENTS_PER_QUERY:
+        thread_id = str(kwargs.get("thread_id") or "")
+        current_count = _thread_spawn_counts.get(thread_id, 0) if thread_id else self._spawn_count
+        if current_count >= MAX_SUBAGENTS_PER_QUERY:
             return (
                 f"Error: Maximum sub-agent limit ({MAX_SUBAGENTS_PER_QUERY}) reached. "
                 "You must now synthesize your comprehensive answer from the sub-agent "
                 "results you have already received. Do NOT call delegate_task again."
             )
 
-        self._spawn_count += 1
-        self._total_delegated += 1
+        spawn_index = current_count + 1
+        if thread_id:
+            _thread_spawn_counts[thread_id] = spawn_index
+            total_delegated = _thread_total_delegated.get(thread_id, 0) + 1
+            _thread_total_delegated[thread_id] = total_delegated
+        else:
+            total_delegated = self._total_delegated + 1
+        self._spawn_count = spawn_index
+        self._total_delegated = total_delegated
 
         resolved_type = subagent_type.strip() if subagent_type else "researcher"
 
@@ -119,7 +131,7 @@ class DelegateTaskTool(BaseTool):
             "subagent_spawning",
             subagent_type=resolved_type,
             task=actual_task[:100],
-            spawn_index=self._spawn_count,
+            spawn_index=spawn_index,
             max_turns=max_turns,
         )
 
@@ -128,13 +140,13 @@ class DelegateTaskTool(BaseTool):
             "subagent_type": resolved_type,
             "max_turns": max_turns,
             "model": model,
-            "subagent_index": self._spawn_count,
-            "total_subagents": self._total_delegated,
+            "subagent_index": spawn_index,
+            "total_subagents": total_delegated,
         }
         if kwargs.get("num_ctx") is not None:
             subagent_kwargs["num_ctx"] = kwargs["num_ctx"]
-        if kwargs.get("thread_id"):
-            subagent_kwargs["thread_id"] = kwargs["thread_id"]
+        if thread_id:
+            subagent_kwargs["thread_id"] = thread_id
 
         result = await run_subagent(**subagent_kwargs)
 
@@ -159,10 +171,16 @@ class DelegateTaskTool(BaseTool):
             f"[END SUB-AGENT RESULT]"
         )
 
-    def reset_spawn_count(self) -> None:
+    def reset_spawn_count(self, thread_id: str | None = None) -> None:
         """Reset per-query spawn counter. Called before each new user query."""
         self._spawn_count = 0
         self._total_delegated = 0
+        if thread_id:
+            _thread_spawn_counts.pop(thread_id, None)
+            _thread_total_delegated.pop(thread_id, None)
+        else:
+            _thread_spawn_counts.clear()
+            _thread_total_delegated.clear()
 
 
 class AgentTool(DelegateTaskTool):

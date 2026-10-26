@@ -312,6 +312,42 @@ class TestDelegateTaskTool(unittest.TestCase):
         output = asyncio.run(self.tool.execute(task="   "))
         self.assertIn("Error: Empty task description", output)
 
+    def test_per_thread_spawn_isolation_and_agent_alias_reset(self):
+        """Verify AgentTool and DelegateTaskTool share per-thread caps without leaking across threads."""
+        from maidere.tools.registry import get_tool
+
+        mock_subagent_result = SubAgentResult(
+            task="Test task",
+            summary="Test summary data payload",
+            tools_used=[],
+            duration_ms=100,
+            success=True,
+            turns_used=1,
+        )
+        agent_tool = get_tool("Agent")
+        delegate_tool = get_tool("delegate_task")
+        assert isinstance(agent_tool, DelegateTaskTool)
+        assert isinstance(delegate_tool, DelegateTaskTool)
+        agent_tool.reset_spawn_count("thread-a")
+        agent_tool.reset_spawn_count("thread-b")
+
+        with patch("maidere.tools.delegate.run_subagent", new_callable=AsyncMock, return_value=mock_subagent_result):
+            for i in range(MAX_SUBAGENTS_PER_QUERY):
+                out = asyncio.run(agent_tool.execute(task=f"Task {i}", thread_id="thread-a"))
+                self.assertIn("[SUB-AGENT RESEARCH RESULT]", out)
+
+            blocked_a = asyncio.run(delegate_tool.execute(task="Overflow A", thread_id="thread-a"))
+            self.assertIn("Error: Maximum sub-agent limit", blocked_a)
+
+            # Another thread is unaffected
+            allowed_b = asyncio.run(agent_tool.execute(task="Task B1", thread_id="thread-b"))
+            self.assertIn("[SUB-AGENT RESEARCH RESULT]", allowed_b)
+
+            # Resetting thread-a allows new delegations on thread-a
+            delegate_tool.reset_spawn_count("thread-a")
+            allowed_a_again = asyncio.run(agent_tool.execute(task="New turn A", thread_id="thread-a"))
+            self.assertIn("[SUB-AGENT RESEARCH RESULT]", allowed_a_again)
+
 
 class TestPatch3InfiniteDelegationPrevention(unittest.TestCase):
     """Test Patch #3: Removal of delegate_task tool after first delegation."""
