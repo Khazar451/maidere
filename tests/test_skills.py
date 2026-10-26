@@ -117,6 +117,27 @@ triggers:
         no_matches = match_skills("Hello, what is the weather today?")
         self.assertEqual(len(no_matches), 0)
 
+    def test_match_hyphenated_skill_name_and_multiword_triggers(self):
+        """Hyphenated skill names and multi-word trigger phrases match queries."""
+        by_name = match_skills("Follow the api-tester checklist on this route")
+        self.assertIn("api-tester", [s.name for s in by_name])
+
+        custom_skill = parse_skill_file(self.skill_file)
+        assert custom_skill is not None
+        custom_skill.triggers = ["end to end", "smoke suite"]
+        with patch("maidere.core.skills.load_all_skills", return_value={"custom-testing": custom_skill}):
+            matched = match_skills("Please run the smoke suite now")
+            self.assertEqual([s.name for s in matched], ["custom-testing"])
+
+    def test_fallback_frontmatter_parser_reads_list_triggers(self):
+        """Line-by-line fallback parser still extracts YAML list triggers when yaml.safe_load fails."""
+        with patch("maidere.core.skills.yaml.safe_load", side_effect=RuntimeError("yaml error")):
+            skill = parse_skill_file(self.skill_file)
+        self.assertIsNotNone(skill)
+        assert skill is not None
+        self.assertEqual(skill.name, "custom-testing")
+        self.assertEqual(skill.triggers, ["test", "e2e", "validate"])
+
 
 class TestSkillTools(unittest.IsolatedAsyncioTestCase):
     """Test list_available_skills and load_skill maidere.tools."""

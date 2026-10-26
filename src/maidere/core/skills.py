@@ -64,14 +64,15 @@ def parse_skill_file(skill_file: Path) -> Skill | None:
         except Exception:
             # Fallback line-by-line parser
             for line in frontmatter_raw.strip().split("\n"):
-                if ":" in line:
+                stripped = line.strip()
+                if stripped.startswith("- ") and isinstance(meta.get("triggers"), list):
+                    meta["triggers"].append(stripped[2:].strip())
+                elif ":" in line:
                     key, val = line.split(":", 1)
                     key = key.strip()
                     val = val.strip()
                     if key == "triggers":
-                        meta[key] = []
-                    elif line.strip().startswith("- ") and "triggers" in meta:
-                        meta["triggers"].append(line.strip().lstrip("- ").strip())
+                        meta[key] = [t.strip() for t in val.split(",") if t.strip()] if val else []
                     else:
                         meta[key] = val
 
@@ -119,18 +120,35 @@ def get_skills_overview() -> str:
     return "\n".join(f"- `{name}`: {skill.description}" for name, skill in skills.items())
 
 
+def _phrase_in_query(candidate: str, query_lower: str, words: set[str]) -> bool:
+    """Check whether a single-word, hyphenated, or multi-word trigger appears in the query."""
+    cand = candidate.strip().lower()
+    if not cand:
+        return False
+    if re.fullmatch(r"\w+", cand):
+        return cand in words
+    if re.search(rf"(?<!\w){re.escape(cand)}(?!\w)", query_lower):
+        return True
+    spaced = cand.replace("-", " ")
+    if spaced != cand:
+        return bool(re.search(rf"(?<!\w){re.escape(spaced)}(?!\w)", query_lower))
+    return False
+
+
 def match_skills(query: str) -> list[Skill]:
-    """Match trigger keywords from skills against words in the user query."""
+    """Match trigger keywords from skills against words and phrases in the user query."""
     if not query or not query.strip():
         return []
 
-    words = set(re.findall(r"\w+", query.lower()))
+    query_lower = query.lower()
+    words = set(re.findall(r"\w+", query_lower))
     matched: list[Skill] = []
     all_skills = load_all_skills()
 
     for skill in all_skills.values():
-        # Match if any trigger word or skill name is present in query words
-        if skill.name.lower() in words or any(trigger.lower() in words for trigger in skill.triggers):
+        if _phrase_in_query(skill.name, query_lower, words) or any(
+            _phrase_in_query(trigger, query_lower, words) for trigger in skill.triggers
+        ):
             matched.append(skill)
 
     return matched
