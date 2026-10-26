@@ -89,9 +89,8 @@ class TestSchedulerSystem(unittest.IsolatedAsyncioTestCase):
     """Test APScheduler persistent jobs and scheduler tool."""
 
     async def asyncSetUp(self):
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
         self.scheduler = start_scheduler(self.temp_db_path)
         self.tool = SchedulerTool()
 

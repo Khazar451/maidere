@@ -84,9 +84,8 @@ class TestDatabaseRedaction(unittest.IsolatedAsyncioTestCase):
     """Test that SQLite memory and audit tables redact secrets before storage."""
 
     async def asyncSetUp(self):
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
         db = await get_db(self.temp_db_path)
         try:
             await init_tables(db)
@@ -280,9 +279,8 @@ class TestAgentLoopWithEvaluation(unittest.IsolatedAsyncioTestCase):
     """Test full LangGraph agentic loop with evaluate_node."""
 
     async def asyncSetUp(self):
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
         self.graph, self.checkpointer_ctx = await create_graph(self.temp_db_path)
 
     async def asyncTearDown(self):

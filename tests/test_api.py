@@ -44,9 +44,8 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
         cls.patcher4.stop()
 
     async def asyncSetUp(self):
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
 
         # Patch settings.db_path so all endpoint requests use the isolated test database
         self.db_patcher = patch.object(settings, "db_path", self.temp_db_path)

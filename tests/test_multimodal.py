@@ -354,9 +354,8 @@ class TestMultiTurnVisualMemory(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         import tempfile
 
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
 
     async def asyncTearDown(self):
         import os

@@ -192,9 +192,8 @@ class TestSkillsAgentIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_agent_graph_with_skill_load(self):
         """Test full LangGraph loop where LLM loads a skill dynamically."""
-        temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        temp_db_path = temp_db.name
-        temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            temp_db_path = temp_db.name
 
         graph, checkpointer_ctx = await create_graph(temp_db_path)
 

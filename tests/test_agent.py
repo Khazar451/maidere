@@ -104,9 +104,8 @@ class TestAgenticLoopIntegration(unittest.IsolatedAsyncioTestCase):
         cls.patcher4.stop()
 
     async def asyncSetUp(self):
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
 
     async def asyncTearDown(self):
         import os
@@ -470,9 +469,8 @@ class TestAgenticDeliberation(unittest.IsolatedAsyncioTestCase):
 
     async def test_full_deliberation_integration_in_graph(self):
         """Test full LangGraph execution: think -> critique -> refine -> END when deep_reasoning is active."""
-        temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        temp_db_path = temp_db.name
-        temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            temp_db_path = temp_db.name
 
         try:
             with patch("maidere.core.config.settings.db_path", temp_db_path):
@@ -1128,15 +1126,15 @@ class TestEmptyReplyThroughGraph(unittest.IsolatedAsyncioTestCase):
 
         from maidere.core.agent import EMPTY_RESPONSE_NOTICE, create_graph
 
-        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as db:
+            db_name = db.name
         calls: list[int] = []
 
         async def silent_chat(messages, tools=None, model=None, num_ctx=None, on_token=None):
             calls.append(len(messages))
             return {"message": {"role": "assistant", "content": "", "tool_calls": []}}
 
-        graph, ctx = await create_graph(db.name)
+        graph, ctx = await create_graph(db_name)
         try:
             with (
                 patch("maidere.core.llm.chat", side_effect=silent_chat),
@@ -1154,7 +1152,7 @@ class TestEmptyReplyThroughGraph(unittest.IsolatedAsyncioTestCase):
                 )
         finally:
             await ctx.__aexit__(None, None, None)
-            os.remove(db.name)
+            os.remove(db_name)
 
         self.assertEqual(result["messages"][-1].content, EMPTY_RESPONSE_NOTICE)
         self.assertEqual(len(calls), 3, "one attempt plus two retries, and no verify/converge calls")

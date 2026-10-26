@@ -29,9 +29,8 @@ class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
     """Test v0.1 architectural and feature enhancements."""
 
     async def asyncSetUp(self):
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
         self.token_patcher = patch_api_token()
 
         # Init DB tables
@@ -211,16 +210,22 @@ class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
 
     def test_upload_endpoint(self):
         """Test POST /upload uploads a file into workspace/uploads/."""
+        from pathlib import Path
+
         file_content = b"Sample upload content for testing."
-        response = self.client.post(
-            "/upload",
-            files={"file": ("test_doc.txt", file_content, "text/plain")},
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["status"], "uploaded")
-        self.assertEqual(data["filename"], "test_doc.txt")
-        self.assertEqual(data["size"], len(file_content))
+        with (
+            tempfile.TemporaryDirectory() as tmp_ws,
+            patch("maidere.paths.workspace_dir", return_value=Path(tmp_ws)),
+        ):
+            response = self.client.post(
+                "/upload",
+                files={"file": ("test_doc.txt", file_content, "text/plain")},
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["status"], "uploaded")
+            self.assertEqual(data["filename"], "test_doc.txt")
+            self.assertEqual(data["size"], len(file_content))
 
     def test_system_prompt_settings_endpoints(self):
         """Test GET and PUT /settings/system-prompt."""

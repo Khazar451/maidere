@@ -70,9 +70,8 @@ class TestOllamaRoundTrip(unittest.IsolatedAsyncioTestCase):
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
 
         self.patches = [
             patch_api_token(),
@@ -101,6 +100,8 @@ class TestOllamaRoundTrip(unittest.IsolatedAsyncioTestCase):
         self.thread.join(timeout=5)
         for item in reversed(self.patches):
             item.stop()
+        if os.path.exists(self.temp_db_path):
+            os.remove(self.temp_db_path)
 
     def test_websocket_turn_streams_stub_tokens(self) -> None:
         with self.client.websocket_connect("/ws/chat") as ws:

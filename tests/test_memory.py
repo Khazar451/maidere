@@ -16,9 +16,8 @@ class TestVectorMemory(unittest.IsolatedAsyncioTestCase):
     """Test sqlite-vec vector memory operations."""
 
     async def asyncSetUp(self):
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.temp_db_path = self.temp_db.name
-        self.temp_db.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            self.temp_db_path = temp_db.name
 
         # Initialize tables including vector memory
         db = await get_db(self.temp_db_path)

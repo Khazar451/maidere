@@ -34,9 +34,8 @@ from tests.authhelpers import AUTH_HEADERS, patch_api_token
 
 class TestMigrationsAndConnections(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.temp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.path = self.temp.name
-        self.temp.close()
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp:
+            self.path = temp.name
 
     async def asyncTearDown(self):
         import os
