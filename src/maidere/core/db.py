@@ -259,19 +259,23 @@ async def get_db(db_path: str = "db/maidere.db") -> aiosqlite.Connection:
     db_path = _resolve(db_path)
 
     db = await aiosqlite.connect(db_path)
-    db.row_factory = aiosqlite.Row
+    try:
+        db.row_factory = aiosqlite.Row
 
-    # Ensure connection is ready before loading extensions
-    await db.execute("SELECT 1")
+        # Ensure connection is ready before loading extensions
+        await db.execute("SELECT 1")
 
-    # Load sqlite-vec C extension for vector similarity search
-    await db.enable_load_extension(True)
-    await db.load_extension(sqlite_vec.loadable_path())
-    await db.enable_load_extension(False)  # re-disable for security
+        # Load sqlite-vec C extension for vector similarity search
+        await db.enable_load_extension(True)
+        await db.load_extension(sqlite_vec.loadable_path())
+        await db.enable_load_extension(False)  # re-disable for security
 
-    # Apply all PRAGMAs
-    for pragma in PRAGMAS:
-        await db.execute(pragma)
+        # Apply all PRAGMAs
+        for pragma in PRAGMAS:
+            await db.execute(pragma)
+    except BaseException:
+        await db.close()
+        raise
 
     await logger.ainfo("database_connected", db_path=db_path, journal_mode="WAL")
     return db

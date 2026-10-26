@@ -105,15 +105,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize database tables
     db = await get_db(db_path)
-    await init_tables(db, db_path)
-    from maidere.core.db import get_setting
+    try:
+        await init_tables(db, db_path)
+        from maidere.core.db import get_setting
 
-    stored_prompt = await get_setting(db, "system_prompt")
-    if stored_prompt:
-        from maidere.core.agent import set_custom_system_prompt
+        stored_prompt = await get_setting(db, "system_prompt")
+        if stored_prompt:
+            from maidere.core.agent import set_custom_system_prompt
 
-        set_custom_system_prompt(stored_prompt)
-    await db.close()
+            set_custom_system_prompt(stored_prompt)
+    finally:
+        await db.close()
 
     # Reconcile Tier 2 Auto-Memory index and initialize Tier 1 rules
     from maidere.core.memory_tiers import load_instruction_memory, reconcile_memory_index

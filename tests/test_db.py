@@ -116,6 +116,21 @@ class TestDatabaseAndConcurrency(unittest.IsolatedAsyncioTestCase):
             await db.close()
             await close_shared_connections()
 
+    async def test_get_db_closes_connection_on_setup_failure(self):
+        """If extension loading or PRAGMA setup fails, get_db closes the connection."""
+        from unittest.mock import AsyncMock, patch
+
+        fake_conn = AsyncMock()
+        fake_conn.execute = AsyncMock(side_effect=[None, RuntimeError("pragma failed")])
+
+        with (
+            patch("maidere.core.db.aiosqlite.connect", AsyncMock(return_value=fake_conn)),
+            self.assertRaises(RuntimeError),
+        ):
+            await get_db(self.temp_db_path)
+
+        fake_conn.close.assert_awaited_once()
+
 
 if __name__ == "__main__":
     unittest.main()
