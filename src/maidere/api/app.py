@@ -141,7 +141,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     else:
         await log.awarn(
             "api_auth_disabled",
-            detail="API_AUTH_ENABLED=false: anyone who can reach this port can run maidere.tools.",
+            detail="API_AUTH_ENABLED=false: anyone who can reach this port can run tools.",
         )
     # Report which tool sandbox is in effect; restricted mode is a weaker guarantee.
     from maidere.tools.sandbox import describe as describe_sandbox

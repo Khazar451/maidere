@@ -18,7 +18,7 @@ from maidere.tools.base import BaseTool
 
 logger = structlog.get_logger()
 
-GITHUB_API_BASE = "https://maidere.api.github.com"
+GITHUB_API_BASE = "https://api.github.com"
 DEFAULT_TIMEOUT = 15.0
 
 

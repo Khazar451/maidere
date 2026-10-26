@@ -1,4 +1,4 @@
-"""Base tool interface for Maidere maidere.tools."""
+"""Base tool interface for Maidere tools."""
 
 from abc import ABC, abstractmethod
 from typing import Any
@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 
 class BaseTool(ABC, BaseModel):
-    """Abstract base class for Maidere agent maidere.tools."""
+    """Abstract base class for Maidere agent tools."""
 
     name: str
     description: str

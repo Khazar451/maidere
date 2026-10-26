@@ -2,15 +2,16 @@
 
 import base64
 import unittest
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
 
-from maidere.tools.github import GitHubTool
+from maidere.tools.github import GITHUB_API_BASE, GitHubTool
 from maidere.tools.registry import get_tool
 
 
-def _make_response(status_code: int = 200, json_data: any = None, text: str = "") -> MagicMock:
+def _make_response(status_code: int = 200, json_data: Any = None, text: str = "") -> MagicMock:
     """Create a mock httpx.Response object with synchronous methods."""
     resp = MagicMock()
     resp.status_code = status_code
@@ -278,7 +279,8 @@ class TestGitHubTool(unittest.IsolatedAsyncioTestCase):
     @patch("httpx.AsyncClient.get")
     async def test_401_unauthorized(self, mock_get):
         """Test error handling on 401 Unauthorized."""
-        req = httpx.Request("GET", "https://maidere.api.github.com/repos/test/test")
+        self.assertEqual(GITHUB_API_BASE, "https://api.github.com")
+        req = httpx.Request("GET", "https://api.github.com/repos/test/test")
         resp = httpx.Response(status_code=401, request=req)
         mock_get.side_effect = httpx.HTTPStatusError("Unauthorized", request=req, response=resp)
 
@@ -288,7 +290,7 @@ class TestGitHubTool(unittest.IsolatedAsyncioTestCase):
     @patch("httpx.AsyncClient.get")
     async def test_404_not_found(self, mock_get):
         """Test error handling on 404 Not Found."""
-        req = httpx.Request("GET", "https://maidere.api.github.com/repos/test/test")
+        req = httpx.Request("GET", "https://api.github.com/repos/test/test")
         resp = httpx.Response(status_code=404, request=req)
         mock_get.side_effect = httpx.HTTPStatusError("Not Found", request=req, response=resp)
 
