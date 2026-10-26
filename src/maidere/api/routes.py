@@ -677,6 +677,17 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 ai_message = all_messages[-1]
                 response_text = ai_message.content if hasattr(ai_message, "content") else str(ai_message)
 
+                try:
+                    from maidere.core.memory_tiers import run_session_extraction
+
+                    extraction_task = asyncio.create_task(
+                        run_session_extraction(thread_id, [HumanMessage(content=message_text), ai_message])
+                    )
+                    _background_tasks.add(extraction_task)
+                    extraction_task.add_done_callback(_background_tasks.discard)
+                except Exception as e:
+                    await logger.awarn("session_extraction_failed", error=str(e))
+
                 await safe_ws_send(
                     {
                         "type": "response",
@@ -798,11 +809,14 @@ async def fork_thread(thread_id: str, from_message: int | None = None) -> dict[s
 
     state = await _graph.aget_state(config_old)
     messages = state.values.get("messages", [])
-    if from_message is not None and from_message > 0:
+    if from_message is not None and from_message >= 0:
         messages = messages[:from_message]
 
     if messages:
-        await _graph.aupdate_state(config_new, {"messages": messages})
+        new_state: dict[str, Any] = {"messages": messages}
+        if state.values.get("image_history"):
+            new_state["image_history"] = list(state.values["image_history"])
+        await _graph.aupdate_state(config_new, new_state)
         await update_thread_metadata_and_title(new_thread_id, messages)
 
     return {"status": "forked", "new_thread_id": new_thread_id, "message_count": len(messages)}
@@ -982,6 +996,19 @@ async def get_obsidian_vault() -> dict[str, Any]:
 
     vpath, vname = get_obsidian_vault_info()
     return {"vault_path": vpath, "vault_name": vname}
+
+
+@router.get("/scheduler/tasks")
+async def get_scheduler_tasks() -> dict[str, Any]:
+    """List active scheduled tasks and reminders."""
+    from maidere.core.scheduler import list_scheduled_jobs
+
+    try:
+        tasks = list_scheduled_jobs()
+    except Exception as e:
+        await logger.awarn("scheduler_tasks_list_failed", error=str(e))
+        tasks = []
+    return {"tasks": tasks}
 
 
 @router.post("/obsidian/open")

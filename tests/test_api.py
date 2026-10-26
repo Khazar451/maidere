@@ -216,6 +216,22 @@ class TestAPIEndpoints(unittest.IsolatedAsyncioTestCase):
             sys_msg = next(m for m in first_call_args if m.get("role") == "system")
             self.assertIn("alex", sys_msg["content"])
 
+    def test_scheduler_tasks_endpoint(self):
+        """GET /scheduler/tasks returns active scheduled jobs list."""
+        fake_jobs = [
+            {
+                "id": "daily-digest",
+                "name": "daily-digest",
+                "next_run_time": "2026-10-27T09:00:00+00:00",
+                "cron_expression": "cron[hour='9']",
+                "prompt": "Summarize AI news",
+            }
+        ]
+        with patch("maidere.core.scheduler.list_scheduled_jobs", return_value=fake_jobs):
+            res = self.client.get("/scheduler/tasks")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["tasks"], fake_jobs)
+
 
 if __name__ == "__main__":
     unittest.main()

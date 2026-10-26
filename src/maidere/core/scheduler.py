@@ -7,7 +7,7 @@ Supports:
 - Persistent storage across restarts in db/maidere.db
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -35,7 +35,7 @@ async def execute_scheduled_task(task_name: str, prompt: str) -> None:
         try:
             await store_memory(
                 db,
-                content=f"[Scheduled Task: {task_name}] Prompt: {prompt} triggered at {datetime.now().isoformat()}",
+                content=f"[Scheduled Task: {task_name}] Prompt: {prompt} triggered at {datetime.now(UTC).isoformat()}",
                 session_id="scheduled-jobs",
             )
         finally:
@@ -134,11 +134,16 @@ def list_scheduled_jobs(db_path: str | None = None) -> list[dict[str, Any]]:
     results = []
     for job in jobs:
         next_run = job.next_run_time.isoformat() if job.next_run_time else "N/A"
+        job_args: list[Any] = list(getattr(job, "args", None) or [])
+        prompt = str(job_args[1]) if len(job_args) > 1 else ""
+        trigger_str = str(job.trigger) if getattr(job, "trigger", None) else "interval"
         results.append(
             {
                 "id": job.id,
                 "name": job.name,
                 "next_run_time": next_run,
+                "cron_expression": trigger_str,
+                "prompt": prompt,
             }
         )
     return results

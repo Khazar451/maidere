@@ -11,18 +11,23 @@
   --bg-input: #151518;
   --bg-terminal: #0c0c0e;
   --bg-badge: #27272a;
+  --bg-subtle: #18181b;
+  --bg-hover: #27272a;
   
   --border-subtle: #27272a;
+  --border-medium: #3f3f46;
   --border-muted: rgba(255, 255, 255, 0.08);
   --border-focus: #3b82f6;
 
   --text-primary: #f4f4f5;
+  --text-normal: #e4e4e7;
   --text-secondary: #d4d4d8;
   --text-muted: #a1a1aa;
   --text-dim: #71717a;
 
   --accent-blue: #3b82f6;
   --accent-blue-bg: rgba(59, 130, 246, 0.12);
+  --accent-cyan: #06b6d4;
   --accent-emerald: #10b981;
   --accent-emerald-bg: rgba(16, 185, 129, 0.12);
   --accent-purple: #a855f7;

@@ -1243,6 +1243,10 @@
           setRunningTask(null);
           finishGeneration();
           showTokenPrompt('The backend rejected the saved access token. Paste the current token to continue.');
+        } else if (wsSuccess && state.isGenerating) {
+          agentGroup.working.style.display = 'none';
+          setRunningTask(null);
+          finishGeneration();
         }
       };
 
@@ -1543,8 +1547,25 @@
     });
   }
 
-  function exportActiveThread(format = 'md') {
-    window.location.href = `/threads/${state.activeThreadId}/export?format=${format}`;
+  async function exportActiveThread(format = 'md') {
+    if (!state.activeThreadId) return;
+    try {
+      const res = await apiFetch(
+        `/threads/${encodeURIComponent(state.activeThreadId)}/export?format=${encodeURIComponent(format)}`
+      );
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `maidere_thread_${state.activeThreadId.slice(0, 8)}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
   }
 
   async function openMemoriesModal() {
