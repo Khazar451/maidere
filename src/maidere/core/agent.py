@@ -175,10 +175,9 @@ def trim_messages_node(state: AgentState) -> dict:
 
         if latest_query:
             # Build context text from the last few messages BEFORE the current query
-            context_parts = []
-            for msg in non_system[:-1]:  # exclude the latest message (current query)
-                if hasattr(msg, "content") and isinstance(msg.content, str):
-                    context_parts.append(msg.content)
+            context_parts = [
+                msg.content for msg in non_system[:-1] if hasattr(msg, "content") and isinstance(msg.content, str)
+            ]
             context_text = " ".join(context_parts[-4:])  # last 4 messages of context
 
             if detect_topic_change(latest_query, context_text):
@@ -188,11 +187,8 @@ def trim_messages_node(state: AgentState) -> dict:
                     action="pruning_prior_context",
                 )
                 # Keep only the last 2 non-system messages (typically: previous AI answer + current query)
-                to_keep = set(id(m) for m in non_system[-2:])
-                for msg in non_system:
-                    if id(msg) not in to_keep:
-                        # The add_messages reducer assigns every stored message an id.
-                        removals.append(RemoveMessage(id=cast(str, msg.id)))
+                to_keep = {id(m) for m in non_system[-2:]}
+                removals.extend(RemoveMessage(id=cast(str, msg.id)) for msg in non_system if id(msg) not in to_keep)
 
                 if removals:
                     logger.info(
@@ -354,8 +350,8 @@ async def emit_agent_event(thread_id: str | None, event: dict) -> None:
             res = callback(event)
             if asyncio.iscoroutine(res):
                 await res
-        except Exception:
-            pass
+        except Exception as exc:
+            await logger.adebug("agent_event_callback_failed", thread_id=thread_id, error=str(exc))
 
 
 def is_research_intent(query: str) -> bool:
@@ -809,8 +805,8 @@ def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]
                 try:
                     args_dict = json.loads(raw_args)
                     calls.append({"name": actual_tool_name, "args": args_dict, "id": str(uuid.uuid4())})
-                except Exception:
-                    pass
+                except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                    logger.debug("text_tool_call_json_parse_failed", error=str(exc))
             elif raw_args.strip():
                 clean_arg = raw_args.strip().strip("\"'")
                 calls.append(
@@ -843,8 +839,8 @@ def extract_text_tool_calls(text: str, available_tools: list[str]) -> list[dict]
                         "id": str(uuid.uuid4()),
                     }
                 )
-        except Exception:
-            pass
+        except (json.JSONDecodeError, TypeError, ValueError, AttributeError) as exc:
+            logger.debug("fenced_tool_call_json_parse_failed", error=str(exc))
 
     return calls
 
@@ -1007,7 +1003,7 @@ def restore_markdown_urls(content: str, messages: list[Any]) -> str:
     def replace_stripped_url(match: re.Match) -> str:
         prefix = match.group(1) or ""
         raw_text = match.group(2).strip().strip("[]\"'")
-        if raw_text.startswith("http://") or raw_text.startswith("https://"):
+        if raw_text.startswith(("http://", "https://")):
             return f"{prefix}[{raw_text}]({raw_text})"
         low = raw_text.lower()
         if low in known_links:
@@ -1658,8 +1654,8 @@ async def think_node(state: AgentState) -> dict:
                 for i in range(0, len(ai_content), chunk_size):
                     await callback(ai_content[i : i + chunk_size])
                     await asyncio.sleep(0.01)
-            except Exception:
-                pass
+            except Exception as exc:
+                await logger.adebug("stream_callback_failed", thread_id=state.get("thread_id"), error=str(exc))
 
     return {
         "messages": [
@@ -1798,9 +1794,7 @@ async def evaluate_node(state: AgentState) -> dict:
     for tm in recent_tool_msgs:
         content_str = str(tm.content)
         if (
-            content_str.startswith("Error:")
-            or content_str.startswith("[Search Error:")
-            or content_str.startswith("[Search Unavailable:")
+            content_str.startswith(("Error:", "[Search Error:", "[Search Unavailable:"))
             or "Error executing tool" in content_str
         ):
             has_error = True
@@ -1830,9 +1824,7 @@ async def evaluate_node(state: AgentState) -> dict:
             if isinstance(msg, ToolMessage):
                 content_str = str(msg.content)
                 if (
-                    content_str.startswith("Error:")
-                    or content_str.startswith("[Search Error:")
-                    or content_str.startswith("[Search Unavailable:")
+                    content_str.startswith(("Error:", "[Search Error:", "[Search Unavailable:"))
                     or "Error executing tool" in content_str
                 ):
                     consecutive_errors += 1
@@ -1925,10 +1917,11 @@ async def verify_node(state: AgentState) -> dict:
         },
     )
 
-    tool_evidence = []
-    for msg in messages:
-        if isinstance(msg, ToolMessage) and msg.content:
-            tool_evidence.append(f"Tool {msg.name}: {str(msg.content)[:1000]}")
+    tool_evidence = [
+        f"Tool {msg.name}: {str(msg.content)[:1000]}"
+        for msg in messages
+        if isinstance(msg, ToolMessage) and msg.content
+    ]
 
     evidence_str = (
         "\n---\n".join(tool_evidence)

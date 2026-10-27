@@ -646,7 +646,7 @@ class TestClaudeCodeSubagents(unittest.TestCase):
             ):
                 tool_inst = AsyncMock()
                 tool_inst.execute.return_value = "Zen 5 features 16 cores and +16% IPC"
-                tool_inst.to_ollama_schema.return_value = {"type": "function", "function": {"name": "web_search"}}
+                tool_inst.to_ollama_schema = lambda: {"type": "function", "function": {"name": "web_search"}}
                 mock_get_tool.return_value = tool_inst
 
                 asyncio.run(run_subagent("Research AMD 2026", subagent_index=1, total_subagents=1))

@@ -394,9 +394,12 @@ def generate_handoff_brief(
                 citations.add(f"[{title}]({url})")
 
         # Check for lines containing quantitative figures
-        if any(char in line for char in ["$", "%", "ms", "GB", "TB", "GHz", "TDP", "FLOPS", "million", "billion"]):
-            if len(metrics) < 4 and len(line) < 200:
-                metrics.append(line.lstrip("-*• ").strip())
+        if (
+            any(char in line for char in ["$", "%", "ms", "GB", "TB", "GHz", "TDP", "FLOPS", "million", "billion"])
+            and len(metrics) < 4
+            and len(line) < 200
+        ):
+            metrics.append(line.lstrip("-*• ").strip())
 
         # Check for bullet points
         if line.startswith(("-", "*", "•", "1.", "2.", "3.", "4.", "5.")):
@@ -775,20 +778,24 @@ async def run_subagent(
     final_content = ""
     progress = _callback_for(thread_id)
 
-    # Emit progress: started
-    if progress:
+    async def _emit_progress(payload: dict[str, Any]) -> None:
+        if not progress:
+            return
         try:
-            await progress(
-                {
-                    "type": "subagent_started",
-                    "task": task,
-                    "subagent_type": agent_def.name,
-                    "index": subagent_index,
-                    "total": total_subagents,
-                }
-            )
-        except Exception:
-            pass
+            await progress(payload)
+        except Exception as exc:
+            await logger.adebug("subagent_progress_callback_failed", error=str(exc))
+
+    # Emit progress: started
+    await _emit_progress(
+        {
+            "type": "subagent_started",
+            "task": task,
+            "subagent_type": agent_def.name,
+            "index": subagent_index,
+            "total": total_subagents,
+        }
+    )
 
     try:
         for turn in range(effective_max_turns):
@@ -824,20 +831,16 @@ async def run_subagent(
                         tool_args = {"query": tool_args}
 
                 # Emit progress: tool started
-                if progress:
-                    try:
-                        await progress(
-                            {
-                                "type": "subagent_tool_started",
-                                "tool_name": tool_name,
-                                "args": tool_args,
-                                "subagent_type": agent_def.name,
-                                "subagent_index": subagent_index,
-                                "total": total_subagents,
-                            }
-                        )
-                    except Exception:
-                        pass
+                await _emit_progress(
+                    {
+                        "type": "subagent_tool_started",
+                        "tool_name": tool_name,
+                        "args": tool_args,
+                        "subagent_type": agent_def.name,
+                        "subagent_index": subagent_index,
+                        "total": total_subagents,
+                    }
+                )
 
                 tool_start = time.perf_counter()
 
@@ -915,25 +918,21 @@ async def run_subagent(
                 messages.append({"role": "tool", "content": str(result)})
 
                 # Emit progress: tool executed
-                if progress:
-                    try:
-                        res_str = str(result)
-                        preview = res_str[:120].replace("\n", " ").strip()
-                        await progress(
-                            {
-                                "type": "subagent_tool",
-                                "tool_name": tool_name,
-                                "args": tool_args,
-                                "subagent_type": agent_def.name,
-                                "subagent_index": subagent_index,
-                                "total": total_subagents,
-                                "duration_ms": tool_duration_ms,
-                                "success": tool_success,
-                                "result_preview": preview,
-                            }
-                        )
-                    except Exception:
-                        pass
+                res_str = str(result)
+                preview = res_str[:120].replace("\n", " ").strip()
+                await _emit_progress(
+                    {
+                        "type": "subagent_tool",
+                        "tool_name": tool_name,
+                        "args": tool_args,
+                        "subagent_type": agent_def.name,
+                        "subagent_index": subagent_index,
+                        "total": total_subagents,
+                        "duration_ms": tool_duration_ms,
+                        "success": tool_success,
+                        "result_preview": preview,
+                    }
+                )
 
             # Context guard: if approaching limit, force conclusion
             total_chars = sum(len(m.get("content", "") or "") for m in messages)
@@ -993,17 +992,13 @@ async def run_subagent(
         # Store result in vector memory with strict tagging (user requirement)
         await _store_subagent_memory(task, final_content, subagent_type=agent_def.name)
 
-        if progress:
-            try:
-                await progress(
-                    {
-                        "type": "agent_log",
-                        "text": f"[MEMORY] Sub-Agent [{agent_def.name}] persisted research findings to vector database",
-                        "level": "info",
-                    }
-                )
-            except Exception:
-                pass
+        await _emit_progress(
+            {
+                "type": "agent_log",
+                "text": f"[MEMORY] Sub-Agent [{agent_def.name}] persisted research findings to vector database",
+                "level": "info",
+            }
+        )
 
         await logger.ainfo(
             "subagent_completed",
@@ -1017,22 +1012,18 @@ async def run_subagent(
         )
 
         # Emit progress: completed
-        if progress:
-            try:
-                await progress(
-                    {
-                        "type": "subagent_completed",
-                        "index": subagent_index,
-                        "total": total_subagents,
-                        "subagent_type": agent_def.name,
-                        "task": task[:100],
-                        "duration_ms": duration_ms,
-                        "summary_preview": final_content[:150] if final_content else "",
-                        "artifact_path": str(artifact_file),
-                    }
-                )
-            except Exception:
-                pass
+        await _emit_progress(
+            {
+                "type": "subagent_completed",
+                "index": subagent_index,
+                "total": total_subagents,
+                "subagent_type": agent_def.name,
+                "task": task[:100],
+                "duration_ms": duration_ms,
+                "summary_preview": final_content[:150] if final_content else "",
+                "artifact_path": str(artifact_file),
+            }
+        )
 
         return SubAgentResult(
             task=task,

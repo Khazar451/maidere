@@ -145,8 +145,8 @@ async def get_available_models(force_refresh: bool = False) -> list[str]:
                     _MODELS_CACHE = models
                     _LAST_CACHE_TIME = now
                     local_models = models
-    except Exception:
-        pass
+    except Exception as exc:
+        await logger.adebug("ollama_tags_fetch_failed", error=str(exc))
 
     if not local_models:
         thinking_model = getattr(settings, "ollama_thinking_model", "deepseek-r1:7b")
@@ -216,9 +216,12 @@ async def select_model(
     thinking_model = getattr(settings, "ollama_thinking_model", "deepseek-r1:7b")
 
     if deep_reasoning:
-        if requested_model and requested_model.lower() not in ("auto", "none", ""):
-            if requested_model.lower() != settings.ollama_model.lower():
-                return requested_model, "user_override_deep_reasoning", TaskComplexity.REASONING
+        if (
+            requested_model
+            and requested_model.lower() not in ("auto", "none", "")
+            and requested_model.lower() != settings.ollama_model.lower()
+        ):
+            return requested_model, "user_override_deep_reasoning", TaskComplexity.REASONING
         matched = None
         if any(thinking_model in m or "deepseek-r1" in m for m in available):
             matched = next((m for m in available if thinking_model in m or "deepseek-r1" in m), None)
@@ -230,9 +233,12 @@ async def select_model(
         return primary, "deep_reasoning_primary", TaskComplexity.REASONING
 
     if thinking_mode:
-        if requested_model and requested_model.lower() not in ("auto", "none", ""):
-            if requested_model.lower() != settings.ollama_model.lower():
-                return requested_model, "user_override_thinking", TaskComplexity.REASONING
+        if (
+            requested_model
+            and requested_model.lower() not in ("auto", "none", "")
+            and requested_model.lower() != settings.ollama_model.lower()
+        ):
+            return requested_model, "user_override_thinking", TaskComplexity.REASONING
         matched = None
         if any(thinking_model in m or "deepseek-r1" in m for m in available):
             matched = next((m for m in available if thinking_model in m or "deepseek-r1" in m), None)
