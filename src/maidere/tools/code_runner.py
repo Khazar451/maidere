@@ -10,6 +10,7 @@ Executes Python code in an isolated subprocess via ``maidere.tools.sandbox``:
 """
 
 import asyncio
+import contextlib
 import sys
 import uuid
 from typing import Any
@@ -82,9 +83,7 @@ class CodeRunnerTool(BaseTool):
             except Exception as e:
                 return f"Error executing Python snippet: {e!s}"
             finally:
-                try:
+                with contextlib.suppress(OSError):
                     script_file.unlink(missing_ok=True)
-                except Exception:
-                    pass
 
         return await asyncio.to_thread(_run)

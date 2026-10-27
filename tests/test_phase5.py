@@ -85,12 +85,10 @@ class TestMigrationsAndConnections(unittest.IsolatedAsyncioTestCase):
             await db.close()
 
     async def test_file_connections_are_reused_and_memory_is_not(self):
-        async with get_db_context(self.path) as first:
-            async with get_db_context(self.path) as second:
-                self.assertIs(first, second)
-        async with get_db_context(":memory:") as left:
-            async with get_db_context(":memory:") as right:
-                self.assertIsNot(left, right)
+        async with get_db_context(self.path) as first, get_db_context(self.path) as second:
+            self.assertIs(first, second)
+        async with get_db_context(":memory:") as left, get_db_context(":memory:") as right:
+            self.assertIsNot(left, right)
 
     async def test_system_prompt_round_trip(self):
         db = await get_db(self.path)

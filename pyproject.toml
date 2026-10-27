@@ -61,24 +61,13 @@ line-length = 120
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-# Bug-finding and hygiene rules. BLE001/S110 (bare except, try/except/pass)
-# stay out until the error-handling pass replaces them with logged, typed failures.
-select = ["E", "F", "I", "B", "UP", "RUF", "SIM", "PIE", "C4", "PERF", "G", "FURB", "ISC"]
+# Bug-finding and hygiene rules, including S110 to forbid silent try/except/pass blocks.
+select = ["E", "F", "I", "B", "UP", "RUF", "SIM", "PIE", "C4", "PERF", "G", "FURB", "ISC", "S110"]
 ignore = [
     "E501",    # prompt strings are long on purpose
     "RUF001",  # curly quotes and dashes inside prompt text are intentional
     "RUF005",  # list concatenation reads more clearly than splat at these call sites
     "RUF012",  # tool models keep mutable defaults for their JSON-schema fields
-    "SIM102",
-    "SIM103",
-    "SIM105",  # try/except/pass stays until the error-handling pass logs those sites
-    "SIM108",
-    "SIM117",
-    "SIM118",
-    "PIE810",
-    "PERF102",
-    "PERF401",
-    "C401",
     "ISC004",  # joining those strings would change the fixture data
 ]
 

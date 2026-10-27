@@ -116,10 +116,9 @@ class TestRunDesktop(unittest.TestCase):
             patch.object(launcher, "is_server_healthy", return_value=True),
             patch.object(launcher, "launch_window", return_value=None),
             patch.object(launcher, "start_server_process"),
+            patch("time.sleep", side_effect=KeyboardInterrupt),
         ):
-            # window is None and no server of ours -> would loop forever; break via Ctrl+C
-            with patch("time.sleep", side_effect=KeyboardInterrupt):
-                launcher.run_desktop()
+            launcher.run_desktop()
         self.assertIn(signal.SIGINT, self.handlers)
         self.assertIn(signal.SIGTERM, self.handlers)
 

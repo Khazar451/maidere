@@ -28,7 +28,7 @@ async def load_skill(skill_name: str) -> str:
                 break
 
     if not skill:
-        available = ", ".join(f"'{k}'" for k in skills.keys())
+        available = ", ".join(f"'{k}'" for k in skills)
         return f"Error: Skill '{skill_name}' not found. Available skills: {available or 'None'}"
 
     return f"=== LOADED SKILL: {skill.name} ===\n{skill.instructions}\n================================"

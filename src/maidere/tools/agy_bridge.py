@@ -245,9 +245,7 @@ class AgyStafferTool(BaseTool):
         cmd = [agy_binary, "-p", full_prompt]
         if extra_args and isinstance(extra_args, list):
             # Only allow sanitized string flags
-            for arg in extra_args:
-                if isinstance(arg, str) and not arg.startswith(";"):
-                    cmd.append(arg)
+            cmd.extend(arg for arg in extra_args if isinstance(arg, str) and not arg.startswith(";"))
 
         await logger.ainfo(
             "agy_staffer_executing",

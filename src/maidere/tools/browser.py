@@ -52,8 +52,8 @@ async def browse_url(url: str, timeout_ms: int = DEFAULT_TIMEOUT_MS) -> str:
                         const junk = document.querySelectorAll('nav, header, footer, script, style, noscript, svg, [role="navigation"], [role="banner"], [role="contentinfo"]');
                         junk.forEach(el => el.remove());
                     }""")
-                except Exception:
-                    pass
+                except Exception as e:
+                    await logger.adebug("browser_boilerplate_strip_failed", error=str(e))
 
                 # Select main article container or fall back to body
                 main_el = await page.query_selector(

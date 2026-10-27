@@ -337,28 +337,27 @@ class TestCloudLLM(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(settings, "nvidia_api_key", "nvapi-test-key"),
             patch.object(settings, "cloud_model", "nvidia/nemotron-3-ultra-550b-a55b"),
-        ):
-            # When requested_model is "auto" and thinking_mode is True, and no local deepseek exists:
-            with patch(
+            patch(
                 "maidere.core.router.get_available_models",
                 return_value=["nvidia/nemotron-3-ultra-550b-a55b", "qwen2.5:7b-instruct"],
-            ):
-                model, _reason, complexity = await select_model(
-                    requested_model="auto",
-                    query="Prove Pythagorean theorem",
-                    thinking_mode=True,
-                )
-                self.assertEqual(model, "nvidia/nemotron-3-ultra-550b-a55b")
-                self.assertEqual(complexity, TaskComplexity.REASONING)
+            ),
+        ):
+            model, _reason, complexity = await select_model(
+                requested_model="auto",
+                query="Prove Pythagorean theorem",
+                thinking_mode=True,
+            )
+            self.assertEqual(model, "nvidia/nemotron-3-ultra-550b-a55b")
+            self.assertEqual(complexity, TaskComplexity.REASONING)
 
-                # And for deep reasoning
-                model2, _reason2, complexity2 = await select_model(
-                    requested_model="auto",
-                    query="Analyze logic paradox",
-                    deep_reasoning=True,
-                )
-                self.assertEqual(model2, "nvidia/nemotron-3-ultra-550b-a55b")
-                self.assertEqual(complexity2, TaskComplexity.REASONING)
+            # And for deep reasoning
+            model2, _reason2, complexity2 = await select_model(
+                requested_model="auto",
+                query="Analyze logic paradox",
+                deep_reasoning=True,
+            )
+            self.assertEqual(model2, "nvidia/nemotron-3-ultra-550b-a55b")
+            self.assertEqual(complexity2, TaskComplexity.REASONING)
 
 
 if __name__ == "__main__":

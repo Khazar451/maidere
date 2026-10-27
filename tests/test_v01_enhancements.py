@@ -69,9 +69,7 @@ class TestV01Enhancements(unittest.IsolatedAsyncioTestCase):
         mock_stream_ctx.__aenter__.return_value = mock_resp
 
         with patch("httpx.AsyncClient.stream", return_value=mock_stream_ctx):
-            collected = []
-            async for chunk in chat_stream([{"role": "user", "content": "Hi"}]):
-                collected.append(chunk)
+            collected = [chunk async for chunk in chat_stream([{"role": "user", "content": "Hi"}])]
 
             self.assertEqual(len(collected), 2)
             self.assertEqual(collected[0]["message"]["content"], "Hello ")

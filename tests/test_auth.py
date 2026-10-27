@@ -168,9 +168,11 @@ class TestWebSocketAuthentication(unittest.TestCase):
             self.assertEqual(ctx.exception.code, 4401)
 
     def test_disallowed_origin_rejected_at_handshake(self):
-        with self.assertRaises(WebSocketDisconnect) as ctx:
-            with self.client.websocket_connect("/ws/chat", headers={"Origin": "http://evil.example"}):
-                pass
+        with (
+            self.assertRaises(WebSocketDisconnect) as ctx,
+            self.client.websocket_connect("/ws/chat", headers={"Origin": "http://evil.example"}),
+        ):
+            pass
         self.assertEqual(ctx.exception.code, 4403)
 
     def test_allowed_origin_accepted(self):

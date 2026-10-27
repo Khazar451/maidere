@@ -7,6 +7,7 @@ and live-reloading continuous development (--dev).
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import signal
@@ -171,10 +172,7 @@ def launch_window(url: str, title: str = "Maidere", dev_mode: bool = False) -> s
     engine_name, cmd_prefix = find_browser_engine()
     if engine_name and cmd_prefix:
         print(f"[DESKTOP] Launching standalone window using {engine_name}...")
-        if engine_name == "firefox":
-            cmd = cmd_prefix + [url]
-        else:
-            cmd = cmd_prefix + [f"--app={url}"]
+        cmd = cmd_prefix + [url] if engine_name == "firefox" else cmd_prefix + [f"--app={url}"]
 
         return subprocess.Popen(
             cmd,
@@ -251,10 +249,8 @@ def run_desktop(
         """Stop the window and, if we started it, the backend. Does not exit."""
         print("\n[DESKTOP] Shutting down Maidere desktop session...")
         if window_proc and window_proc.poll() is None:
-            try:
+            with contextlib.suppress(OSError):
                 window_proc.terminate()
-            except Exception:
-                pass
 
         if started_our_server and server_proc and server_proc.poll() is None:
             print("[DESKTOP] Stopping backend server...")
@@ -287,12 +283,10 @@ def run_desktop(
 
     if server_only:
         print("[DESKTOP] Running in server-only headless mode. Press Ctrl+C to stop.")
-        try:
+        with contextlib.suppress(Exception):
             from maidere.core.tokens import token_file_path
 
             print(f"[DESKTOP] API token file: {token_file_path()} (send as 'Authorization: Bearer <token>')")
-        except Exception:
-            pass
         try:
             while True:
                 time.sleep(1.0)

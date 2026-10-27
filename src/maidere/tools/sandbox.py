@@ -380,7 +380,7 @@ _PATH_FLAG_PREFIXES = ("--work-tree=", "--git-dir=", "--output=", "-o=")
 
 
 def _looks_like_path(arg: str) -> bool:
-    return arg.startswith(("/", "~")) or ".." in arg.split("/") or arg.startswith("./..")
+    return arg.startswith(("/", "~", "./..")) or ".." in arg.split("/")
 
 
 def _path_inside_workspace(arg: str, workspace: Path) -> bool:
