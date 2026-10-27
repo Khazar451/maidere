@@ -75,8 +75,8 @@ def _get_model() -> TextEmbedding | FallbackEmbedding:
             _model = TextEmbedding(model_name=settings.embedding_model, local_files_only=True)
             logger.info("embedding_model_loaded", model=settings.embedding_model)
             return _model
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("embedding_local_cache_miss", model=settings.embedding_model, error=str(exc))
 
         if os.environ.get("HF_HUB_OFFLINE") in ("1", "TRUE", "true", "yes", "ON"):
             logger.info("embedding_model_offline_fallback", model=settings.embedding_model)

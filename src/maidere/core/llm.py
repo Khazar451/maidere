@@ -25,9 +25,7 @@ def is_cloud_model(model: str | None) -> bool:
     if m.startswith(("nvidia/", "meta/", "openai/", "mistralai/", "deepseek-ai/", "google/")):
         return True
     configured = (getattr(settings, "cloud_model", "") or "").strip().lower()
-    if configured and m == configured:
-        return True
-    return False
+    return bool(configured and m == configured)
 
 
 _TOOL_SUPPORT: dict[str, bool] = {}
@@ -246,8 +244,8 @@ async def _chat_cloud(
                                 await on_token("<think>\n")
                             try:
                                 await on_token(reasoning_token)
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                await logger.adebug("on_token_callback_failed", error=str(exc))
 
                         # 2. Main content tokens
                         content_token = delta.get("content")
@@ -258,8 +256,8 @@ async def _chat_cloud(
                             content_chunks.append(content_token)
                             try:
                                 await on_token(content_token)
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                await logger.adebug("on_token_callback_failed", error=str(exc))
 
                         # 3. Tool calls delta
                         tc_delta = delta.get("tool_calls")
@@ -285,8 +283,8 @@ async def _chat_cloud(
                 if in_thinking:
                     try:
                         await on_token("\n</think>\n")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        await logger.adebug("on_token_callback_failed", error=str(exc))
 
                 full_content = ""
                 if reasoning_chunks:
@@ -460,8 +458,8 @@ async def chat(
                             content_chunks.append(token)
                             try:
                                 await on_token(token)
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                await logger.adebug("on_token_callback_failed", error=str(exc))
                         if msg.get("tool_calls"):
                             tool_calls.extend(msg["tool_calls"])
                         if chunk.get("done"):

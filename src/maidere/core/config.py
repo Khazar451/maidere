@@ -183,6 +183,7 @@ def get_obsidian_vault_info() -> tuple[str, str]:
     Returns:
         (vault_path, vault_name) as absolute path and string name.
     """
+    import contextlib
     import json
     from pathlib import Path
 
@@ -199,16 +200,14 @@ def get_obsidian_vault_info() -> tuple[str, str]:
     ]
     for cfg in candidate_configs:
         if cfg.exists():
-            try:
+            with contextlib.suppress(OSError, json.JSONDecodeError, AttributeError):
                 data = json.loads(cfg.read_text(encoding="utf-8"))
                 vaults = data.get("vaults", {})
-                for _, vinfo in vaults.items():
+                for vinfo in vaults.values():
                     vpath = vinfo.get("path")
                     if vpath and Path(vpath).exists():
                         p = Path(vpath).resolve()
                         return str(p), p.name
-            except Exception:
-                pass
 
     # 3. Common fallback locations
     from maidere.paths import workspace_dir

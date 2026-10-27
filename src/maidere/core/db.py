@@ -172,8 +172,8 @@ def stop_shared_connections() -> None:
             thread = getattr(conn, "_thread", None)
             if thread is not None and thread.is_alive():
                 thread.join(timeout=2)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("shared_connection_stop_failed", error=str(exc))
     _shared.clear()
     _shared_refs.clear()
 

@@ -132,8 +132,8 @@ def read_memory_index() -> dict[str, Any]:
         initial = {"version": "1.0", "updated_at": datetime.now(UTC).isoformat(), "entries": []}
         try:
             idx_path.write_text(json.dumps(initial, indent=2), encoding="utf-8")
-        except Exception:
-            pass
+        except OSError as exc:
+            logger.debug("memory_index_init_write_failed", error=str(exc))
         return initial
 
     try:
@@ -302,8 +302,8 @@ def read_auto_memory_topic(topic: str) -> str:
                 e["last_accessed"] = time.time()
                 try:
                     get_index_path().write_text(json.dumps(idx, indent=2), encoding="utf-8")
-                except Exception:
-                    pass
+                except OSError as exc:
+                    logger.debug("memory_index_lru_write_failed", error=str(exc))
                 break
         return content
     except Exception as e:
@@ -325,8 +325,7 @@ def format_auto_memory_context() -> str:
         return ""
 
     lines = ["### Persistent Auto-Memory Index:"]
-    for e in entries[:15]:  # include top 15 most recently used
-        lines.append(f"- **{e.get('topic')}** ({e.get('category', 'project')}): {e.get('summary')}")
+    lines.extend(f"- **{e.get('topic')}** ({e.get('category', 'project')}): {e.get('summary')}" for e in entries[:15])
     return "\n".join(lines)
 
 

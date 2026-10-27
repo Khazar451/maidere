@@ -13,6 +13,7 @@ can resolve the same token before the server process starts.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import secrets
 import stat
@@ -55,10 +56,8 @@ def _write_token_file(path: Path, token: str) -> None:
         tmp_path.unlink(missing_ok=True)
         raise
     os.replace(tmp_path, path)
-    try:
+    with contextlib.suppress(OSError):
         path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    except OSError:
-        pass
 
 
 def generate_token() -> str:

@@ -227,7 +227,5 @@ def format_memories(memories: list[dict[str, Any]]) -> str:
     if not memories:
         return "No relevant memories found."
 
-    lines = []
-    for m in memories:
-        lines.append(f"- {m['content']} (saved at {m['timestamp'][:19]})")
+    lines = [f"- {m['content']} (saved at {m['timestamp'][:19]})" for m in memories]
     return "\n".join(lines)

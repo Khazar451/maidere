@@ -142,13 +142,11 @@ def match_skills(query: str) -> list[Skill]:
 
     query_lower = query.lower()
     words = set(re.findall(r"\w+", query_lower))
-    matched: list[Skill] = []
     all_skills = load_all_skills()
 
-    for skill in all_skills.values():
-        if _phrase_in_query(skill.name, query_lower, words) or any(
-            _phrase_in_query(trigger, query_lower, words) for trigger in skill.triggers
-        ):
-            matched.append(skill)
-
-    return matched
+    return [
+        skill
+        for skill in all_skills.values()
+        if _phrase_in_query(skill.name, query_lower, words)
+        or any(_phrase_in_query(trigger, query_lower, words) for trigger in skill.triggers)
+    ]

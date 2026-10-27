@@ -105,7 +105,7 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
 
     # 2. Secondary fallback: Pure-Python stream decompression
     try:
-        extracted = []
+        extracted: list[str] = []
         # Find all stream ... endstream blocks
         stream_matches = re.finditer(b"stream[\r\n]+(.*?)[\r\n]+endstream", pdf_bytes, re.DOTALL)
         for m in stream_matches:
@@ -123,11 +123,7 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
             if decompressed:
                 # Extract text inside parenthesis e.g. (Hello World) Tj or [(Hello) (World)] TJ
                 text_matches = re.findall(rb"\((.*?)\)\s*T[jJ]", decompressed)
-                for tm in text_matches:
-                    try:
-                        extracted.append(tm.decode("latin1", errors="ignore"))
-                    except Exception:
-                        pass
+                extracted.extend(tm.decode("latin1", errors="ignore") for tm in text_matches)
         joined = " ".join(extracted).strip()
         if joined:
             return joined
