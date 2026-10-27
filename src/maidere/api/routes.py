@@ -184,8 +184,8 @@ async def update_thread_metadata_and_title(
                     raw_sum = sum_resp.get("message", {}).get("content", "").strip()
                     if raw_sum:
                         summary = raw_sum
-                except Exception:
-                    pass
+                except Exception as exc:
+                    await logger.adebug("thread_summary_failed", thread_id=thread_id, error=str(exc))
 
             await db.execute(
                 """
@@ -279,9 +279,7 @@ def should_store_memory(text: str) -> bool:
         "test",
         "testing",
     )
-    if any(cleaned.startswith(p) for p in ignore_prefixes) and len(cleaned) < 35:
-        return False
-    return True
+    return not (cleaned.startswith(ignore_prefixes) and len(cleaned) < 35)
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -325,15 +323,16 @@ async def chat(request: ChatRequest) -> ChatResponse:
         state_before = await _graph.aget_state(config)
         if state_before and state_before.values:
             prior_msg_count = len(state_before.values.get("messages", []))
-    except Exception:
-        pass
+    except Exception as exc:
+        await logger.adebug("prior_state_lookup_failed", thread_id=thread_id, error=str(exc))
 
     from maidere.core.attachments import compose_turn_prompt_with_attachments
 
     incoming_attachments = list(request.attachments or [])
     if request.images:
-        for img in request.images:
-            incoming_attachments.append({"name": "screenshot.png", "type": "image/png", "data": img})
+        incoming_attachments.extend(
+            {"name": "screenshot.png", "type": "image/png", "data": img} for img in request.images
+        )
 
     composed_query, extracted_images = compose_turn_prompt_with_attachments(request.message, incoming_attachments)
 
@@ -567,8 +566,8 @@ async def websocket_chat(websocket: WebSocket) -> None:
                 try:
                     async with get_db_context(settings.db_path) as db:
                         await store_memory(db, content=message_text, session_id=thread_id)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    await logger.awarn("memory_ingest_skipped", thread_id=thread_id, error=str(exc))
 
             # Create a thread-safe send lock for WebSocket
             ws_lock = asyncio.Lock()
@@ -621,8 +620,9 @@ async def websocket_chat(websocket: WebSocket) -> None:
 
             incoming_attachments = list(data.get("attachments") or [])
             if data.get("images"):
-                for img in data.get("images"):
-                    incoming_attachments.append({"name": "screenshot.png", "type": "image/png", "data": img})
+                incoming_attachments.extend(
+                    {"name": "screenshot.png", "type": "image/png", "data": img} for img in data.get("images")
+                )
 
             composed_query, extracted_images = compose_turn_prompt_with_attachments(message_text, incoming_attachments)
 
@@ -839,10 +839,7 @@ def sanitize_upload_filename(raw: str | None) -> str:
         name = f"upload_{uuid.uuid4().hex[:8]}.bin"
     if len(name) > 120:
         stem, dot, ext = name.rpartition(".")
-        if dot and len(ext) <= 16:
-            name = stem[: 120 - len(ext) - 1] + "." + ext
-        else:
-            name = name[:120]
+        name = stem[: 120 - len(ext) - 1] + "." + ext if dot and len(ext) <= 16 else name[:120]
     return name
 
 
